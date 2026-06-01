@@ -1,0 +1,24 @@
+# ========== System ==========
+.DS_Store
+Thumbs.db
+
+# ========== Next.js Frontend (web_ui) ==========
+web_ui/node_modules/
+web_ui/.next/
+web_ui/out/
+web_ui/build/
+web_ui/.env*.local
+web_ui/npm-debug.log*
+web_ui/yarn-debug.log*
+web_ui/yarn-error.log*
+
+# ========== Android Native (android_app) ==========
+android_app/.gradle/
+android_app/build/
+android_app/app/build/
+android_app/local.properties
+android_app/.idea/
+android_app/**/*.iml
+android_app/.cxx/
+android_app/.externalNativeBuild/
+android_app/captures/
