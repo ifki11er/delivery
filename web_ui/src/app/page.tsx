@@ -110,23 +110,23 @@ export default function Home() {
 
       {/* 블루투스 프린터 테스트 섹션 */}
       <div className="mb-6 p-4 bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="flex justify-between items-center mb-3">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-gray-800">🖨️ 블루투스 프린터</h2>
-            {showToast && <span className="text-xs font-semibold text-green-600 animate-pulse">✓ 목록 갱신됨</span>}
+            <h2 className="text-lg font-bold text-gray-800 whitespace-nowrap">🖨️ 블루투스 프린터</h2>
+            {showToast && <span className="text-xs font-semibold text-green-600 animate-pulse whitespace-nowrap">✓ 목록 갱신됨</span>}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto">
             <button 
               onClick={() => {
                 if (typeof window !== "undefined" && (window as any).AndroidBridge) {
                   (window as any).AndroidBridge.openBluetoothSettings();
                 }
               }} 
-              className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+              className="flex-1 sm:flex-none text-xs bg-blue-100 text-blue-700 px-2 py-2 rounded hover:bg-blue-200 whitespace-nowrap text-center font-medium"
             >
               + 기기 페어링
             </button>
-            <button onClick={handleManualRefresh} className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded hover:bg-gray-300 transition-colors">
+            <button onClick={handleManualRefresh} className="flex-1 sm:flex-none text-xs bg-gray-200 text-gray-700 px-2 py-2 rounded hover:bg-gray-300 transition-colors whitespace-nowrap text-center font-medium">
               🔄 새로고침
             </button>
           </div>
