@@ -8,6 +8,7 @@ export default function Home() {
   const [connectionStatus, setConnectionStatus] = useState<string>("대기중");
   const [showToast, setShowToast] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
+  const [autoPrint, setAutoPrint] = useState<boolean>(false);
 
   const fetchOrders = () => {
     if (typeof window !== "undefined" && (window as any).AndroidBridge) {
@@ -23,6 +24,9 @@ export default function Home() {
   const loadPrinters = () => {
     if (typeof window !== "undefined" && (window as any).AndroidBridge) {
       try {
+        const isAutoPrintEnabled = (window as any).AndroidBridge.isAutoPrintEnabled();
+        setAutoPrint(isAutoPrintEnabled);
+
         const isEnabled = (window as any).AndroidBridge.isBluetoothEnabled();
         if (!isEnabled) {
           alert("스마트폰의 블루투스 기능이 꺼져 있습니다. 블루투스를 켜고 다시 시도해주세요!");
@@ -33,8 +37,12 @@ export default function Home() {
         const data = (window as any).AndroidBridge.getPairedPrinters();
         const parsed = JSON.parse(data);
         setPrinters(parsed);
-        if (parsed.length > 0 && !selectedPrinter) {
-            setSelectedPrinter(parsed[0].mac);
+        
+        const defaultMac = (window as any).AndroidBridge.getDefaultPrinter();
+        if (defaultMac && parsed.some((p: any) => p.mac === defaultMac)) {
+          setSelectedPrinter(defaultMac);
+        } else if (parsed.length > 0 && !selectedPrinter) {
+          setSelectedPrinter(parsed[0].mac);
         }
       } catch (e) {
         console.error(e);
@@ -54,12 +62,13 @@ export default function Home() {
     setConnectionStatus("연결 중... ⏳");
     setIsConnecting(true);
 
-    // UI가 '연결 중' 상태로 먼저 렌더링될 수 있도록 약간의 지연(setTimeout)을 줍니다.
-    // 안드로이드 블루투스 연결 함수는 동기적이라서 화면을 멈추게 만들 수 있기 때문입니다.
     setTimeout(() => {
       try {
         const success = (window as any).AndroidBridge.connectPrinter(selectedPrinter);
         setConnectionStatus(success ? "연결 성공! 🖨️" : "연결 실패 ❌");
+        if (success) {
+          (window as any).AndroidBridge.saveDefaultPrinter(selectedPrinter);
+        }
       } catch (error) {
         setConnectionStatus("연결 실패 ❌ (에러)");
       } finally {
@@ -71,6 +80,26 @@ export default function Home() {
   const testPrint = () => {
     const success = (window as any).AndroidBridge.printTest();
     if (!success) alert("인쇄 실패. 프린터가 연결되어 있는지 확인해주세요.");
+  };
+
+  const toggleAutoPrint = () => {
+    const newState = !autoPrint;
+    
+    if (newState) {
+        // 이전에 등록된 적이 있더라도, '현재' 화면에서 연결이 성공한 상태가 아니면 차단합니다.
+        if (connectionStatus.indexOf("성공") === -1) {
+            alert("⚠️ 현재 프린터가 연결되어 있지 않습니다.\n먼저 [프린터 연결] 버튼을 눌러 기기와 연결한 후에 켜주세요.");
+            return; // 켜지지 않고 차단
+        }
+    }
+
+    if (typeof window !== "undefined" && (window as any).AndroidBridge) {
+      (window as any).AndroidBridge.setAutoPrintEnabled(newState);
+      if (newState) {
+         alert("💡 자동 인쇄가 활성화되었습니다.\n이제 폰 화면이 꺼져 있어도 알림이 오면 알아서 출력합니다!");
+      }
+    }
+    setAutoPrint(newState);
   };
 
   const printOrder = (text: string) => {
@@ -159,6 +188,20 @@ export default function Home() {
               테스트 영수증 출력
             </button>
           </div>
+          
+          <div className="mt-2 flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200">
+            <div>
+              <p className="text-sm font-bold text-gray-800">자동 영수증 인쇄</p>
+              <p className="text-xs text-gray-500">알림 수신 시 백그라운드 자동 출력</p>
+            </div>
+            <button 
+              onClick={toggleAutoPrint}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoPrint ? 'bg-blue-600' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoPrint ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
           <p className="text-xs text-center text-gray-500 mt-1">상태: <span className="font-medium text-gray-700">{connectionStatus}</span></p>
         </div>
       </div>

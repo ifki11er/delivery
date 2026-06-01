@@ -3,6 +3,7 @@ package com.baedalk.printapp
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.content.Intent
+import android.content.Context
 import android.provider.Settings
 import android.content.ComponentName
 import android.text.TextUtils
@@ -137,6 +138,30 @@ class MainActivity : AppCompatActivity() {
         @android.webkit.JavascriptInterface
         fun printText(text: String): Boolean {
             return printerManager.printOrderReceipt(text)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun setAutoPrintEnabled(enabled: Boolean) {
+            val prefs = this@MainActivity.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
+            prefs.edit().putBoolean("auto_print", enabled).apply()
+        }
+
+        @android.webkit.JavascriptInterface
+        fun isAutoPrintEnabled(): Boolean {
+            val prefs = this@MainActivity.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
+            return prefs.getBoolean("auto_print", false)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun saveDefaultPrinter(mac: String) {
+            val prefs = this@MainActivity.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
+            prefs.edit().putString("default_printer", mac).apply()
+        }
+        
+        @android.webkit.JavascriptInterface
+        fun getDefaultPrinter(): String {
+            val prefs = this@MainActivity.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
+            return prefs.getString("default_printer", "") ?: ""
         }
     }
 
