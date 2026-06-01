@@ -6,6 +6,10 @@ import android.content.Intent
 import android.provider.Settings
 import android.content.ComponentName
 import android.text.TextUtils
+import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -55,7 +59,18 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl("http://192.168.1.4:3000")
 
         // Javascript Interface 등록 (웹뷰에서 DB 데이터 요청 가능하도록 브릿지 연결)
-        webView.addJavascriptInterface(WebAppInterface(OrderDbHelper(this)), "AndroidBridge")
+        val printerManager = BluetoothPrinterManager(this)
+        webView.addJavascriptInterface(WebAppInterface(OrderDbHelper(this), printerManager), "AndroidBridge")
+        
+        // 블루투스 권한 요청 (Android 12 이상)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(
+                    Manifest.permission.BLUETOOTH_CONNECT, 
+                    Manifest.permission.BLUETOOTH_SCAN
+                ), 100)
+            }
+        }
         
         // 알림 접근 권한이 없으면 설정 화면으로 이동시킴
         if (!isNotificationServiceEnabled()) {
@@ -65,7 +80,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // 웹에서 안드로이드 코드를 호출할 수 있게 해주는 인터페이스
-    class WebAppInterface(private val dbHelper: OrderDbHelper) {
+    inner class WebAppInterface(private val dbHelper: OrderDbHelper, private val printerManager: BluetoothPrinterManager) {
         @android.webkit.JavascriptInterface
         fun getOrders(): String {
             val db = dbHelper.readableDatabase
@@ -82,6 +97,46 @@ class MainActivity : AppCompatActivity() {
             }
             cursor.close()
             return jsonArray.toString()
+        }
+
+        @android.webkit.JavascriptInterface
+        fun isBluetoothEnabled(): Boolean {
+            return printerManager.isBluetoothEnabled()
+        }
+
+        @android.webkit.JavascriptInterface
+        fun openBluetoothSettings() {
+            val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun getPairedPrinters(): String {
+            val printers = printerManager.getPairedPrinters()
+            val jsonArray = org.json.JSONArray()
+            for (p in printers) {
+                val obj = org.json.JSONObject()
+                obj.put("name", p["name"])
+                obj.put("mac", p["mac"])
+                jsonArray.put(obj)
+            }
+            return jsonArray.toString()
+        }
+
+        @android.webkit.JavascriptInterface
+        fun connectPrinter(macAddress: String): Boolean {
+            return printerManager.connectPrinter(macAddress)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun printTest(): Boolean {
+            return printerManager.printTestReceipt()
+        }
+
+        @android.webkit.JavascriptInterface
+        fun printText(text: String): Boolean {
+            return printerManager.printOrderReceipt(text)
         }
     }
 

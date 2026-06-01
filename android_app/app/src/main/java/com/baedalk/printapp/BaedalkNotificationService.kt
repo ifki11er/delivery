@@ -36,7 +36,7 @@ class BaedalkNotificationService : NotificationListenerService() {
             val parsedData = "메뉴 파싱 데이터 (구현 예정)" 
             
             dbHelper.insertOrder(
-                rawText = "[제목] $title\n[내용] $text",
+                rawText = "[앱 패키지] $packageName\n[제목] $title\n[내용] $text",
                 parsedData = parsedData,
                 status = "PENDING"
             )
