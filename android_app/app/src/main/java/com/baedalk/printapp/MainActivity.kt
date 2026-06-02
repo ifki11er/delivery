@@ -56,8 +56,8 @@ class MainActivity : AppCompatActivity() {
 
         // [옵션 B: 개발 모드] 사용자 컴퓨터의 Next.js 로컬 서버 로드
         // 안드로이드 에뮬레이터에서는 10.0.2.2 가 컴퓨터의 localhost를 의미합니다.
-        // 현재 사용자님의 실제 컴퓨터 Wi-Fi IP 주소(192.168.1.4)로 세팅해두었습니다.
-        webView.loadUrl("http://192.168.1.4:3000")
+        // 현재는 local.properties 파일의 DEV_WEB_URL 값을 읽어옵니다. (기본값 세팅됨)
+        webView.loadUrl(BuildConfig.WEB_URL)
 
         // Javascript Interface 등록 (웹뷰에서 DB 데이터 요청 가능하도록 브릿지 연결)
         val printerManager = BluetoothPrinterManager(this)

@@ -3,6 +3,16 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+}
+val webUrl = localProperties.getProperty("DEV_WEB_URL", "http://192.168.1.4.nip.io:3000")
+
 android {
     namespace = "com.baedalk.printapp"
     compileSdk = 34
@@ -13,6 +23,11 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+        buildConfigField("String", "WEB_URL", "\"${webUrl}\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
