@@ -52,7 +52,11 @@ const MOCK_STORES = [
   },
 ];
 
+import { useI18n } from '@/i18n/I18nProvider';
+
 export default function Home() {
+  const t = useI18n();
+
   return (
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
       
@@ -84,7 +88,7 @@ export default function Home() {
             <input
               type="text"
               className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl leading-5 bg-gray-50 placeholder-gray-500 focus:outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all"
-              placeholder="먹고 싶은 메뉴나 가게를 검색해보세요"
+              placeholder={t.search_placeholder}
             />
           </div>
         </div>
@@ -96,8 +100,8 @@ export default function Home() {
         <div className="relative w-full h-36 md:h-48 rounded-2xl overflow-hidden shadow-sm group cursor-pointer">
           <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
           <div className="absolute inset-0 flex flex-col justify-center p-6 text-white">
-            <span className="inline-block px-2 py-1 bg-white/20 rounded-md text-xs font-bold w-fit mb-2 backdrop-blur-sm">기간 한정 이벤트</span>
-            <h2 className="text-xl md:text-2xl font-extrabold leading-tight">첫 주문이라면<br/>무조건 5,000원 할인!</h2>
+            <span className="inline-block px-2 py-1 bg-white/20 rounded-md text-xs font-bold w-fit mb-2 backdrop-blur-sm">{t.limited_event}</span>
+            <h2 className="text-xl md:text-2xl font-extrabold leading-tight whitespace-pre-line">{t.hero_title}</h2>
           </div>
           {/* 장식용 그래픽 요소 */}
           <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
@@ -122,7 +126,7 @@ export default function Home() {
 
         {/* 4. 추천 맛집 리스트 (Store Feed) */}
         <div>
-          <h3 className="text-lg font-bold text-gray-900 mb-4 px-1">우리 동네 인기 맛집 🚀</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-4 px-1">{t.popular_stores}</h3>
           <div className="space-y-5">
             {MOCK_STORES.map((store, idx) => (
               <div key={store.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow group">
@@ -166,11 +170,11 @@ export default function Home() {
                     <div className="flex items-center">
                       <Bike className="w-3.5 h-3.5 mr-1 text-indigo-500" />
                       <span className={`font-medium ${store.deliveryFee === '무료배달' ? 'text-indigo-600 font-bold' : ''}`}>
-                        {store.deliveryFee}
+                        {store.deliveryFee === '무료배달' ? t.free_delivery : store.deliveryFee}
                       </span>
                     </div>
                     <span className="text-gray-300">|</span>
-                    <span>최소주문 {store.minOrder}</span>
+                    <span>{t.min_order} {store.minOrder}</span>
                   </div>
                 </div>
               </div>
