@@ -59,7 +59,40 @@ class BaedalkNotificationService : NotificationListenerService() {
                 printExecutor.submit {
                     val printerManager = BluetoothPrinterManager(this)
                     if (printerManager.connectPrinter(defaultMac)) {
-                        val receiptText = "\n================================\n           주 문 서\n================================\n\n$rawLog\n\n"
+                        var finalRawLog = rawLog
+                        
+                        // [추가] 블랙리스트 전화번호 확인 로직
+                        try {
+                            val phoneRegex = Regex("010-?\\d{3,4}-?\\d{4}")
+                            val matchResult = phoneRegex.find(rawLog)
+                            if (matchResult != null) {
+                                val phone = matchResult.value
+                                val cleanedPhone = phone.replace("-", "")
+                                
+                                // TODO: 배포 시 실제 서버 도메인이나 설정된 IP로 변경해야 합니다.
+                                // 현재 테스트용: 같은 와이파이(공유기)에 연결된 PC의 내부 IP를 입력하세요.
+                                val serverUrl = "http://192.168.0.20:3000" 
+                                
+                                val url = java.net.URL("$serverUrl/api/blacklist/check?phone=$cleanedPhone")
+                                val connection = url.openConnection() as java.net.HttpURLConnection
+                                connection.requestMethod = "GET"
+                                connection.connectTimeout = 3000
+                                connection.readTimeout = 3000
+                                
+                                if (connection.responseCode == 200) {
+                                    val response = connection.inputStream.bufferedReader().use { it.readText() }
+                                    val json = org.json.JSONObject(response)
+                                    if (json.getBoolean("isBlacklisted")) {
+                                        val reason = json.optString("reason", "사유 없음")
+                                        finalRawLog = finalRawLog.replace(phone, "$phone\n[🚨주의: 블랙컨슈머 - $reason]")
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("BaedalkNotiService", "블랙리스트 조회 실패: ${e.message}")
+                        }
+
+                        val receiptText = "\n================================\n           주 문 서\n================================\n\n$finalRawLog\n\n"
                         val success = printerManager.printOrderReceipt(receiptText)
                         Log.d("BaedalkNotiService", "자동 인쇄 결과: $success")
                         

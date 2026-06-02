@@ -12,11 +12,10 @@ export default async function AdminPage() {
   }
 
   // 2. 데이터 페칭
-  const [totalUsers, totalOwners, pendingApps] = await Promise.all([
+  const [totalUsers, totalOwners, allApps] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { role: "OWNER" } }),
     prisma.businessApplication.findMany({
-      where: { status: "PENDING" },
       include: {
         user: {
           select: { name: true, email: true },
@@ -31,7 +30,7 @@ export default async function AdminPage() {
     <AdminClient 
       totalUsers={totalUsers} 
       totalOwners={totalOwners} 
-      pendingApps={pendingApps} 
+      allApps={allApps} 
     />
   );
 }

@@ -2,15 +2,34 @@
 
 import { useSession, signOut } from 'next-auth/react';
 import { usePlatform } from '@/hooks/usePlatform';
-import { LogOut, User, Store, Settings, Printer, ChevronRight, ClipboardList, Shield } from 'lucide-react';
+import { LogOut, User, Store, Settings, Printer, ChevronRight, ClipboardList, Shield, Calculator, Clock, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 
 import { useI18n } from '@/i18n/I18nProvider';
+import { useState, useEffect } from 'react';
 
 export default function MypageClient() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const { platform, isReady } = usePlatform();
   const t = useI18n();
+  const [isEmployee, setIsEmployee] = useState(false);
+  const [userRole, setUserRole] = useState(session?.user?.role || 'CUSTOMER');
+
+  useEffect(() => {
+    if (session?.user) {
+      setUserRole(session.user.role);
+      fetch('/api/user/employee-status')
+        .then(res => res.json())
+        .then(data => {
+          setIsEmployee(data.isEmployee);
+          if (data.role && data.role !== session.user.role) {
+            setUserRole(data.role);
+            update({ role: data.role }); // 쿠키 세션 강제 업데이트
+          }
+        })
+        .catch(() => setIsEmployee(false));
+    }
+  }, [session, update]);
 
   if (status === 'loading' || !isReady) {
     return <div className="p-8 text-center text-gray-500">로딩 중...</div>;
@@ -20,8 +39,8 @@ export default function MypageClient() {
     return <div className="p-8 text-center text-gray-500">로그인이 필요합니다.</div>;
   }
 
-  const isOwner = session.user.role === 'OWNER';
-  const isAdmin = session.user.role === 'ADMIN';
+  const isOwner = userRole === 'OWNER';
+  const isAdmin = userRole === 'ADMIN';
 
   return (
     <div className="max-w-2xl mx-auto p-4 md:p-8 space-y-8">
@@ -44,7 +63,10 @@ export default function MypageClient() {
       {/* 메뉴 리스트 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
         
-        {/* 일반 고객용 메뉴 (사장님도 표시) */}
+        {/* 일반 고객용 메뉴 */}
+        <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          {t.general_menu || '일반 메뉴'}
+        </div>
         <Link href="/orders" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
           <div className="flex items-center space-x-3 text-gray-700">
             <span className="font-medium">{t.orders}</span>
@@ -58,12 +80,16 @@ export default function MypageClient() {
           <ChevronRight className="w-5 h-5 text-gray-400" />
         </Link>
 
-        {/* 입점 신청 메뉴 (일반 고객만 표시) */}
+        {/* 사장님 메뉴 (일반 고객은 입점신청, 사장님/관리자는 관리 메뉴) */}
+        <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          {t.owner_menu || '사장님 메뉴'}
+        </div>
+        
         {!isOwner && !isAdmin && (
           <Link href="/business-apply" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
             <div className="flex items-center space-x-3 text-indigo-600">
               <Store className="w-5 h-5" />
-              <span className="font-semibold">{t.business_apply}</span>
+              <span className="font-semibold">상점 입점 신청</span>
             </div>
             <ChevronRight className="w-5 h-5 text-indigo-400" />
           </Link>
@@ -73,7 +99,7 @@ export default function MypageClient() {
         {isAdmin && (
           <>
             <div className="bg-red-50 px-4 py-2 text-xs font-bold text-red-600 uppercase tracking-wider">
-              {t.admin_only}
+              {t.admin_only || '관리자 메뉴'}
             </div>
             <Link href="/admin" className="flex items-center justify-between p-4 hover:bg-red-50 transition-colors">
               <div className="flex items-center space-x-3 text-red-700">
@@ -85,12 +111,9 @@ export default function MypageClient() {
           </>
         )}
 
-        {/* 사장님 전용 메뉴 (최고관리자도 접근 가능) */}
+        {/* 사장님 전용 메뉴 */}
         {(isOwner || isAdmin) && (
           <>
-            <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              {t.owner_menu}
-            </div>
             <Link href="/store/monitor" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
               <div className="flex items-center space-x-3 text-gray-700">
                 <ClipboardList className="w-5 h-5 text-gray-400" />
@@ -112,6 +135,21 @@ export default function MypageClient() {
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
             </Link>
+            <Link href="/store/blacklist" className="flex items-center justify-between p-4 hover:bg-red-50 transition-colors">
+              <div className="flex items-center space-x-3 text-red-700">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                <span className="font-bold">{t.blacklist || '블랙컨슈머 공유'}</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-red-400" />
+            </Link>
+            
+            <Link href="/store/employees/stats" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center space-x-3 text-gray-700">
+                <Calculator className="w-5 h-5 text-gray-400" />
+                <span className="font-medium">{t.employee_stats || '급여 및 통계'}</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </Link>
             
             {/* 앱(웹뷰) 환경에서만 보이는 프린터 설정 메뉴 */}
             {platform === 'app' && (
@@ -130,6 +168,22 @@ export default function MypageClient() {
                 <ChevronRight className="w-5 h-5 text-gray-400" />
               </button>
             )}
+          </>
+        )}
+
+        {/* 직원 전용 메뉴 */}
+        {isEmployee && (
+          <>
+            <div className="bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-500 uppercase tracking-wider">
+              {t.employee_section || '직원 메뉴'}
+            </div>
+            <Link href="/employee/dashboard" className="flex items-center justify-between p-4 hover:bg-indigo-50 transition-colors">
+              <div className="flex items-center space-x-3 text-indigo-700">
+                <Clock className="w-5 h-5 text-indigo-400" />
+                <span className="font-bold">{t.employee_dashboard || '내 근무 및 출퇴근'}</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-indigo-400" />
+            </Link>
           </>
         )}
 

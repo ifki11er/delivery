@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'APPROVE') {
-      // 1. 상태 승인으로 변경 및 2. 유저 권한을 OWNER로 업그레이드 (트랜잭션)
+      // 1. 상태 승인으로 변경, 2. 유저 권한 OWNER 업그레이드, 3. 상점 자동 생성
       await prisma.$transaction([
         prisma.businessApplication.update({
           where: { id },
@@ -36,6 +36,16 @@ export async function POST(req: NextRequest) {
           where: { id: application.userId },
           data: { role: 'OWNER' },
         }),
+        prisma.store.create({
+          data: {
+            ownerId: application.userId,
+            name: application.businessName,
+            address: application.address,
+            contact: application.contact,
+            representativeName: application.representativeName,
+            businessRegNo: application.businessRegNo
+          }
+        })
       ]);
     } else if (action === 'REJECT') {
       // 상태 반려로 변경
