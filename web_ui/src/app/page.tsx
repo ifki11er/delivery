@@ -1,238 +1,186 @@
-"use client";
-import { useEffect, useState } from "react";
+'use client';
+
+import { MapPin, Search, ShoppingCart, ChevronDown, Star, Clock, Bike } from 'lucide-react';
+import Image from 'next/image';
+
+const CATEGORIES = [
+  { name: '1인분', icon: '🍲' },
+  { name: '족발·보쌈', icon: '🍖' },
+  { name: '찜·탕·찌개', icon: '🥘' },
+  { name: '돈까스·회·일식', icon: '🍣' },
+  { name: '피자', icon: '🍕' },
+  { name: '고기·구이', icon: '🥩' },
+  { name: '야식', icon: '🌙' },
+  { name: '양식', icon: '🍝' },
+  { name: '치킨', icon: '🍗' },
+  { name: '중식', icon: '🍜' },
+];
+
+const MOCK_STORES = [
+  {
+    id: 1,
+    name: '육즙가득 프리미엄 수제버거 역삼점',
+    rating: 4.9,
+    reviews: 1250,
+    deliveryTime: '20~35분',
+    deliveryFee: '무료배달',
+    minOrder: '15,000원',
+    imageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=800&auto=format&fit=crop',
+    tags: ['쿠폰할인', '포장가능'],
+  },
+  {
+    id: 2,
+    name: '장인 화덕피자 & 파스타',
+    rating: 4.8,
+    reviews: 843,
+    deliveryTime: '30~45분',
+    deliveryFee: '1,500원',
+    minOrder: '18,000원',
+    imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=800&auto=format&fit=crop',
+    tags: ['신규', '배달할인'],
+  },
+  {
+    id: 3,
+    name: '바삭바삭 옛날통닭과 떡볶이',
+    rating: 4.7,
+    reviews: 3200,
+    deliveryTime: '25~40분',
+    deliveryFee: '무료배달',
+    minOrder: '16,000원',
+    imageUrl: 'https://images.unsplash.com/photo-1626074353765-517a681e40be?q=80&w=800&auto=format&fit=crop',
+    tags: ['인기', '무료배달'],
+  },
+];
 
 export default function Home() {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [printers, setPrinters] = useState<any[]>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState<string>("");
-  const [connectionStatus, setConnectionStatus] = useState<string>("대기중");
-  const [showToast, setShowToast] = useState<boolean>(false);
-  const [isConnecting, setIsConnecting] = useState<boolean>(false);
-  const [autoPrint, setAutoPrint] = useState<boolean>(false);
-
-  const fetchOrders = () => {
-    if (typeof window !== "undefined" && (window as any).AndroidBridge) {
-      try {
-        const data = (window as any).AndroidBridge.getOrders();
-        setOrders(JSON.parse(data));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  };
-
-  const loadPrinters = () => {
-    if (typeof window !== "undefined" && (window as any).AndroidBridge) {
-      try {
-        const isAutoPrintEnabled = (window as any).AndroidBridge.isAutoPrintEnabled();
-        setAutoPrint(isAutoPrintEnabled);
-
-        const isEnabled = (window as any).AndroidBridge.isBluetoothEnabled();
-        if (!isEnabled) {
-          alert("스마트폰의 블루투스 기능이 꺼져 있습니다. 블루투스를 켜고 다시 시도해주세요!");
-          setPrinters([]);
-          return;
-        }
-
-        const data = (window as any).AndroidBridge.getPairedPrinters();
-        const parsed = JSON.parse(data);
-        setPrinters(parsed);
-        
-        const defaultMac = (window as any).AndroidBridge.getDefaultPrinter();
-        if (defaultMac && parsed.some((p: any) => p.mac === defaultMac)) {
-          setSelectedPrinter(defaultMac);
-        } else if (parsed.length > 0 && !selectedPrinter) {
-          setSelectedPrinter(parsed[0].mac);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  };
-
-  const handleManualRefresh = () => {
-    loadPrinters();
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 2000);
-  };
-
-  const connectToPrinter = () => {
-    if (!selectedPrinter || isConnecting) return;
-    
-    setConnectionStatus("연결 중... ⏳");
-    setIsConnecting(true);
-
-    setTimeout(() => {
-      try {
-        const success = (window as any).AndroidBridge.connectPrinter(selectedPrinter);
-        setConnectionStatus(success ? "연결 성공! 🖨️" : "연결 실패 ❌");
-        if (success) {
-          (window as any).AndroidBridge.saveDefaultPrinter(selectedPrinter);
-        }
-      } catch (error) {
-        setConnectionStatus("연결 실패 ❌ (에러)");
-      } finally {
-        setIsConnecting(false);
-      }
-    }, 100);
-  };
-
-  const testPrint = () => {
-    const success = (window as any).AndroidBridge.printTest();
-    if (!success) alert("인쇄 실패. 프린터가 연결되어 있는지 확인해주세요.");
-  };
-
-  const toggleAutoPrint = () => {
-    const newState = !autoPrint;
-    
-    if (newState) {
-        // 이전에 등록된 적이 있더라도, '현재' 화면에서 연결이 성공한 상태가 아니면 차단합니다.
-        if (connectionStatus.indexOf("성공") === -1) {
-            alert("⚠️ 현재 프린터가 연결되어 있지 않습니다.\n먼저 [프린터 연결] 버튼을 눌러 기기와 연결한 후에 켜주세요.");
-            return; // 켜지지 않고 차단
-        }
-    }
-
-    if (typeof window !== "undefined" && (window as any).AndroidBridge) {
-      (window as any).AndroidBridge.setAutoPrintEnabled(newState);
-      if (newState) {
-         alert("💡 자동 인쇄가 활성화되었습니다.\n이제 폰 화면이 꺼져 있어도 알림이 오면 알아서 출력합니다!");
-      }
-    }
-    setAutoPrint(newState);
-  };
-
-  const printOrder = (text: string) => {
-    if (!selectedPrinter || connectionStatus.indexOf("성공") === -1) {
-      alert("먼저 프린터를 연결해주세요.");
-      return;
-    }
-    // 인쇄될 기본 템플릿
-    const receiptText = `\n================================\n           주 문 서\n================================\n\n${text}\n\n`;
-    const success = (window as any).AndroidBridge.printText(receiptText);
-    if (!success) {
-      alert("인쇄에 실패했습니다. 프린터 연결 상태를 확인해주세요.");
-    }
-  };
-
-  useEffect(() => {
-    fetchOrders();
-    loadPrinters();
-    const interval = setInterval(fetchOrders, 2000);
-    
-    // 사용자가 블루투스 설정 창에서 돌아왔을 때(화면 포커스 시) 자동으로 목록 새로고침
-    const handleFocus = () => {
-      loadPrinters();
-    };
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, []);
-
   return (
-    <main className="p-5 bg-gray-50 min-h-screen">
-      <h1 className="text-2xl font-extrabold mb-2 text-blue-600 tracking-tight">배달 주문 모니터</h1>
-      <p className="text-sm text-gray-500 mb-6">백그라운드에서 알림을 감지하면 이곳에 나타납니다.</p>
-
-      {/* 블루투스 프린터 테스트 섹션 */}
-      <div className="mb-6 p-4 bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-gray-800 whitespace-nowrap">🖨️ 블루투스 프린터</h2>
-            {showToast && <span className="text-xs font-semibold text-green-600 animate-pulse whitespace-nowrap">✓ 목록 갱신됨</span>}
-          </div>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <button 
-              onClick={() => {
-                if (typeof window !== "undefined" && (window as any).AndroidBridge) {
-                  (window as any).AndroidBridge.openBluetoothSettings();
-                }
-              }} 
-              className="flex-1 sm:flex-none text-xs bg-blue-100 text-blue-700 px-2 py-2 rounded hover:bg-blue-200 whitespace-nowrap text-center font-medium"
-            >
-              + 기기 페어링
-            </button>
-            <button onClick={handleManualRefresh} className="flex-1 sm:flex-none text-xs bg-gray-200 text-gray-700 px-2 py-2 rounded hover:bg-gray-300 transition-colors whitespace-nowrap text-center font-medium">
-              🔄 새로고침
-            </button>
-          </div>
-        </div>
-        <div className="flex flex-col gap-3">
-          <select 
-            className="p-2 border rounded text-sm text-black disabled:bg-gray-100 disabled:text-gray-400"
-            value={selectedPrinter}
-            onChange={(e) => setSelectedPrinter(e.target.value)}
-            disabled={isConnecting}
-          >
-            {printers.length === 0 ? <option>페어링된 블루투스 기기 없음</option> : null}
-            {printers.map(p => (
-              <option key={p.mac} value={p.mac}>{p.name} ({p.mac})</option>
-            ))}
-          </select>
-          <div className="flex gap-2">
-            <button 
-              onClick={connectToPrinter} 
-              disabled={isConnecting}
-              className={`flex-1 py-2 rounded text-sm font-semibold transition ${isConnecting ? 'bg-indigo-300 text-indigo-50 cursor-wait' : 'bg-indigo-500 text-white hover:bg-indigo-600'}`}
-            >
-              {isConnecting ? '연결 중...' : '프린터 연결'}
-            </button>
-            <button 
-              onClick={testPrint} 
-              disabled={isConnecting}
-              className={`flex-1 py-2 rounded text-sm font-semibold transition ${isConnecting ? 'bg-green-300 text-green-50 cursor-not-allowed' : 'bg-green-500 text-white hover:bg-green-600'}`}
-            >
-              테스트 영수증 출력
-            </button>
-          </div>
-          
-          <div className="mt-2 flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200">
-            <div>
-              <p className="text-sm font-bold text-gray-800">자동 영수증 인쇄</p>
-              <p className="text-xs text-gray-500">알림 수신 시 백그라운드 자동 출력</p>
+    <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
+      
+      {/* 1. 상단 헤더 (위치 및 검색) */}
+      <div className="bg-white sticky top-0 z-40 shadow-sm">
+        <div className="max-w-2xl mx-auto px-4 pt-4 pb-3">
+          {/* 위치 선택기 */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-1 cursor-pointer group">
+              <MapPin className="w-5 h-5 text-gray-900 group-hover:text-indigo-600 transition-colors" />
+              <span className="font-bold text-lg text-gray-900 group-hover:text-indigo-600 transition-colors">
+                역삼동 123-45
+              </span>
+              <ChevronDown className="w-4 h-4 text-gray-900" />
             </div>
-            <button 
-              onClick={toggleAutoPrint}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoPrint ? 'bg-blue-600' : 'bg-gray-300'}`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoPrint ? 'translate-x-6' : 'translate-x-1'}`} />
+            <button className="relative p-2 text-gray-600 hover:text-indigo-600 transition-colors">
+              <ShoppingCart className="w-6 h-6" />
+              <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white border-2 border-white">
+                3
+              </span>
             </button>
           </div>
 
-          <p className="text-xs text-center text-gray-500 mt-1">상태: <span className="font-medium text-gray-700">{connectionStatus}</span></p>
+          {/* 검색바 */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl leading-5 bg-gray-50 placeholder-gray-500 focus:outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all"
+              placeholder="먹고 싶은 메뉴나 가게를 검색해보세요"
+            />
+          </div>
         </div>
       </div>
-      
-      <h2 className="text-lg font-bold mb-3 text-gray-800">📋 수신된 알림 목록</h2>
-      <div className="space-y-4">
-        {orders.length === 0 ? (
-          <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 text-center">
-            <p className="text-gray-500 mb-2">아직 수신된 알림이 없습니다.</p>
-            <p className="text-xs text-blue-500 font-semibold">💡 카카오톡 '나에게 보내기'로<br/>"배달 주문 들어왔어" 라고 메시지를 보내보세요!</p>
+
+      <div className="max-w-2xl mx-auto px-4 space-y-6 mt-4">
+        
+        {/* 2. 프로모션 배너 (Hero Carousel Placeholder) */}
+        <div className="relative w-full h-36 md:h-48 rounded-2xl overflow-hidden shadow-sm group cursor-pointer">
+          <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
+          <div className="absolute inset-0 flex flex-col justify-center p-6 text-white">
+            <span className="inline-block px-2 py-1 bg-white/20 rounded-md text-xs font-bold w-fit mb-2 backdrop-blur-sm">기간 한정 이벤트</span>
+            <h2 className="text-xl md:text-2xl font-extrabold leading-tight">첫 주문이라면<br/>무조건 5,000원 할인!</h2>
           </div>
-        ) : (
-          orders.map((order, i) => (
-            <div key={i} className="p-4 bg-white shadow-md rounded-xl border-l-4 border-blue-500">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-medium text-gray-400">{order.timestamp}</span>
-                <div className="flex gap-2">
-                  <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded-full">{order.status}</span>
-                  <button 
-                    onClick={() => printOrder(order.raw_text)}
-                    className="text-xs font-bold px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 shadow-sm transition"
-                  >
-                    🖨️ 인쇄
-                  </button>
+          {/* 장식용 그래픽 요소 */}
+          <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+          <div className="absolute right-8 top-4 text-5xl opacity-80 transform group-hover:scale-110 transition-transform">🎉</div>
+        </div>
+
+        {/* 3. 카테고리 그리드 */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <div className="grid grid-cols-5 gap-y-4 gap-x-2">
+            {CATEGORIES.map((cat, idx) => (
+              <div key={idx} className="flex flex-col items-center justify-center space-y-2 cursor-pointer group">
+                <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-2xl group-hover:bg-indigo-50 transition-colors">
+                  {cat.icon}
+                </div>
+                <span className="text-[11px] font-medium text-gray-700 text-center tracking-tight leading-tight">
+                  {cat.name}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 4. 추천 맛집 리스트 (Store Feed) */}
+        <div>
+          <h3 className="text-lg font-bold text-gray-900 mb-4 px-1">우리 동네 인기 맛집 🚀</h3>
+          <div className="space-y-5">
+            {MOCK_STORES.map((store, idx) => (
+              <div key={store.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow group">
+                {/* 이미지 영역 */}
+                <div className="relative h-48 w-full overflow-hidden bg-gray-200">
+                  <Image
+                    src={store.imageUrl}
+                    alt={store.name}
+                    fill
+                    priority={idx === 0}
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    sizes="(max-width: 768px) 100vw, 800px"
+                  />
+                  {/* 태그 */}
+                  <div className="absolute top-3 left-3 flex gap-1">
+                    {store.tags.map((tag, idx) => (
+                      <span key={idx} className="px-2 py-1 bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold rounded-sm">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* 정보 영역 */}
+                <div className="p-4">
+                  <h4 className="font-bold text-lg text-gray-900 mb-1 truncate">{store.name}</h4>
+                  
+                  <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+                    <div className="flex items-center font-bold text-gray-900">
+                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 mr-1" />
+                      {store.rating}
+                    </div>
+                    <span>({store.reviews.toLocaleString()})</span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3 text-xs text-gray-500">
+                    <div className="flex items-center bg-gray-100 px-2 py-1 rounded-md">
+                      <Clock className="w-3.5 h-3.5 mr-1 text-gray-600" />
+                      <span className="font-medium text-gray-700">{store.deliveryTime}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Bike className="w-3.5 h-3.5 mr-1 text-indigo-500" />
+                      <span className={`font-medium ${store.deliveryFee === '무료배달' ? 'text-indigo-600 font-bold' : ''}`}>
+                        {store.deliveryFee}
+                      </span>
+                    </div>
+                    <span className="text-gray-300">|</span>
+                    <span>최소주문 {store.minOrder}</span>
+                  </div>
                 </div>
               </div>
-              <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800 bg-gray-50 p-3 rounded-lg">{order.raw_text}</pre>
-            </div>
-          ))
-        )}
+            ))}
+          </div>
+        </div>
+        
+        {/* 여백 */}
+        <div className="h-6"></div>
       </div>
-    </main>
+    </div>
   );
 }

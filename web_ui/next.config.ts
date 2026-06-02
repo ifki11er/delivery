@@ -16,6 +16,15 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   allowedDevOrigins: allowedOrigins.length > 0 ? allowedOrigins : undefined,
+  // next/image를 위한 외부 도메인 설정 (Unsplash 허용)
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+    ],
+  },
 };
 
 export default nextConfig;

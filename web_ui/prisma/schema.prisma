@@ -33,15 +33,35 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+enum Role {
+  CUSTOMER
+  OWNER
+  ADMIN
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
   email         String?   @unique
   emailVerified DateTime?
   image         String?
-  password      String?   // Added for Credentials provider (email/password login)
+  password      String?
+  role          Role      @default(CUSTOMER)
   accounts      Account[]
   sessions      Session[]
+  applications  BusinessApplication[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model BusinessApplication {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName  String
+  businessRegNo String    // 사업자등록번호
+  imageUrl      String?   // 사업자등록증 이미지 주소
+  status        String    @default("PENDING") // PENDING, APPROVED, REJECTED
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }

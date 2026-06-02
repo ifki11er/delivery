@@ -37,11 +37,19 @@ export const authConfig = {
       if (session.user && token?.sub) {
         session.user.id = token.sub
       }
+      if (session.user && token?.role) {
+        session.user.role = token.role as 'CUSTOMER' | 'OWNER' | 'ADMIN'
+      }
       return session
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.sub = user.id
+        token.role = user.role
+      }
+      // 세션 업데이트(강제 갱신 등)를 지원하려면 아래와 같이 작성 가능
+      if (trigger === 'update' && session?.role) {
+        token.role = session.role
       }
       return token
     },
