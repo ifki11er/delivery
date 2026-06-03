@@ -71,7 +71,7 @@ class BaedalkNotificationService : NotificationListenerService() {
                                 
                                 // TODO: 배포 시 실제 서버 도메인이나 설정된 IP로 변경해야 합니다.
                                 // 현재 테스트용: 같은 와이파이(공유기)에 연결된 PC의 내부 IP를 입력하세요.
-                                val serverUrl = "http://192.168.0.20:3000" 
+                                val serverUrl = "http://192.168.1.5:3000" 
                                 
                                 val url = java.net.URL("$serverUrl/api/blacklist/check?phone=$cleanedPhone")
                                 val connection = url.openConnection() as java.net.HttpURLConnection
