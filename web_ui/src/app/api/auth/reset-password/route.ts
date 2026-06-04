@@ -3,7 +3,8 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getClientIp, jsonError, readJson } from "@/lib/api";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkDbRateLimit } from "@/lib/db-rate-limit";
+import { writeAuditLog } from "@/lib/audit";
 
 const RESET_TOKEN_TTL_MS = 1000 * 60 * 60;
 const RESET_REQUEST_WINDOW_MS = 1000 * 60 * 15;
@@ -21,13 +22,19 @@ export async function POST(req: Request) {
     if (!email) return jsonError("Email is required.", 400);
 
     const clientIp = getClientIp(req);
-    const rateLimit = checkRateLimit({
+    const rateLimit = await checkDbRateLimit({
       key: `password-reset:${clientIp}:${email}`,
       limit: RESET_REQUEST_LIMIT,
       windowMs: RESET_REQUEST_WINDOW_MS,
     });
 
     if (!rateLimit.allowed) {
+      await writeAuditLog({
+        action: "password_reset_rate_limited",
+        targetType: "user",
+        metadata: { email },
+        ipAddress: clientIp,
+      });
       return jsonError("Too many password reset requests. Please try again later.", 429);
     }
 
@@ -47,6 +54,13 @@ export async function POST(req: Request) {
       const resetUrl = `${getAppUrl()}/login/reset?token=${token}`;
       console.info("[Password reset link]", { email, resetUrl });
     }
+
+    await writeAuditLog({
+      action: "password_reset_requested",
+      targetType: "user",
+      metadata: { email, userFound: Boolean(user && !user.deletedAt && user.status !== "WITHDRAWN") },
+      ipAddress: clientIp,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -105,6 +119,12 @@ export async function PUT(req: Request) {
         },
       }),
     ]);
+
+    await writeAuditLog({
+      action: "password_reset_completed",
+      targetType: "user",
+      targetId: verificationToken.identifier,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

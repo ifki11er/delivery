@@ -3,6 +3,7 @@ import { UserStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { auth } from "../../../../../../auth";
 import { jsonError, readJson } from "@/lib/api";
+import { writeAuditLog } from "@/lib/audit";
 
 function isUserStatus(value: unknown): value is UserStatus {
   return value === "ACTIVE" || value === "SUSPENDED" || value === "WITHDRAWN";
@@ -39,6 +40,14 @@ export async function PUT(req: Request) {
         email: true,
         status: true,
       },
+    });
+
+    await writeAuditLog({
+      actorId: session.user.id,
+      action: "admin_user_status_updated",
+      targetType: "user",
+      targetId: updatedUser.id,
+      metadata: { status },
     });
 
     return NextResponse.json({ success: true, user: updatedUser });

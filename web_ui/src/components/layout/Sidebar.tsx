@@ -23,7 +23,7 @@ export default function Sidebar({ session }: { session: Session | null }) {
   return (
     <div className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 h-screen fixed top-0 left-0 z-50">
       <div className="p-6 border-b border-gray-200 flex items-center justify-center">
-        <h1 className="text-2xl font-bold text-indigo-600">배달앱</h1>
+        <h1 className="text-2xl font-bold text-indigo-600">{t.app_name}</h1>
       </div>
       <div className="flex flex-col flex-grow p-4 space-y-2">
         {menuItems.map((item) => {

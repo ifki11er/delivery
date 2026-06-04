@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '../../../../../../auth';
+import { writeAuditLog } from '@/lib/audit';
 
 export async function PUT(req: Request) {
   const session = await auth();
@@ -44,6 +45,14 @@ export async function PUT(req: Request) {
         });
       }
     }
+
+    await writeAuditLog({
+      actorId: session.user.id,
+      action: 'admin_store_status_updated',
+      targetType: 'store',
+      targetId: updatedStore.id,
+      metadata: { status },
+    });
 
     return NextResponse.json({ success: true, store: updatedStore });
   } catch (error) {

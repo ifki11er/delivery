@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { UserPlus, Search, Clock, Users, Save, ChevronLeft, Trash2, Edit3 } from 'lucide-react';
+import { UserPlus, Search, Users, Save, ChevronLeft, Trash2, Edit3 } from 'lucide-react';
 import { useI18n, useLocale } from '@/i18n/I18nProvider';
+import { EmployeeHistoryList } from '@/components/store/EmployeeHistoryList';
 import type {
   AttendanceStat,
   EmployeeEditForm,
@@ -443,29 +444,7 @@ export default function StoreEmployeesPage() {
                   </div>
                 )}
                 
-                {!editingId && (emp.histories?.length ?? 0) > 0 && (
-                  <div className="p-4 bg-white border-t border-gray-50">
-                    <span className="text-gray-500 block text-xs mb-2 font-bold flex items-center">
-                      <Clock className="w-3 h-3 mr-1" /> {t.emp_history_title}
-                    </span>
-                    <ul className="space-y-1.5 pl-1 border-l-2 border-indigo-100 ml-1">
-                      {(emp.histories ?? []).map((hist, index) => (
-                        <li key={hist.id} className="relative text-xs text-gray-700 pl-3">
-                          <span className={`absolute -left-[5px] top-1 w-2 h-2 rounded-full border-2 border-white ${hist.resignedAt ? 'bg-gray-400' : 'bg-green-500'}`}></span>
-                          <span className="font-bold text-gray-900 mr-1.5">[{(emp.histories?.length ?? 0) - index}{t.emp_history_nth_join}]</span>
-                          <span>
-                            {new Date(hist.joinedAt).toLocaleDateString()} ~{' '}
-                            {hist.resignedAt ? (
-                              <span className="text-gray-500">{new Date(hist.resignedAt).toLocaleDateString()} {t.emp_history_resigned}</span>
-                            ) : (
-                              <span className="text-green-600 font-bold bg-green-50 px-1 py-0.5 rounded">{t.emp_history_working}</span>
-                            )}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                {!editingId && <EmployeeHistoryList histories={emp.histories ?? []} t={t} />}
                 
                 {/* Stats Toggle Button */}
                 {!editingId && (

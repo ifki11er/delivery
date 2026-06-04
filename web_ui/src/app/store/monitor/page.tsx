@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bluetooth, ChevronLeft, Printer, RefreshCw, Wifi } from "lucide-react";
 import { useI18n, useLocale } from "@/i18n/I18nProvider";
+import { Button } from "@/components/ui/button";
+import { Panel } from "@/components/ui/panel";
 
 type ConnectionStatus = "idle" | "connecting" | "success" | "failed" | "error";
 
@@ -175,7 +177,7 @@ export default function MonitorPage() {
         <h1 className="text-2xl font-extrabold text-blue-600 tracking-tight">{t.mypage_monitor}</h1>
       </div>
 
-      <div className="mb-6 p-4 bg-indigo-50 rounded-xl flex items-center justify-between border border-indigo-100 shadow-sm">
+      <Panel className="mb-6 p-4 bg-indigo-50 flex items-center justify-between border-indigo-100">
         <div className="flex items-center text-indigo-700">
           <Wifi className="w-6 h-6 mr-3" />
           <div>
@@ -185,15 +187,15 @@ export default function MonitorPage() {
             </span>
           </div>
         </div>
-        <button
+        <Button
           onClick={() => void updateWifiIp(true)}
-          className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow hover:bg-indigo-700 transition-colors"
+          size="sm"
         >
           {t.monitor_bot_manual}
-        </button>
-      </div>
+        </Button>
+      </Panel>
 
-      <div className="mb-6 p-4 bg-white rounded-xl shadow-sm border border-gray-100">
+      <Panel className="mb-6 p-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
           <div className="flex items-center gap-2">
             <Printer className="w-5 h-5 text-gray-700" />
@@ -205,20 +207,26 @@ export default function MonitorPage() {
             )}
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
-            <button
+            <Button
               onClick={() => window.AndroidBridge?.openBluetoothSettings()}
-              className="flex-1 sm:flex-none text-xs bg-blue-100 text-blue-700 px-2 py-2 rounded hover:bg-blue-200 whitespace-nowrap text-center font-medium"
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="flex-1 sm:flex-none text-blue-700 bg-blue-50 hover:bg-blue-100"
             >
               <Bluetooth className="w-3.5 h-3.5 inline-block mr-1" />
               {t.monitor_pairing}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleManualRefresh}
-              className="flex-1 sm:flex-none text-xs bg-gray-200 text-gray-700 px-2 py-2 rounded hover:bg-gray-300 transition-colors whitespace-nowrap text-center font-medium"
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="flex-1 sm:flex-none"
             >
               <RefreshCw className="w-3.5 h-3.5 inline-block mr-1" />
               {t.monitor_refresh}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -238,24 +246,21 @@ export default function MonitorPage() {
           </select>
 
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={connectToPrinter}
               disabled={isConnecting}
-              className={`flex-1 py-2 rounded text-sm font-semibold transition ${
-                isConnecting ? "bg-indigo-300 text-indigo-50 cursor-wait" : "bg-indigo-500 text-white hover:bg-indigo-600"
-              }`}
+              className="flex-1"
             >
               {isConnecting ? t.monitor_printer_connecting : t.monitor_connect_printer}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={testPrint}
               disabled={isConnecting}
-              className={`flex-1 py-2 rounded text-sm font-semibold transition ${
-                isConnecting ? "bg-green-300 text-green-50 cursor-not-allowed" : "bg-green-500 text-white hover:bg-green-600"
-              }`}
+              variant="success"
+              className="flex-1"
             >
               {t.monitor_test_print}
-            </button>
+            </Button>
           </div>
 
           <div className="mt-2 flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200">
@@ -272,7 +277,7 @@ export default function MonitorPage() {
             {t.monitor_status_label}: <span className="font-medium text-gray-700">{connectionStatusText}</span>
           </p>
         </div>
-      </div>
+      </Panel>
 
       <h2 className="text-lg font-bold mb-3 text-gray-800">{t.monitor_orders_title}</h2>
       <div className="space-y-4">

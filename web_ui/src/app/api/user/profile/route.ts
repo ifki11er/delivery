@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "../../../../../auth";
 import { prisma } from "@/lib/prisma";
 import { jsonError, normalizePhone, readJson } from "@/lib/api";
+import { writeAuditLog } from "@/lib/audit";
 
 export async function GET() {
   const session = await auth();
@@ -45,6 +46,14 @@ export async function PUT(req: Request) {
       where: { id: session.user.id },
       data: { name, phoneNumber },
       select: { id: true, name: true, email: true, phoneNumber: true, role: true },
+    });
+
+    await writeAuditLog({
+      actorId: session.user.id,
+      action: "user_profile_updated",
+      targetType: "user",
+      targetId: session.user.id,
+      metadata: { changedFields: ["name", "phoneNumber"] },
     });
 
     return NextResponse.json({ success: true, user: updatedUser });

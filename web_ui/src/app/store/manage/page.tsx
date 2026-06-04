@@ -74,14 +74,14 @@ export default function StoreManagePage() {
         })
       });
       if (res.ok) {
-        alert(t.manage_save_success || '상점 정보가 저장되었습니다.');
+        alert(t.manage_save_success);
         fetchStores();
       } else {
         const err = await res.json();
-        alert((t.manage_save_fail || '저장 실패: ') + (err.error || 'Unknown error'));
+        alert(t.manage_save_fail_with_error.replace('{error}', err.error || 'Unknown error'));
       }
     } catch {
-      alert(t.manage_save_fail || '저장 실패');
+      alert(t.manage_save_fail);
     }
   };
 
@@ -92,14 +92,14 @@ export default function StoreManagePage() {
       const res = await fetch('https://api.ipify.org?format=json');
       const data = await res.json();
       setWifiIp(data.ip);
-      alert(`현재 연결된 Wi-Fi IP(${data.ip})를 가져왔습니다. 저장 버튼을 눌러주세요.`);
+      alert(t.manage_wifi_ip_loaded.replace('{ip}', data.ip));
     } catch {
-      alert('IP 주소를 가져오는데 실패했습니다.');
+      alert(t.manage_wifi_ip_failed);
     }
   };
 
   const handleSearchUser = async () => {
-    if (!searchPhone) return alert('양도받을 사장님의 전화번호를 입력하세요.');
+    if (!searchPhone) return alert(t.manage_transfer_phone_required);
     setIsSearching(true);
     try {
       const res = await fetch(`/api/user/search?phone=${searchPhone}`);
@@ -107,14 +107,14 @@ export default function StoreManagePage() {
         const user = (await res.json()) as UserSearchResult;
         setSearchResults([user]);
       } else if (res.status === 404) {
-        alert('해당 전화번호로 가입된 회원이 없습니다.');
+        alert(t.manage_transfer_user_not_found);
         setSearchResults([]);
       } else {
-        alert('검색에 실패했습니다.');
+        alert(t.manage_transfer_search_failed);
         setSearchResults([]);
       }
     } catch {
-      alert('검색 중 오류가 발생했습니다.');
+      alert(t.manage_transfer_search_error);
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -122,7 +122,7 @@ export default function StoreManagePage() {
   };
 
   const handleTransfer = async (userId: string, userName: string) => {
-    if (!confirm(`정말로 상점을 [${userName}]님에게 양도하시겠습니까?\n모든 직원과 통계 데이터가 함께 넘어갑니다.`)) return;
+    if (!confirm(t.manage_transfer_confirm.replace('{name}', userName))) return;
 
     try {
       const res = await fetch('/api/store', {
@@ -131,26 +131,26 @@ export default function StoreManagePage() {
         body: JSON.stringify({ id: storeId, newOwnerId: userId })
       });
       if (res.ok) {
-        alert('양도가 완료되었습니다. 이제 해당 상점에 접근할 수 없습니다.');
+        alert(t.manage_transfer_success);
         setSearchPhone('');
         setSearchResults([]);
         fetchStores(); // Reload
       } else {
         const err = await res.json();
-        alert(`양도 실패: ${err.error}`);
+        alert(t.manage_transfer_failed.replace('{error}', err.error));
       }
     } catch {
-      alert('양도 처리 중 오류가 발생했습니다.');
+      alert(t.manage_transfer_error);
     }
   };
 
   const handleDeleteStore = async () => {
-    if (!confirm(`[확인] 상점 '${storeName}'을(를) 폐업 처리하시겠습니까?\n모든 출결/급여 기록은 과거 조회용으로 보존되지만, 더 이상 새로운 운영은 불가능해집니다.`)) return;
+    if (!confirm(t.manage_close_confirm.replace('{name}', storeName))) return;
     
     // 이중 확인
-    const confirmName = prompt(`폐업을 진행하시려면 상점 이름 '${storeName}'을(를) 똑같이 입력해주세요.`);
+    const confirmName = prompt(t.manage_close_prompt.replace('{name}', storeName));
     if (confirmName !== storeName) {
-      alert('상점 이름이 일치하지 않아 취소되었습니다.');
+      alert(t.manage_close_name_mismatch);
       return;
     }
 
@@ -160,7 +160,7 @@ export default function StoreManagePage() {
       });
       if (res.ok) {
         const data = await res.json();
-        alert('상점이 성공적으로 폐업 처리되었습니다.');
+        alert(t.manage_close_success);
         if (data.remainingStores === 0) {
           router.push('/');
         } else {
@@ -168,10 +168,10 @@ export default function StoreManagePage() {
         }
       } else {
         const err = await res.json();
-        alert(`폐업 처리 실패: ${err.error}`);
+        alert(t.manage_close_failed.replace('{error}', err.error));
       }
     } catch {
-      alert('처리 중 오류가 발생했습니다.');
+      alert(t.manage_close_error);
     }
   };
 
@@ -218,7 +218,7 @@ export default function StoreManagePage() {
                 >
                   {store.name}
                   {store.status === 'CLOSED' && (
-                    <span className="ml-2 text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-sm">폐업</span>
+                    <span className="ml-2 text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-sm">{t.manage_closed_badge}</span>
                   )}
                 </button>
               ))}
@@ -343,7 +343,7 @@ export default function StoreManagePage() {
                   type="text" 
                   value={searchPhone}
                   onChange={(e) => setSearchPhone(e.target.value)}
-                  placeholder="전화번호 검색 (예: 01012345678)"
+                  placeholder={t.manage_transfer_phone_placeholder}
                   className="flex-1 px-4 py-3 bg-white border border-red-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none"
                 />
                 <button 
@@ -356,7 +356,7 @@ export default function StoreManagePage() {
                   ) : (
                     <>
                       <Search className="w-4 h-4 mr-1" />
-                      검색
+                      {t.search_btn}
                     </>
                   )}
                 </button>
@@ -380,7 +380,7 @@ export default function StoreManagePage() {
                           onClick={() => handleTransfer(user.id, user.name || '이름 없음')}
                           className="px-4 py-2 bg-red-100 text-red-600 font-bold rounded-lg hover:bg-red-200 transition-colors text-sm whitespace-nowrap"
                         >
-                          양도하기
+                          {t.manage_transfer_btn}
                         </button>
                       </div>
                     ))}
@@ -395,18 +395,18 @@ export default function StoreManagePage() {
                 <Trash2 className="w-32 h-32 text-white" />
               </div>
               <h2 className="font-bold text-lg text-gray-100 flex items-center relative z-10">
-                <Store className="w-5 h-5 mr-2" /> 상점 폐업 (운영 종료)
+                <Store className="w-5 h-5 mr-2" /> {t.manage_close_title}
               </h2>
               <p className="text-sm text-gray-400 relative z-10 leading-relaxed">
-                해당 상점을 <strong>'폐업'</strong> 상태로 전환합니다.<br />
-                폐업 처리 이후에는 해당 상점의 새로운 출퇴근 등록이나 스케줄 관리가 전면 중단됩니다.
+                {t.manage_close_desc_prefix} <strong>{t.manage_closed_badge}</strong> {t.manage_close_desc_suffix}<br />
+                {t.manage_close_desc_detail}
               </p>
               
               <button 
                 onClick={handleDeleteStore}
                 className="w-full py-3.5 bg-gray-800 text-red-400 border border-red-900/30 rounded-xl font-bold hover:bg-red-950 transition-colors flex items-center justify-center relative z-10"
               >
-                상점 폐업 처리하기
+                {t.manage_close_btn}
               </button>
             </div>
           </>
