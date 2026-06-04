@@ -1,50 +1,49 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { auth } from '../../../../../../auth';
+import { NextResponse } from "next/server";
+import { UserStatus } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { auth } from "../../../../../../auth";
+import { jsonError, readJson } from "@/lib/api";
+
+function isUserStatus(value: unknown): value is UserStatus {
+  return value === "ACTIVE" || value === "SUSPENDED" || value === "WITHDRAWN";
+}
 
 export async function PUT(req: Request) {
   const session = await auth();
-  if (!session?.user?.id || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session?.user?.id || session.user.role !== "ADMIN") {
+    return jsonError("Unauthorized", 401);
   }
 
   try {
-    const { userId, status } = await req.json();
+    const body = await readJson<{ userId?: unknown; status?: unknown }>(req);
+    const userId = typeof body?.userId === "string" ? body.userId : "";
+    const status = body?.status;
 
-    if (!userId || !['ACTIVE', 'SUSPENDED', 'WITHDRAWN'].includes(status)) {
-      return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
+    if (!userId || !isUserStatus(status)) {
+      return jsonError("Invalid parameters", 400);
     }
 
-    // 자기 자신은 변경할 수 없음
     if (userId === session.user.id) {
-      return NextResponse.json({ error: 'Cannot change your own status' }, { status: 403 });
-    }
-
-    let dataToUpdate: any = { status };
-
-    // 탈퇴 처리일 경우 추가 조치 (개인정보 보호 등)
-    if (status === 'WITHDRAWN') {
-      dataToUpdate.deletedAt = new Date();
-      // 이메일이나 전화번호 마스킹 처리 등을 추가할 수 있습니다.
-    } else {
-      // 다시 활성화하거나 정지할 경우 deletedAt 초기화
-      dataToUpdate.deletedAt = null;
+      return jsonError("Cannot change your own status", 403);
     }
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: dataToUpdate,
+      data: {
+        status,
+        deletedAt: status === "WITHDRAWN" ? new Date() : null,
+      },
       select: {
         id: true,
         name: true,
         email: true,
         status: true,
-      }
+      },
     });
 
     return NextResponse.json({ success: true, user: updatedUser });
   } catch (error) {
-    console.error('[Admin User Status Update Error]:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error("[Admin User Status Update Error]:", error);
+    return jsonError("Internal Server Error", 500);
   }
 }

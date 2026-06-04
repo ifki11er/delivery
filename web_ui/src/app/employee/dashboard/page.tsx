@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useI18n, useLocale } from '@/i18n/I18nProvider';
-import { MapPin, Clock, LogIn, LogOut, AlertCircle, CheckCircle2, ChevronLeft } from 'lucide-react';
+import { MapPin, Clock, LogIn, LogOut, CheckCircle2, ChevronLeft } from 'lucide-react';
 
 export default function EmployeeDashboardPage() {
   return (
@@ -13,64 +13,69 @@ export default function EmployeeDashboardPage() {
   );
 }
 
+type AttendanceRecord = {
+  id: string;
+  date: string;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  workMinutes: number;
+  status: 'NORMAL' | 'LATE' | 'EARLY_LEAVE' | 'ABSENT';
+};
+
 function DashboardContent() {
   const router = useRouter();
   const t = useI18n();
   const locale = useLocale();
   const { data: session } = useSession();
-  const [attendances, setAttendances] = useState<any[]>([]);
+  const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [todayAttendance, setTodayAttendance] = useState<any>(null);
+  const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null);
 
-  useEffect(() => {
-    if (session) {
-      fetchAttendances();
-    }
-  }, [session, month]);
-
-  const fetchAttendances = async () => {
+  const fetchAttendances = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/store/attendance?month=${month}`);
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as AttendanceRecord[];
         setAttendances(data);
         
         // Check if there is an attendance for today
         const todayStr = new Date().toISOString().split('T')[0];
-        const todayRecord = data.find((a: any) => a.date === todayStr);
+        const todayRecord = data.find((a: { date: string }) => a.date === todayStr);
         setTodayAttendance(todayRecord || null);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [month]);
+
+  useEffect(() => {
+    if (session) {
+      void fetchAttendances();
+    }
+  }, [fetchAttendances, session]);
 
   const handleAttendance = async (action: 'CHECK_IN' | 'CHECK_OUT') => {
     try {
-      const ipRes = await fetch('https://api.ipify.org?format=json');
-      const ipData = await ipRes.json();
-      const clientIp = ipData.ip;
-
       const res = await fetch('/api/store/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, clientIp })
+        body: JSON.stringify({ action })
       });
       if (res.ok) {
         alert(action === 'CHECK_IN' ? (t.emp_check_in_msg || '출근 처리되었습니다!') : (t.emp_check_out_msg || '퇴근 처리되었습니다! 고생하셨습니다.'));
-        fetchAttendances();
+        await fetchAttendances();
       } else {
         const err = await res.json();
         alert(`오류: ${err.error}`);
       }
-    } catch (e) {
+    } catch {
       alert(t.emp_error_msg || '출퇴근 처리 중 오류가 발생했습니다.');
     }
   };
@@ -147,7 +152,7 @@ function DashboardContent() {
             {attendances.length === 0 ? (
               <div className="py-10 text-center text-gray-400 text-sm">{t.emp_no_history}</div>
             ) : (
-              attendances.map((att: any) => (
+              attendances.map((att) => (
                 <div key={att.id} className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between shadow-sm">
                   <div>
                     <span className="text-gray-500 text-xs block mb-1">{att.date}</span>

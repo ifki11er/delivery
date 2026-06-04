@@ -4,13 +4,15 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Store, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import type { StoreStatus } from '@prisma/client';
+import type { AdminStoreRow } from '@/types/admin';
 
-export default function StoreListClient({ stores: initialStores, filterType }: { stores: any[], filterType: string }) {
-  const [stores, setStores] = useState(initialStores);
+export default function StoreListClient({ stores: initialStores, filterType }: { stores: AdminStoreRow[], filterType: string }) {
+  const [stores, setStores] = useState<AdminStoreRow[]>(initialStores);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleStatusChange = async (storeId: string, newStatus: string) => {
+  const handleStatusChange = async (storeId: string, newStatus: StoreStatus) => {
     if (newStatus === 'CLOSED') {
       if (!confirm('정말로 이 가게를 폐업(CLOSED) 처리하시겠습니까? 관련 데이터가 노출되지 않을 수 있습니다.')) return;
     } else {
@@ -33,7 +35,7 @@ export default function StoreListClient({ stores: initialStores, filterType }: {
         const error = await res.json();
         alert(`변경 실패: ${error.error}`);
       }
-    } catch (e) {
+    } catch {
       alert('오류가 발생했습니다.');
     } finally {
       setLoadingId(null);
@@ -116,7 +118,7 @@ export default function StoreListClient({ stores: initialStores, filterType }: {
                         <select 
                           value={store.status}
                           disabled={loadingId === store.id}
-                          onChange={(e) => handleStatusChange(store.id, e.target.value)}
+                          onChange={(e) => handleStatusChange(store.id, e.target.value as StoreStatus)}
                           className={`text-sm rounded-lg border-gray-200 font-medium focus:ring-indigo-500 focus:border-indigo-500 p-1.5 ${
                             store.status === 'ACTIVE' ? 'text-green-700 bg-green-50' : 
                             store.status === 'SUSPENDED' ? 'text-yellow-700 bg-yellow-50' : 

@@ -43,7 +43,7 @@ export async function GET(req: Request) {
       let earlyLeaveCount = 0;
       let normalCount = 0;
       let absentCount = 0;
-      let daysWorked = emp.attendances.length;
+      const daysWorked = emp.attendances.length;
 
       emp.attendances.forEach(att => {
         totalMinutes += att.workMinutes;
@@ -87,6 +87,7 @@ export async function GET(req: Request) {
     });
 
   } catch (error) {
+    console.error('[Store Statistics Error]:', error);
     return NextResponse.json({ error: 'Failed to generate statistics' }, { status: 500 });
   }
 }

@@ -1,9 +1,9 @@
-import NextAuth from 'next-auth'
-import { PrismaAdapter } from '@auth/prisma-adapter'
-import { prisma } from '@/lib/prisma'
-import { authConfig } from './auth.config'
-import Credentials from 'next-auth/providers/credentials'
-import bcrypt from 'bcryptjs'
+import NextAuth from "next-auth";
+import { PrismaAdapter } from "@auth/prisma-adapter";
+import Credentials from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
+import { authConfig } from "./auth.config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -12,39 +12,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     ...authConfig.providers,
     Credentials({
       credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' },
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null
+        if (!credentials?.email || !credentials?.password) return null;
 
-        const email = credentials.email as string
-        const password = credentials.password as string
+        const email = String(credentials.email).trim().toLowerCase();
+        const password = String(credentials.password);
 
-        let user = await prisma.user.findUnique({
-          where: { email },
-        })
-
-        // 🚀 사용자가 없으면 자동 회원가입 처리 (Upsert 방식)
+        const user = await prisma.user.findUnique({ where: { email } });
         if (!user) {
-          const hashedPassword = await bcrypt.hash(password, 10)
-          user = await prisma.user.create({
-            data: { email, password: hashedPassword },
-          })
-          return user
+          const hashedPassword = await bcrypt.hash(password, 10);
+          return prisma.user.create({
+            data: {
+              email,
+              password: hashedPassword,
+            },
+          });
         }
 
-        // 사용자가 존재하면 탈퇴 및 정지 여부, 비밀번호 검증
-        if (user.deletedAt || user.status === 'WITHDRAWN') return null
-        if (user.status === 'SUSPENDED') throw new Error('계정이 정지되었습니다.')
-        if (!user.password) return null
+        if (!user.password) return null;
+        if (user.deletedAt || user.status === "WITHDRAWN") return null;
+        if (user.status === "SUSPENDED") {
+          throw new Error("Account is suspended.");
+        }
 
-        const passwordsMatch = await bcrypt.compare(password, user.password)
-
-        if (passwordsMatch) return user
-
-        return null
+        const passwordsMatch = await bcrypt.compare(password, user.password);
+        return passwordsMatch ? user : null;
       },
     }),
   ],
-})
+});

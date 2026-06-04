@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Lock, ArrowLeft } from 'lucide-react';
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const token = searchParams.get('token');
 
   const [password, setPassword] = useState('');
@@ -30,7 +29,7 @@ export default function ResetPasswordPage() {
       setMessage('비밀번호가 서로 일치하지 않습니다.');
       return;
     }
-    if (password.length < 6) {
+    if (password.length < 8) {
       setStatus('ERROR');
       setMessage('비밀번호는 최소 6자 이상이어야 합니다.');
       return;
@@ -52,7 +51,7 @@ export default function ResetPasswordPage() {
         setStatus('ERROR');
         setMessage(data.error || '오류가 발생했습니다.');
       }
-    } catch (err) {
+    } catch {
       setStatus('ERROR');
       setMessage('네트워크 오류가 발생했습니다.');
     }

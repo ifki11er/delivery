@@ -4,13 +4,15 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, UserX, UserCheck, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import type { UserStatus } from '@prisma/client';
+import type { AdminUserRow } from '@/types/admin';
 
-export default function UserListClient({ users: initialUsers, filterType }: { users: any[], filterType: string }) {
-  const [users, setUsers] = useState(initialUsers);
+export default function UserListClient({ users: initialUsers, filterType }: { users: AdminUserRow[], filterType: string }) {
+  const [users, setUsers] = useState<AdminUserRow[]>(initialUsers);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleStatusChange = async (userId: string, newStatus: string) => {
+  const handleStatusChange = async (userId: string, newStatus: UserStatus) => {
     if (newStatus === 'WITHDRAWN') {
       if (!confirm('정말로 이 회원을 탈퇴(WITHDRAWN) 처리하시겠습니까? 이 작업은 되돌리기 어려울 수 있습니다.')) return;
     } else {
@@ -33,7 +35,7 @@ export default function UserListClient({ users: initialUsers, filterType }: { us
         const error = await res.json();
         alert(`변경 실패: ${error.error}`);
       }
-    } catch (e) {
+    } catch {
       alert('오류가 발생했습니다.');
     } finally {
       setLoadingId(null);
@@ -110,7 +112,7 @@ export default function UserListClient({ users: initialUsers, filterType }: { us
                         <select 
                           value={user.status}
                           disabled={loadingId === user.id}
-                          onChange={(e) => handleStatusChange(user.id, e.target.value)}
+                          onChange={(e) => handleStatusChange(user.id, e.target.value as UserStatus)}
                           className={`text-sm rounded-lg border-gray-200 font-medium focus:ring-indigo-500 focus:border-indigo-500 p-1.5 ${
                             user.status === 'ACTIVE' ? 'text-green-700 bg-green-50' : 
                             user.status === 'SUSPENDED' ? 'text-yellow-700 bg-yellow-50' : 

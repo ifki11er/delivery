@@ -1,83 +1,89 @@
 "use client";
-import { useState, useEffect } from 'react';
+
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Wifi, ChevronLeft } from 'lucide-react';
-import { useI18n, useLocale } from '@/i18n/I18nProvider';
+import { Bluetooth, ChevronLeft, Printer, RefreshCw, Wifi } from "lucide-react";
+import { useI18n, useLocale } from "@/i18n/I18nProvider";
+
+type ConnectionStatus = "idle" | "connecting" | "success" | "failed" | "error";
 
 export default function MonitorPage() {
   const router = useRouter();
   const t = useI18n();
   const locale = useLocale();
-  const [orders, setOrders] = useState<any[]>([]);
-  const [printers, setPrinters] = useState<any[]>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState<string>("");
-  const [connectionStatus, setConnectionStatus] = useState<string>("대기중");
-  const [showToast, setShowToast] = useState<boolean>(false);
-  const [isConnecting, setIsConnecting] = useState<boolean>(false);
-  const [autoPrint, setAutoPrint] = useState<boolean>(false);
-  const [wifiIp, setWifiIp] = useState<string>("");
-  const [ipLastUpdated, setIpLastUpdated] = useState<string>("");
+  const [orders, setOrders] = useState<AndroidOrder[]>([]);
+  const [printers, setPrinters] = useState<AndroidPrinter[]>([]);
+  const [selectedPrinter, setSelectedPrinter] = useState("");
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle");
+  const [showToast, setShowToast] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [autoPrint, setAutoPrint] = useState(false);
+  const [wifiIp, setWifiIp] = useState("");
+  const [ipLastUpdated, setIpLastUpdated] = useState("");
+
+  const connectionStatusText = {
+    idle: t.monitor_printer_idle,
+    connecting: t.monitor_printer_connecting,
+    success: t.monitor_printer_connected,
+    failed: t.monitor_printer_failed,
+    error: t.monitor_printer_error,
+  }[connectionStatus];
 
   const updateWifiIp = async (manual = false) => {
     try {
-      const res = await fetch('https://api.ipify.org?format=json');
-      const data = await res.json();
-      const currentIp = data.ip;
-      setWifiIp(currentIp);
-
-      await fetch('/api/store/wifi-ip', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wifiIpAddress: currentIp })
+      const res = await fetch("/api/store/wifi-ip", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
       });
-      
-      const now = new Date();
-      setIpLastUpdated(now.toLocaleTimeString(locale, {hour: '2-digit', minute:'2-digit'}));
-      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update IP");
+
+      const currentIp = data.wifiIpAddress;
+      setWifiIp(currentIp);
+      setIpLastUpdated(new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }));
+
       if (manual) {
-        alert(`출퇴근용 와이파이 공인 IP(${currentIp})를 즉시 갱신했습니다.`);
+        alert(t.monitor_ip_updated.replace("{ip}", currentIp));
       }
-    } catch (e) {
-      if (manual) alert('IP 갱신에 실패했습니다. 네트워크를 확인해주세요.');
+    } catch {
+      if (manual) alert(t.monitor_ip_update_failed);
     }
   };
 
   const fetchOrders = () => {
-    if (typeof window !== "undefined" && (window as any).AndroidBridge) {
+    if (typeof window !== "undefined" && window.AndroidBridge) {
       try {
-        const data = (window as any).AndroidBridge.getOrders();
-        setOrders(JSON.parse(data));
-      } catch (e) {
-        console.error(e);
+        const data = window.AndroidBridge.getOrders();
+        setOrders(JSON.parse(data) as AndroidOrder[]);
+      } catch (error) {
+        console.error(error);
       }
     }
   };
 
   const loadPrinters = () => {
-    if (typeof window !== "undefined" && (window as any).AndroidBridge) {
+    if (typeof window !== "undefined" && window.AndroidBridge) {
       try {
-        const isAutoPrintEnabled = (window as any).AndroidBridge.isAutoPrintEnabled();
-        setAutoPrint(isAutoPrintEnabled);
+        setAutoPrint(window.AndroidBridge.isAutoPrintEnabled());
 
-        const isEnabled = (window as any).AndroidBridge.isBluetoothEnabled();
-        if (!isEnabled) {
-          alert("스마트폰의 블루투스 기능이 꺼져 있습니다. 블루투스를 켜고 다시 시도해주세요!");
+        if (!window.AndroidBridge.isBluetoothEnabled()) {
+          alert(t.monitor_bluetooth_disabled);
           setPrinters([]);
           return;
         }
 
-        const data = (window as any).AndroidBridge.getPairedPrinters();
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(window.AndroidBridge.getPairedPrinters()) as AndroidPrinter[];
         setPrinters(parsed);
-        
-        const defaultMac = (window as any).AndroidBridge.getDefaultPrinter();
-        if (defaultMac && parsed.some((p: any) => p.mac === defaultMac)) {
+
+        const defaultMac = window.AndroidBridge.getDefaultPrinter();
+        if (defaultMac && parsed.some((printer) => printer.mac === defaultMac)) {
           setSelectedPrinter(defaultMac);
         } else if (parsed.length > 0 && !selectedPrinter) {
           setSelectedPrinter(parsed[0].mac);
         }
-      } catch (e) {
-        console.error(e);
+      } catch (error) {
+        console.error(error);
       }
     }
   };
@@ -90,19 +96,19 @@ export default function MonitorPage() {
 
   const connectToPrinter = () => {
     if (!selectedPrinter || isConnecting) return;
-    
-    setConnectionStatus("연결 중... ⏳");
+
+    setConnectionStatus("connecting");
     setIsConnecting(true);
 
     setTimeout(() => {
       try {
-        const success = (window as any).AndroidBridge.connectPrinter(selectedPrinter);
-        setConnectionStatus(success ? "연결 성공! 🖨️" : "연결 실패 ❌");
+        const success = window.AndroidBridge?.connectPrinter(selectedPrinter) ?? false;
+        setConnectionStatus(success ? "success" : "failed");
         if (success) {
-          (window as any).AndroidBridge.saveDefaultPrinter(selectedPrinter);
+          window.AndroidBridge?.saveDefaultPrinter(selectedPrinter);
         }
-      } catch (error) {
-        setConnectionStatus("연결 실패 ❌ (에러)");
+      } catch {
+        setConnectionStatus("error");
       } finally {
         setIsConnecting(false);
       }
@@ -110,56 +116,47 @@ export default function MonitorPage() {
   };
 
   const testPrint = () => {
-    const success = (window as any).AndroidBridge.printTest();
-    if (!success) alert("인쇄 실패. 프린터가 연결되어 있는지 확인해주세요.");
+    const success = window.AndroidBridge?.printTest() ?? false;
+    if (!success) alert(t.monitor_test_print_failed);
   };
 
   const toggleAutoPrint = () => {
     const newState = !autoPrint;
-    
-    if (newState) {
-        // 이전에 등록된 적이 있더라도, '현재' 화면에서 연결이 성공한 상태가 아니면 차단합니다.
-        if (connectionStatus.indexOf("성공") === -1) {
-            alert("⚠️ 현재 프린터가 연결되어 있지 않습니다.\n먼저 [프린터 연결] 버튼을 눌러 기기와 연결한 후에 켜주세요.");
-            return; // 켜지지 않고 차단
-        }
+
+    if (newState && connectionStatus !== "success") {
+      alert(t.monitor_connect_first);
+      return;
     }
 
-    if (typeof window !== "undefined" && (window as any).AndroidBridge) {
-      (window as any).AndroidBridge.setAutoPrintEnabled(newState);
-      if (newState) {
-         alert("💡 자동 인쇄가 활성화되었습니다.\n이제 폰 화면이 꺼져 있어도 알림이 오면 알아서 출력합니다!");
-      }
+    window.AndroidBridge?.setAutoPrintEnabled(newState);
+    if (newState) {
+      alert(t.monitor_auto_print_enabled);
     }
     setAutoPrint(newState);
   };
 
   const printOrder = (text: string) => {
-    if (!selectedPrinter || connectionStatus.indexOf("성공") === -1) {
-      alert("먼저 프린터를 연결해주세요.");
+    if (!selectedPrinter || connectionStatus !== "success") {
+      alert(t.monitor_connect_first_short);
       return;
     }
-    // 인쇄될 기본 템플릿
-    const receiptText = `\n================================\n           주 문 서\n================================\n\n${text}\n\n`;
-    const success = (window as any).AndroidBridge.printText(receiptText);
+
+    const receiptText = `\n================================\n           ${t.monitor_receipt_title}\n================================\n\n${text}\n\n`;
+    const success = window.AndroidBridge?.printText(receiptText) ?? false;
     if (!success) {
-      alert("인쇄에 실패했습니다. 프린터 연결 상태를 확인해주세요.");
+      alert(t.monitor_print_failed);
     }
   };
 
   useEffect(() => {
     fetchOrders();
     loadPrinters();
-    updateWifiIp(); // 마운트 시 즉시 1회 IP 갱신
-    
+    void updateWifiIp();
+
     const interval = setInterval(fetchOrders, 2000);
-    // 1시간(3600000ms)마다 백그라운드 IP 자동 갱신 봇
-    const ipInterval = setInterval(() => updateWifiIp(), 60 * 60 * 1000);
-    
-    // 사용자가 블루투스 설정 창에서 돌아왔을 때(화면 포커스 시) 자동으로 목록 새로고침
-    const handleFocus = () => {
-      loadPrinters();
-    };
+    const ipInterval = setInterval(() => void updateWifiIp(), 60 * 60 * 1000);
+    const handleFocus = () => loadPrinters();
+
     window.addEventListener("focus", handleFocus);
 
     return () => {
@@ -178,109 +175,123 @@ export default function MonitorPage() {
         <h1 className="text-2xl font-extrabold text-blue-600 tracking-tight">{t.mypage_monitor}</h1>
       </div>
 
-      {/* 유동 IP 갱신 현황바 (직원 출퇴근용 IP 봇) */}
       <div className="mb-6 p-4 bg-indigo-50 rounded-xl flex items-center justify-between border border-indigo-100 shadow-sm">
         <div className="flex items-center text-indigo-700">
           <Wifi className="w-6 h-6 mr-3" />
           <div>
             <span className="font-bold text-sm block">{t.monitor_bot_active}</span>
-            <span className="text-xs opacity-80 mt-0.5 block">IP: {wifiIp || 'Loading...'} ({t.monitor_bot_last} {ipLastUpdated || '-'})</span>
+            <span className="text-xs opacity-80 mt-0.5 block">
+              {t.monitor_ip_label}: {wifiIp || t.mypage_loading} ({t.monitor_bot_last} {ipLastUpdated || "-"})
+            </span>
           </div>
         </div>
-        <button 
-          onClick={() => updateWifiIp(true)}
+        <button
+          onClick={() => void updateWifiIp(true)}
           className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow hover:bg-indigo-700 transition-colors"
         >
           {t.monitor_bot_manual}
         </button>
       </div>
 
-      {/* 블루투스 프린터 테스트 섹션 */}
       <div className="mb-6 p-4 bg-white rounded-xl shadow-sm border border-gray-100">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-gray-800 whitespace-nowrap">🖨️ {t.mypage_printer}</h2>
-            {showToast && <span className="text-xs font-semibold text-green-600 animate-pulse whitespace-nowrap">✓ Refreshed</span>}
+            <Printer className="w-5 h-5 text-gray-700" />
+            <h2 className="text-lg font-bold text-gray-800 whitespace-nowrap">{t.mypage_printer}</h2>
+            {showToast && (
+              <span className="text-xs font-semibold text-green-600 animate-pulse whitespace-nowrap">
+                {t.monitor_refreshed}
+              </span>
+            )}
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
-            <button 
-              onClick={() => {
-                if (typeof window !== "undefined" && (window as any).AndroidBridge) {
-                  (window as any).AndroidBridge.openBluetoothSettings();
-                }
-              }} 
+            <button
+              onClick={() => window.AndroidBridge?.openBluetoothSettings()}
               className="flex-1 sm:flex-none text-xs bg-blue-100 text-blue-700 px-2 py-2 rounded hover:bg-blue-200 whitespace-nowrap text-center font-medium"
             >
-              + Pairing
+              <Bluetooth className="w-3.5 h-3.5 inline-block mr-1" />
+              {t.monitor_pairing}
             </button>
-            <button onClick={handleManualRefresh} className="flex-1 sm:flex-none text-xs bg-gray-200 text-gray-700 px-2 py-2 rounded hover:bg-gray-300 transition-colors whitespace-nowrap text-center font-medium">
-              🔄 Refresh
+            <button
+              onClick={handleManualRefresh}
+              className="flex-1 sm:flex-none text-xs bg-gray-200 text-gray-700 px-2 py-2 rounded hover:bg-gray-300 transition-colors whitespace-nowrap text-center font-medium"
+            >
+              <RefreshCw className="w-3.5 h-3.5 inline-block mr-1" />
+              {t.monitor_refresh}
             </button>
           </div>
         </div>
-          <div className="flex flex-col gap-3">
-          <select 
+
+        <div className="flex flex-col gap-3">
+          <select
             className="p-2 border rounded text-sm text-black disabled:bg-gray-100 disabled:text-gray-400"
             value={selectedPrinter}
-            onChange={(e) => setSelectedPrinter(e.target.value)}
+            onChange={(event) => setSelectedPrinter(event.target.value)}
             disabled={isConnecting}
           >
-            {printers.length === 0 ? <option>No Bluetooth Devices</option> : null}
-            {printers.map(p => (
-              <option key={p.mac} value={p.mac}>{p.name} ({p.mac})</option>
+            {printers.length === 0 ? <option>{t.monitor_no_bluetooth_devices}</option> : null}
+            {printers.map((printer) => (
+              <option key={printer.mac} value={printer.mac}>
+                {printer.name} ({printer.mac})
+              </option>
             ))}
           </select>
+
           <div className="flex gap-2">
-            <button 
-              onClick={connectToPrinter} 
+            <button
+              onClick={connectToPrinter}
               disabled={isConnecting}
-              className={`flex-1 py-2 rounded text-sm font-semibold transition ${isConnecting ? 'bg-indigo-300 text-indigo-50 cursor-wait' : 'bg-indigo-500 text-white hover:bg-indigo-600'}`}
+              className={`flex-1 py-2 rounded text-sm font-semibold transition ${
+                isConnecting ? "bg-indigo-300 text-indigo-50 cursor-wait" : "bg-indigo-500 text-white hover:bg-indigo-600"
+              }`}
             >
-              {isConnecting ? 'Connecting...' : 'Connect Printer'}
+              {isConnecting ? t.monitor_printer_connecting : t.monitor_connect_printer}
             </button>
-            <button 
-              onClick={testPrint} 
+            <button
+              onClick={testPrint}
               disabled={isConnecting}
-              className={`flex-1 py-2 rounded text-sm font-semibold transition ${isConnecting ? 'bg-green-300 text-green-50 cursor-not-allowed' : 'bg-green-500 text-white hover:bg-green-600'}`}
+              className={`flex-1 py-2 rounded text-sm font-semibold transition ${
+                isConnecting ? "bg-green-300 text-green-50 cursor-not-allowed" : "bg-green-500 text-white hover:bg-green-600"
+              }`}
             >
-              Test Print
-            </button>
-          </div>
-          
-          <div className="mt-2 flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200">
-            <div>
-              <p className="text-sm font-bold text-gray-800">Auto Print</p>
-            </div>
-            <button 
-              onClick={toggleAutoPrint}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoPrint ? 'bg-blue-600' : 'bg-gray-300'}`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoPrint ? 'translate-x-6' : 'translate-x-1'}`} />
+              {t.monitor_test_print}
             </button>
           </div>
 
-          <p className="text-xs text-center text-gray-500 mt-1">Status: <span className="font-medium text-gray-700">{connectionStatus}</span></p>
+          <div className="mt-2 flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200">
+            <p className="text-sm font-bold text-gray-800">{t.monitor_auto_print}</p>
+            <button
+              onClick={toggleAutoPrint}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoPrint ? "bg-blue-600" : "bg-gray-300"}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoPrint ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+
+          <p className="text-xs text-center text-gray-500 mt-1">
+            {t.monitor_status_label}: <span className="font-medium text-gray-700">{connectionStatusText}</span>
+          </p>
         </div>
       </div>
-      
-      <h2 className="text-lg font-bold mb-3 text-gray-800">📋 {t.monitor_orders_title}</h2>
+
+      <h2 className="text-lg font-bold mb-3 text-gray-800">{t.monitor_orders_title}</h2>
       <div className="space-y-4">
         {orders.length === 0 ? (
           <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 text-center">
             <p className="text-gray-500 mb-2">{t.monitor_orders_empty}</p>
           </div>
         ) : (
-          orders.map((order, i) => (
-            <div key={i} className="p-4 bg-white shadow-md rounded-xl border-l-4 border-blue-500">
+          orders.map((order, index) => (
+            <div key={index} className="p-4 bg-white shadow-md rounded-xl border-l-4 border-blue-500">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs font-medium text-gray-400">{order.timestamp}</span>
                 <div className="flex gap-2">
                   <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded-full">{order.status}</span>
-                  <button 
+                  <button
                     onClick={() => printOrder(order.raw_text)}
                     className="text-xs font-bold px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 shadow-sm transition"
                   >
-                    🖨️ Print
+                    {t.monitor_print}
                   </button>
                 </div>
               </div>

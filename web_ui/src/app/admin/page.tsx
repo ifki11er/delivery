@@ -2,6 +2,7 @@ import { auth } from "../../../auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import AdminClient from "./AdminClient";
+import type { AdminStats } from "@/types/admin";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -53,7 +54,7 @@ export default async function AdminPage() {
   ]);
 
   // 3. 클라이언트 컴포넌트로 데이터 전달
-  const stats = {
+  const stats: AdminStats = {
     users: { 
       total: totalUsers, 
       active: activeUsers, 
@@ -64,7 +65,7 @@ export default async function AdminPage() {
       customers: customerUsers,
       employees: totalEmployees
     },
-    stores: { active: activeStores, suspended: suspendedStores, closed: closedStores, pending: allApps.filter((a: any) => a.status === 'PENDING').length }
+    stores: { active: activeStores, suspended: suspendedStores, closed: closedStores, pending: allApps.filter((app) => app.status === 'PENDING').length }
   };
 
   return (

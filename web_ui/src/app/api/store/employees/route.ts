@@ -42,6 +42,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json(employees);
   } catch (error) {
+    console.error('[Store Employees GET Error]:', error);
     return NextResponse.json({ error: 'Failed to fetch employees' }, { status: 500 });
   }
 }
@@ -118,6 +119,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(employee);
   } catch (error) {
+    console.error('[Store Employees POST Error]:', error);
     return NextResponse.json({ error: 'Failed to add employee' }, { status: 500 });
   }
 }
@@ -159,6 +161,7 @@ export async function PUT(req: Request) {
 
     return NextResponse.json(updatedEmployee);
   } catch (error) {
+    console.error('[Store Employees PUT Error]:', error);
     return NextResponse.json({ error: 'Failed to update employee' }, { status: 500 });
   }
 }
@@ -209,6 +212,7 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('[Store Employees DELETE Error]:', error);
     return NextResponse.json({ error: 'Failed to delete employee' }, { status: 500 });
   }
 }

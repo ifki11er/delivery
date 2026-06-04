@@ -1,5 +1,6 @@
 import { auth } from "../../../../auth";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import StoreListClient from "./StoreListClient";
 
@@ -13,7 +14,7 @@ export default async function AdminStoresPage({ searchParams }: { searchParams: 
   const resolvedParams = await searchParams;
   const filter = resolvedParams.filter || "all";
   
-  let whereCondition: any = {};
+  let whereCondition: Prisma.StoreWhereInput = {};
   
   switch (filter) {
     case 'active':

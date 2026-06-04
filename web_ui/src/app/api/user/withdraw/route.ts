@@ -1,11 +1,12 @@
-import { NextResponse } from 'next/server';
-import { auth } from '../../../../../auth';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import { auth } from "../../../../../auth";
+import { prisma } from "@/lib/prisma";
+import { jsonError } from "@/lib/api";
 
-export async function POST(req: Request) {
+export async function POST() {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return jsonError("Unauthorized", 401);
   }
 
   try {
@@ -16,49 +17,43 @@ export async function POST(req: Request) {
       include: {
         stores: true,
         employments: true,
-      }
+      },
     });
 
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
+    if (!user) return jsonError("User not found", 404);
+    if (user.role === "ADMIN") return jsonError("Admins cannot delete their account.", 403);
 
-    if (user.role === 'ADMIN') {
-      return NextResponse.json({ error: 'Admins cannot delete their account.' }, { status: 403 });
-    }
-
-    const activeStores = user.stores.filter(s => s.status !== 'CLOSED');
+    const activeStores = user.stores.filter((store) => store.status !== "CLOSED");
     if (activeStores.length > 0) {
-      return NextResponse.json({ error: '운영 중이거나 정지된 가게를 소유하고 있습니다. 상점을 먼저 폐업 처리하거나 소유권을 이전해야 탈퇴할 수 있습니다.' }, { status: 400 });
+      return jsonError("Close or transfer active stores before deleting your account.", 400);
     }
 
-    const activeEmployments = user.employments.filter(e => e.status === 'ACTIVE');
+    const activeEmployments = user.employments.filter((employment) => employment.status === "ACTIVE");
     if (activeEmployments.length > 0) {
-      return NextResponse.json({ error: '현재 재직 중인 매장이 있습니다. 먼저 퇴사 처리된 후 탈퇴할 수 있습니다.' }, { status: 400 });
+      return jsonError("Leave active stores before deleting your account.", 400);
     }
 
-    // Anonymization (Soft Delete)
     const uniqueSuffix = Date.now().toString();
-    
+
     await prisma.$transaction([
       prisma.user.update({
         where: { id: userId },
         data: {
-          email: `DELETED_${uniqueSuffix}_${user.email || ''}`,
-          phoneNumber: `DELETED_${uniqueSuffix}_${user.phoneNumber || ''}`,
+          email: user.email ? `DELETED_${uniqueSuffix}_${user.email}` : null,
+          phoneNumber: user.phoneNumber ? `DELETED_${uniqueSuffix}_${user.phoneNumber}` : null,
           password: null,
           image: null,
           deletedAt: new Date(),
-          status: 'WITHDRAWN',
-        }
+          status: "WITHDRAWN",
+        },
       }),
       prisma.account.deleteMany({ where: { userId } }),
       prisma.session.deleteMany({ where: { userId } }),
     ]);
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('[API Withdraw Error]:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  } catch (error) {
+    console.error("[API Withdraw Error]:", error);
+    return jsonError("Internal Server Error", 500);
   }
 }

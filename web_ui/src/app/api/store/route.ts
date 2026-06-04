@@ -71,6 +71,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(store);
   } catch (error) {
+    console.error('[API Store POST Error]:', error);
     return NextResponse.json({ error: 'Failed to create store' }, { status: 500 });
   }
 }

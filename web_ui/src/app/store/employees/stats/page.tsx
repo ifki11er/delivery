@@ -1,7 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Calculator, Calendar as CalendarIcon, Clock, AlertCircle } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { AlertCircle, Calculator, Calendar as CalendarIcon, Clock } from 'lucide-react';
+
+type StoreSummary = {
+  id: string;
+};
+
+type EmployeeStats = {
+  employeeId: string;
+  name: string | null;
+  wageType: string;
+  wageAmount: number;
+  statistics: {
+    totalHours: string;
+    daysWorked: number;
+    lateCount: number;
+    earlyLeaveCount: number;
+  };
+  calculatedSalary: number;
+};
+
+type StatsResponse = {
+  month: string;
+  storeName: string;
+  totalExpectedSalary: number;
+  employees: EmployeeStats[];
+};
 
 export default function EmployeesStatsPage() {
   const [storeId, setStoreId] = useState<string | null>(null);
@@ -9,41 +34,54 @@ export default function EmployeesStatsPage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // 1. Fetch store ID first
-    fetch('/api/store')
-      .then(res => res.json())
-      .then(data => {
-        if (data.length > 0) {
-          setStoreId(data[0].id);
-        } else {
-          setLoading(false);
-        }
-      });
-  }, []);
+  const fetchStats = useCallback(async () => {
+    if (!storeId) return;
 
-  useEffect(() => {
-    if (storeId) {
-      fetchStats();
-    }
-  }, [storeId, month]);
-
-  const fetchStats = async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/store/statistics?storeId=${storeId}&month=${month}`);
       if (res.ok) {
         setStats(await res.json());
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [month, storeId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadStore() {
+      try {
+        const res = await fetch('/api/store');
+        const data = (await res.json()) as StoreSummary[];
+        if (cancelled) return;
+
+        if (data.length > 0) {
+          setStoreId(data[0].id);
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error(error);
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadStore();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    void fetchStats();
+  }, [fetchStats]);
 
   if (loading && !stats) return <div className="p-8 text-center text-gray-500">통계 로딩 중...</div>;
   if (!storeId) return <div className="p-8 text-center text-gray-500">상점이 없습니다.</div>;
@@ -53,8 +91,8 @@ export default function EmployeesStatsPage() {
       <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="font-bold text-lg text-gray-900">급여 및 근태 통계</h1>
-          <input 
-            type="month" 
+          <input
+            type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
             className="px-3 py-1.5 bg-gray-100 border-none rounded-lg text-sm font-bold text-gray-700 focus:ring-0 cursor-pointer"
@@ -64,10 +102,9 @@ export default function EmployeesStatsPage() {
 
       {stats && (
         <div className="max-w-2xl mx-auto px-4 space-y-4 mt-6">
-          {/* Total Summary */}
-          <div className="bg-indigo-600 rounded-2xl p-6 text-white shadow-lg bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+          <div className="bg-indigo-600 rounded-2xl p-6 text-white shadow-lg">
             <p className="text-indigo-200 text-sm font-bold flex items-center mb-1">
-              <Calculator className="w-4 h-4 mr-1" /> 예상 총 인건비 ({month})
+              <Calculator className="w-4 h-4 mr-1" /> 예상 총 인건비 ({stats.month})
             </p>
             <h2 className="text-3xl font-black">
               {stats.totalExpectedSalary.toLocaleString()} <span className="text-lg font-bold text-indigo-300">원</span>
@@ -75,14 +112,14 @@ export default function EmployeesStatsPage() {
           </div>
 
           <h3 className="font-bold text-gray-900 pt-2">직원별 상세 내역</h3>
-          
-          {stats.employees.map((emp: any) => (
+
+          {stats.employees.map((emp) => (
             <div key={emp.employeeId} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
               <div className="flex justify-between items-end border-b border-gray-50 pb-4 mb-4">
                 <div>
-                  <h4 className="font-bold text-lg text-gray-900">{emp.name}</h4>
+                  <h4 className="font-bold text-lg text-gray-900">{emp.name || '이름 없음'}</h4>
                   <p className="text-xs text-gray-500 mt-1">
-                    {emp.wageType === 'HOURLY' ? '시급' : '일당'} {emp.wageAmount.toLocaleString()}원
+                    {emp.wageType === 'HOURLY' ? '시급' : '일급'} {emp.wageAmount.toLocaleString()}원
                   </p>
                 </div>
                 <div className="text-right">

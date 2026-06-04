@@ -2,8 +2,6 @@
 
 import { signIn, signOut } from '../../../auth'
 import { AuthError } from 'next-auth'
-import { prisma } from '@/lib/prisma'
-import bcrypt from 'bcryptjs'
 import { redirect } from 'next/navigation'
 
 export async function login(formData: FormData) {

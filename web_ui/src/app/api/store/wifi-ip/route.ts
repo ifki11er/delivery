@@ -1,37 +1,41 @@
-import { NextResponse } from 'next/server';
-import { auth } from '../../../../../auth';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import { auth } from "../../../../../auth";
+import { prisma } from "@/lib/prisma";
+import { getClientIp, jsonError, readJson } from "@/lib/api";
 
 export async function PUT(req: Request) {
   const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!session?.user?.id) return jsonError("Unauthorized", 401);
 
   try {
-    const { wifiIpAddress } = await req.json();
+    const body = await readJson<{ storeId?: unknown }>(req);
+    const storeId = typeof body?.storeId === "string" ? body.storeId : undefined;
 
-    if (!wifiIpAddress) {
-      return NextResponse.json({ error: 'IP address is required' }, { status: 400 });
+    const store = storeId
+      ? await prisma.store.findUnique({ where: { id: storeId } })
+      : await prisma.store.findFirst({
+          where: { ownerId: session.user.id, status: { not: "CLOSED" } },
+          orderBy: { createdAt: "asc" },
+        });
+
+    if (!store || store.ownerId !== session.user.id) {
+      return jsonError("Store not found", 404);
     }
 
-    // 사장님의 첫 번째 상점(기본 상점)을 찾아 IP를 업데이트
-    const store = await prisma.store.findFirst({
-      where: { ownerId: session.user.id }
-    });
-
-    if (!store) {
-      return NextResponse.json({ error: 'Store not found for this owner' }, { status: 404 });
+    const wifiIpAddress = getClientIp(req);
+    if (wifiIpAddress === "unknown") {
+      return jsonError("Could not determine request IP address", 400);
     }
 
     const updated = await prisma.store.update({
       where: { id: store.id },
-      data: { wifiIpAddress }
+      data: { wifiIpAddress },
+      select: { id: true, wifiIpAddress: true },
     });
 
-    return NextResponse.json({ success: true, wifiIpAddress: updated.wifiIpAddress });
+    return NextResponse.json({ success: true, ...updated });
   } catch (error) {
-    console.error('Update wifi IP error:', error);
-    return NextResponse.json({ error: 'Failed to update WiFi IP' }, { status: 500 });
+    console.error("[Store WiFi IP Error]:", error);
+    return jsonError("Failed to update Wi-Fi IP", 500);
   }
 }

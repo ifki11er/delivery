@@ -1,10 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Store, Upload, CheckCircle2, ChevronLeft, Clock, XCircle } from 'lucide-react';
-import Link from 'next/link';
 import { useI18n } from '@/i18n/I18nProvider';
+
+type BusinessApplication = {
+  id: string;
+  businessName: string;
+  businessRegNo: string;
+  representativeName: string | null;
+  contact: string | null;
+  status: string;
+  createdAt: string;
+};
 
 export default function BusinessApplyPage() {
   const router = useRouter();
@@ -13,7 +22,7 @@ export default function BusinessApplyPage() {
   const [success, setSuccess] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [applications, setApplications] = useState<any[]>([]);
+  const [applications, setApplications] = useState<BusinessApplication[]>([]);
   
   const [formData, setFormData] = useState({
     businessName: '',
@@ -29,21 +38,21 @@ export default function BusinessApplyPage() {
     };
   }, [previewUrl]);
 
-  const fetchApplications = async () => {
+  const fetchApplications = useCallback(async () => {
     try {
       const res = await fetch('/api/business-apply');
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as BusinessApplication[];
         setApplications(data);
       }
     } catch (e) {
       console.error(e);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchApplications();
-  }, []);
+    void fetchApplications();
+  }, [fetchApplications]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -102,7 +111,7 @@ export default function BusinessApplyPage() {
           representativeName: '',
           businessRegNo: ''
         });
-        fetchApplications();
+        void fetchApplications();
       }, 2000);
     } catch (error) {
       alert(error instanceof Error ? error.message : t.apply_error);

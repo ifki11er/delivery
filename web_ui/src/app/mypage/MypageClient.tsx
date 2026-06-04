@@ -1,8 +1,8 @@
-'use client';
+﻿'use client';
 
 import { useSession, signOut } from 'next-auth/react';
 import { usePlatform } from '@/hooks/usePlatform';
-import { LogOut, User, Store, Settings, Printer, ChevronRight, ClipboardList, Shield, Calculator, Clock, AlertTriangle } from 'lucide-react';
+import { LogOut, User, Store, Settings, Printer, ChevronRight, ClipboardList, Shield, Clock, AlertTriangle, Mail, Phone } from 'lucide-react';
 import Link from 'next/link';
 
 import { useI18n } from '@/i18n/I18nProvider';
@@ -17,7 +17,7 @@ export default function MypageClient() {
   const [storeName, setStoreName] = useState<string | null>(null);
   const [userRole, setUserRole] = useState(session?.user?.role || 'CUSTOMER');
   
-  // 모드 스위칭 상태 (localStorage에서 초기값 로드)
+  // 모드 스위치 상태를 localStorage에서 초기화한다.
   const [viewMode, setViewMode] = useState<'OWNER' | 'EMPLOYEE'>('OWNER');
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function MypageClient() {
           alert(t.mypage_withdraw_success);
           signOut({ callbackUrl: '/login' });
         }
-      } catch (err) {
+      } catch {
         alert('Error processing withdrawal.');
       }
     }
@@ -69,18 +69,18 @@ export default function MypageClient() {
           setStoreName(data.storeName);
           if (data.role && data.role !== session.user.role) {
             setUserRole(data.role);
-            update({ role: data.role }); // 쿠키 세션 강제 업데이트
+            update({ user: { role: data.role } });
           }
         })
         .catch(() => setIsEmployee(false));
     }
-  }, [userId, update]); // 의존성 배열 길이를 이전과 동일하게 유지(HMR 에러 방지)
+  }, [session?.user?.role, userId, update]);
 
-  // 세션 정보가 준비되면 초기값 설정
+  // 세션 정보가 준비되면 프로필 편집 폼을 초기화한다.
   useEffect(() => {
     if (session?.user && !isEditingProfile) {
       setEditName(session.user.name || '');
-      setEditPhone((session.user as any).phoneNumber || '');
+      setEditPhone(session.user.phoneNumber || '');
     }
   }, [session, isEditingProfile]);
 
@@ -108,11 +108,16 @@ export default function MypageClient() {
         throw new Error(err.error || t.mypage_save_fail);
       }
       const data = await res.json();
-      await update({ name: editName, phoneNumber: data.user.phoneNumber });
+      await update({
+        user: {
+          name: data.user.name,
+          phoneNumber: data.user.phoneNumber,
+        },
+      });
       setIsEditingProfile(false);
       alert(t.mypage_profile_saved);
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : t.mypage_save_fail);
     } finally {
       setIsSaving(false);
     }
@@ -177,10 +182,16 @@ export default function MypageClient() {
               <h2 className="text-xl font-bold text-gray-900 flex items-center">
                 {session.user.name || t.mypage_no_name}
               </h2>
-              <p className="text-sm text-gray-500 mt-0.5">{session.user.email}</p>
-              <p className="text-sm text-gray-500">{(session.user as any).phoneNumber || t.mypage_no_phone}</p>
+              <p className="text-sm text-gray-500 mt-1 flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-gray-400" />
+                <span>{session.user.email}</span>
+              </p>
+              <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-gray-400" />
+                <span>{session.user.phoneNumber || t.mypage_no_phone}</span>
+              </p>
               {isEmployee && storeName && (
-                <p className="text-sm font-semibold text-indigo-600 mt-1">🏠 {storeName}</p>
+                <p className="text-sm font-semibold text-indigo-600 mt-1">근무 상점: {storeName}</p>
               )}
               <div className="mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                 {isAdmin ? t.admin : isOwner ? t.owner : isEmployee ? t.mypage_employee : t.customer}
@@ -190,7 +201,7 @@ export default function MypageClient() {
         </div>
       </div>
 
-      {/* 모드 전환 토글 (사장님이면서 알바생인 경우에만 표시) */}
+      {/* 사장님이면서 직원인 경우 모드 전환 탭을 표시한다. */}
       {isOwner && isEmployee && !isAdmin && (
         <div className="bg-white p-1 rounded-xl shadow-sm border border-gray-200 flex text-sm font-bold animate-in fade-in slide-in-from-top-4">
           <button 
@@ -210,10 +221,10 @@ export default function MypageClient() {
         </div>
       )}
 
-      {/* 메뉴 리스트 */}
+      {/* 메뉴 목록 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
         
-        {/* 일반 고객용 메뉴 */}
+        {/* 일반 고객 메뉴 */}
         {!isAdmin && (
           <>
             <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -234,7 +245,7 @@ export default function MypageClient() {
           </>
         )}
 
-        {/* 사장님 메뉴 (일반 고객은 입점신청, 사장님/관리자는 관리 메뉴) */}
+        {/* 사장님 메뉴 */}
         {!isAdmin && (
           <>
             <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -251,7 +262,7 @@ export default function MypageClient() {
           </>
         )}
 
-        {/* 최고 관리자(ADMIN) 전용 메뉴 */}
+        {/* 최고 관리자 메뉴 */}
         {isAdmin && (
           <>
             <div className="bg-red-50 px-4 py-2 text-xs font-bold text-red-600 uppercase tracking-wider">
@@ -299,12 +310,12 @@ export default function MypageClient() {
               <ChevronRight className="w-5 h-5 text-red-400" />
             </Link>
             
-            {/* 앱(웹뷰) 환경에서만 보이는 프린터 설정 메뉴 */}
+            {/* 앱 환경에서만 프린터 설정 메뉴를 표시한다. */}
             {platform === 'app' && (
               <button 
                 onClick={() => {
-                  if (typeof window !== 'undefined' && (window as any).AndroidBridge) {
-                    (window as any).AndroidBridge.openBluetoothSettings();
+                  if (typeof window !== 'undefined' && window.AndroidBridge) {
+                    window.AndroidBridge.openBluetoothSettings();
                   }
                 }}
                 className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
@@ -332,7 +343,7 @@ export default function MypageClient() {
               </div>
               <ChevronRight className="w-5 h-5 text-indigo-400" />
             </Link>
-            {/* 매니저 권한인 경우 직원 관리 표시 */}
+            {/* 매니저 권한이면 직원 관리 메뉴를 표시한다. */}
             {empRole === 'MANAGER' && (
               <Link href="/store/employees" className="flex items-center justify-between p-4 hover:bg-indigo-50 transition-colors">
                 <div className="flex items-center space-x-3 text-indigo-700">
@@ -375,3 +386,4 @@ export default function MypageClient() {
     </div>
   );
 }
+

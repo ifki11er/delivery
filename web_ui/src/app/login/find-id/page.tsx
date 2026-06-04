@@ -7,7 +7,7 @@ import { Phone, ArrowLeft, Mail, AlertCircle } from 'lucide-react';
 export default function FindIdPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [status, setStatus] = useState<'IDLE' | 'LOADING' | 'SUCCESS_EMAIL' | 'SUCCESS_SOCIAL' | 'ERROR'>('IDLE');
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<string | null>(null);
   const [message, setMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,7 +35,7 @@ export default function FindIdPage() {
         setStatus('ERROR');
         setMessage(data.error || '오류가 발생했습니다.');
       }
-    } catch (err) {
+    } catch {
       setStatus('ERROR');
       setMessage('네트워크 오류가 발생했습니다.');
     }

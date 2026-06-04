@@ -3,14 +3,15 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { AlertTriangle, Search, Plus, UserX, ChevronLeft, Edit3, Save, X, Phone, FileText } from 'lucide-react';
+import { AlertTriangle, Search, Plus, ChevronLeft, Edit3, Save, X, Phone, FileText } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
+import type { BlacklistEntry } from '@/types/store-management';
 
 export default function BlacklistPage() {
   const router = useRouter();
   const t = useI18n();
   const { data: session } = useSession();
-  const [blacklist, setBlacklist] = useState<any[]>([]);
+  const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -31,8 +32,8 @@ export default function BlacklistPage() {
       if (res.ok) {
         setBlacklist(await res.json());
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -70,7 +71,7 @@ export default function BlacklistPage() {
         const errData = await res.json();
         alert(errData.error || t.blacklist_fail || '등록에 실패했습니다.');
       }
-    } catch (e) {
+    } catch {
       alert(t.blacklist_error || '오류가 발생했습니다.');
     }
   };
@@ -90,7 +91,7 @@ export default function BlacklistPage() {
       } else {
         alert('수정에 실패했습니다.');
       }
-    } catch (e) {
+    } catch {
       alert('오류가 발생했습니다.');
     }
   };
@@ -198,26 +199,23 @@ export default function BlacklistPage() {
               const count = entry.count;
               let borderColor = 'border-yellow-200';
               let badgeColor = 'bg-yellow-100 text-yellow-800';
-              let iconColor = 'text-yellow-500';
               let sideColor = 'bg-yellow-500';
               let levelText = '주의';
               
               if (count === 2) {
                 borderColor = 'border-orange-200';
                 badgeColor = 'bg-orange-100 text-orange-800';
-                iconColor = 'text-orange-500';
                 sideColor = 'bg-orange-500';
                 levelText = '위험';
               } else if (count >= 3) {
                 borderColor = 'border-red-200';
                 badgeColor = 'bg-red-100 text-red-800';
-                iconColor = 'text-red-500';
                 sideColor = 'bg-red-500';
                 levelText = '매우 위험';
               }
 
               // 내 제보가 가장 위로 오도록 정렬, 그다음은 최신순
-              const sortedReports = [...entry.reports].sort((a: any, b: any) => {
+              const sortedReports = [...entry.reports].sort((a, b) => {
                 if (a.reporterId === session?.user?.id) return -1;
                 if (b.reporterId === session?.user?.id) return 1;
                 return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -249,7 +247,7 @@ export default function BlacklistPage() {
                   </div>
                   
                   <div className="mt-4 pl-2 space-y-2">
-                    {displayReports.map((rep: any) => (
+                    {displayReports.map((rep) => (
                       <div key={rep.id} className={`p-3 rounded-xl border ${rep.reporterId === session?.user?.id ? 'bg-indigo-50 border-indigo-100' : 'bg-gray-50 border-gray-100'}`}>
                         {editingReportId === rep.id ? (
                           <div className="flex flex-col space-y-2">

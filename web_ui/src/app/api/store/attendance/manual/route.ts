@@ -111,7 +111,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json(attendance);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[API Manual Attendance POST Error]:', error);
     return NextResponse.json({ error: 'Failed to save record' }, { status: 500 });
   }

@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Store, Wifi, Save, Send, ChevronLeft, Search, User, Trash2 } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
+import type { StoreSummary, UserSearchResult } from '@/types/store-management';
 
 export default function StoreManagePage() {
   const router = useRouter();
   const t = useI18n();
-  const [stores, setStores] = useState<any[]>([]);
+  const [stores, setStores] = useState<StoreSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form states for the primary store
@@ -21,7 +22,7 @@ export default function StoreManagePage() {
   const [wifiIp, setWifiIp] = useState('');
   const [currency, setCurrency] = useState('원');
   const [searchPhone, setSearchPhone] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   // Fetch stores on load
@@ -29,7 +30,7 @@ export default function StoreManagePage() {
     try {
       const res = await fetch('/api/store');
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as StoreSummary[];
         setStores(data);
         if (data.length > 0) {
           const primary = data[0];
@@ -43,8 +44,8 @@ export default function StoreManagePage() {
           setCurrency(primary.currency || '원');
         }
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -79,7 +80,7 @@ export default function StoreManagePage() {
         const err = await res.json();
         alert((t.manage_save_fail || '저장 실패: ') + (err.error || 'Unknown error'));
       }
-    } catch (e) {
+    } catch {
       alert(t.manage_save_fail || '저장 실패');
     }
   };
@@ -92,7 +93,7 @@ export default function StoreManagePage() {
       const data = await res.json();
       setWifiIp(data.ip);
       alert(`현재 연결된 Wi-Fi IP(${data.ip})를 가져왔습니다. 저장 버튼을 눌러주세요.`);
-    } catch (e) {
+    } catch {
       alert('IP 주소를 가져오는데 실패했습니다.');
     }
   };
@@ -103,7 +104,7 @@ export default function StoreManagePage() {
     try {
       const res = await fetch(`/api/user/search?phone=${searchPhone}`);
       if (res.ok) {
-        const user = await res.json();
+        const user = (await res.json()) as UserSearchResult;
         setSearchResults([user]);
       } else if (res.status === 404) {
         alert('해당 전화번호로 가입된 회원이 없습니다.');
@@ -112,7 +113,7 @@ export default function StoreManagePage() {
         alert('검색에 실패했습니다.');
         setSearchResults([]);
       }
-    } catch (e) {
+    } catch {
       alert('검색 중 오류가 발생했습니다.');
       setSearchResults([]);
     } finally {
@@ -138,7 +139,7 @@ export default function StoreManagePage() {
         const err = await res.json();
         alert(`양도 실패: ${err.error}`);
       }
-    } catch (e) {
+    } catch {
       alert('양도 처리 중 오류가 발생했습니다.');
     }
   };
@@ -169,7 +170,7 @@ export default function StoreManagePage() {
         const err = await res.json();
         alert(`폐업 처리 실패: ${err.error}`);
       }
-    } catch (e) {
+    } catch {
       alert('처리 중 오류가 발생했습니다.');
     }
   };

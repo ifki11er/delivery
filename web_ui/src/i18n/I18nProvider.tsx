@@ -1,9 +1,9 @@
 'use client';
 
 import React, { createContext, useContext } from 'react';
-import { dictionaries, Locale } from './dictionaries';
+import { dictionaries } from './dictionaries';
 
-type Dictionary = typeof dictionaries['ko'];
+export type Dictionary = Record<string, string>;
 
 const I18nContext = createContext<{t: Dictionary, locale: string}>({ t: dictionaries.ko, locale: 'ko' });
 

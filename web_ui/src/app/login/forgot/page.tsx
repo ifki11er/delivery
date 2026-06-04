@@ -29,7 +29,7 @@ export default function ForgotPasswordPage() {
         setStatus('ERROR');
         setMessage(data.error || '오류가 발생했습니다.');
       }
-    } catch (err) {
+    } catch {
       setStatus('ERROR');
       setMessage('네트워크 오류가 발생했습니다.');
     }

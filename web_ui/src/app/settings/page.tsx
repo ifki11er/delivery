@@ -54,9 +54,9 @@ export default function SettingsPage() {
                 backgroundSize: '16px',
               }}
             >
-              <option value="ko">한국어</option>
-              <option value="en">English</option>
-              <option value="vi">Tiếng Việt</option>
+              <option value="ko">{t.setting_lang_ko}</option>
+              <option value="en">{t.setting_lang_en}</option>
+              <option value="vi">{t.setting_lang_vi}</option>
             </select>
           </div>
           

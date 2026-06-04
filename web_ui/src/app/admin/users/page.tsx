@@ -1,7 +1,9 @@
 import { auth } from "../../../../auth";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import UserListClient from "./UserListClient";
+import type { AdminUserRow } from "@/types/admin";
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
   const session = await auth();
@@ -13,7 +15,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
   const resolvedParams = await searchParams;
   const filter = resolvedParams.filter || "all";
   
-  let usersData: any = [];
+  let usersData: AdminUserRow[] = [];
   
   // 조건에 따른 페칭
   if (filter === 'employee') {
@@ -39,7 +41,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
     }));
   } else {
     // 일반 유저 조회 조건
-    let whereCondition: any = {};
+    let whereCondition: Prisma.UserWhereInput = {};
     
     switch (filter) {
       case 'active':

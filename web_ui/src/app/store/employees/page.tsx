@@ -4,24 +4,37 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserPlus, Search, Clock, Users, Save, ChevronLeft, Trash2, Edit3 } from 'lucide-react';
 import { useI18n, useLocale } from '@/i18n/I18nProvider';
+import type {
+  AttendanceStat,
+  EmployeeEditForm,
+  EmployeeRow,
+  StoreSummary,
+  UserSearchResult,
+} from '@/types/store-management';
 
 export default function StoreEmployeesPage() {
   const router = useRouter();
   const t = useI18n();
   const locale = useLocale();
-  const [stores, setStores] = useState<any[]>([]);
+  const [stores, setStores] = useState<StoreSummary[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
-  const [employees, setEmployees] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Add form
   const [searchPhone, setSearchPhone] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [selectedSearchUser, setSelectedSearchUser] = useState<any>(null);
+  const [selectedSearchUser, setSelectedSearchUser] = useState<UserSearchResult | null>(null);
 
   // Edit form
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<any>({});
+  const [editForm, setEditForm] = useState<EmployeeEditForm>({
+    role: 'STAFF',
+    wageType: 'HOURLY',
+    wageAmount: 0,
+    workStartTime: '09:00',
+    workEndTime: '18:00'
+  });
 
   // Stats view
   const [statsEmployeeId, setStatsEmployeeId] = useState<string | null>(null);
@@ -35,14 +48,14 @@ export default function StoreEmployeesPage() {
     checkOut: '',
     status: 'NORMAL'
   });
-  const [employeeStats, setEmployeeStats] = useState<any[]>([]);
+  const [employeeStats, setEmployeeStats] = useState<AttendanceStat[]>([]);
   const [isStatsLoading, setIsStatsLoading] = useState(false);
 
   const fetchStoresAndEmployees = async () => {
     try {
       const resStores = await fetch('/api/store');
       if (resStores.ok) {
-        const storesData = await resStores.json();
+        const storesData = (await resStores.json()) as StoreSummary[];
         setStores(storesData);
         if (storesData.length > 0) {
           const storeId = storesData[0].id;
@@ -50,8 +63,8 @@ export default function StoreEmployeesPage() {
           await fetchEmployees(storeId);
         }
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -61,10 +74,10 @@ export default function StoreEmployeesPage() {
     try {
       const res = await fetch(`/api/store/employees?storeId=${storeId}`);
       if (res.ok) {
-        setEmployees(await res.json());
+        setEmployees((await res.json()) as EmployeeRow[]);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
     }
   };
 
@@ -72,25 +85,25 @@ export default function StoreEmployeesPage() {
     fetchStoresAndEmployees();
   }, []);
 
-  useEffect(() => {
-    if (statsEmployeeId) {
-      fetchEmployeeStats(statsEmployeeId, statsMonth);
-    }
-  }, [statsMonth]);
-
   const fetchEmployeeStats = async (empId: string, month: string) => {
     setIsStatsLoading(true);
     try {
       const res = await fetch(`/api/store/attendance?storeId=${selectedStoreId}&employeeId=${empId}&month=${month}`);
       if (res.ok) {
-        setEmployeeStats(await res.json());
+        setEmployeeStats((await res.json()) as AttendanceStat[]);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
     } finally {
       setIsStatsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (statsEmployeeId) {
+      fetchEmployeeStats(statsEmployeeId, statsMonth);
+    }
+  }, [statsMonth]);
 
   const handleAddEmployee = async () => {
     if (!searchPhone) return alert('전화번호를 입력하세요.');
@@ -118,7 +131,7 @@ export default function StoreEmployeesPage() {
         const err = await res.json();
         alert(err.error);
       }
-    } catch (e) {
+    } catch {
       alert('등록 중 오류가 발생했습니다.');
     }
   };
@@ -128,13 +141,13 @@ export default function StoreEmployeesPage() {
     try {
       const res = await fetch(`/api/user/search?phone=${searchPhone}`);
       if (res.ok) {
-        setSelectedSearchUser(await res.json());
+        setSelectedSearchUser((await res.json()) as UserSearchResult);
       } else {
         const err = await res.json();
         alert(err.error || '사용자를 찾을 수 없습니다.');
         setSelectedSearchUser(null);
       }
-    } catch (e) {
+    } catch {
       alert('검색 중 오류가 발생했습니다.');
       setSelectedSearchUser(null);
     }
@@ -151,7 +164,7 @@ export default function StoreEmployeesPage() {
         alert('퇴사 처리되었습니다.');
         fetchEmployees(selectedStoreId);
       }
-    } catch (e) {
+    } catch {
       alert('오류가 발생했습니다.');
     }
   };
@@ -168,7 +181,7 @@ export default function StoreEmployeesPage() {
         setEditingId(null);
         fetchEmployees(selectedStoreId);
       }
-    } catch (e) {
+    } catch {
       alert(t.emp_error_msg || '오류가 발생했습니다.');
     }
   };
@@ -197,7 +210,7 @@ export default function StoreEmployeesPage() {
         const data = await res.json();
         alert(data.error || '오류가 발생했습니다.');
       }
-    } catch (e) {
+    } catch {
       alert(t.emp_error_msg || '오류가 발생했습니다.');
     }
   };
@@ -342,8 +355,8 @@ export default function StoreEmployeesPage() {
                           onChange={(e) => setEditForm({...editForm, role: e.target.value})}
                           className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
                         >
-                          <option value="STAFF">Staff</option>
-                          <option value="MANAGER">Manager</option>
+                          <option value="STAFF">{t.emp_role_staff}</option>
+                          <option value="MANAGER">{t.emp_role_manager}</option>
                         </select>
                       </div>
                       <div>
@@ -430,16 +443,16 @@ export default function StoreEmployeesPage() {
                   </div>
                 )}
                 
-                {!editingId && emp.histories && emp.histories.length > 0 && (
+                {!editingId && (emp.histories?.length ?? 0) > 0 && (
                   <div className="p-4 bg-white border-t border-gray-50">
                     <span className="text-gray-500 block text-xs mb-2 font-bold flex items-center">
                       <Clock className="w-3 h-3 mr-1" /> {t.emp_history_title}
                     </span>
                     <ul className="space-y-1.5 pl-1 border-l-2 border-indigo-100 ml-1">
-                      {emp.histories.map((hist: any, index: number) => (
+                      {(emp.histories ?? []).map((hist, index) => (
                         <li key={hist.id} className="relative text-xs text-gray-700 pl-3">
                           <span className={`absolute -left-[5px] top-1 w-2 h-2 rounded-full border-2 border-white ${hist.resignedAt ? 'bg-gray-400' : 'bg-green-500'}`}></span>
-                          <span className="font-bold text-gray-900 mr-1.5">[{emp.histories.length - index}{t.emp_history_nth_join}]</span>
+                          <span className="font-bold text-gray-900 mr-1.5">[{(emp.histories?.length ?? 0) - index}{t.emp_history_nth_join}]</span>
                           <span>
                             {new Date(hist.joinedAt).toLocaleDateString()} ~{' '}
                             {hist.resignedAt ? (
@@ -565,7 +578,7 @@ export default function StoreEmployeesPage() {
                                   <td colSpan={6} className="px-4 py-6 text-center text-gray-400">기록이 없습니다.</td>
                                 </tr>
                               ) : (
-                                employeeStats.map((att: any) => (
+                                employeeStats.map((att) => (
                                   <tr key={att.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-4 py-3 text-gray-900 font-medium">{att.date.split('-').slice(1).join('/')}</td>
                                     <td className="px-4 py-3 text-gray-600">{att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString(locale, {hour: '2-digit', minute:'2-digit'}) : '-'}</td>

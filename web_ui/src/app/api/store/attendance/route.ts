@@ -1,85 +1,99 @@
-import { NextResponse } from 'next/server';
-import { auth } from '../../../../../auth';
-import { prisma } from '@/lib/prisma';
-import { headers } from 'next/headers';
+import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
+import { auth } from "../../../../../auth";
+import { prisma } from "@/lib/prisma";
+import { getClientIp, jsonError, readJson } from "@/lib/api";
 
-// Helper to calculate time difference in minutes
+type AttendanceAction = "CHECK_IN" | "CHECK_OUT";
+
 function getMinutesDiff(start: Date, end: Date) {
-  return Math.floor((end.getTime() - start.getTime()) / 60000);
+  return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 60000));
 }
 
-// Convert "HH:MM" string to minutes from midnight
 function timeStringToMinutes(timeStr: string) {
-  const [hours, minutes] = timeStr.split(':').map(Number);
+  const [hours = 0, minutes = 0] = timeStr.split(":").map(Number);
   return hours * 60 + minutes;
+}
+
+function getKstDateKey(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function getKstMinutes(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  return hour * 60 + minute;
+}
+
+function isAttendanceAction(action: unknown): action is AttendanceAction {
+  return action === "CHECK_IN" || action === "CHECK_OUT";
 }
 
 export async function POST(req: Request) {
   const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!session?.user?.id) return jsonError("Unauthorized", 401);
 
   try {
-    const body = await req.json();
-    const { action, clientIp } = body; // 'CHECK_IN' or 'CHECK_OUT'
+    const body = await readJson<{ action?: unknown }>(req);
+    if (!isAttendanceAction(body?.action)) {
+      return jsonError("Invalid attendance action", 400);
+    }
 
-    const currentIp = clientIp || 'unknown';
-
-    // Find the employee record for the current user
     const employee = await prisma.employee.findFirst({
-      where: { userId: session.user.id, status: 'ACTIVE' },
-      include: { store: true }
+      where: { userId: session.user.id, status: "ACTIVE" },
+      include: { store: true },
+      orderBy: { createdAt: "desc" },
     });
 
     if (!employee) {
-      return NextResponse.json({ error: 'You are not registered as an active employee.' }, { status: 403 });
+      return jsonError("Active employee record not found.", 403);
     }
 
-    const store = employee.store;
-
-    // IP Validation (Only if store has a configured Wi-Fi IP)
-    // Note: In development, IP might be ::1 or 127.0.0.1, in production it will be public IP
-    if (store.wifiIpAddress && store.wifiIpAddress !== currentIp) {
-      return NextResponse.json({ 
-        error: `Wi-Fi 인증 실패: 가게 공유기에 연결해주세요. (현재 IP: ${currentIp})` 
-      }, { status: 403 });
+    const currentIp = getClientIp(req);
+    if (employee.store.wifiIpAddress && employee.store.wifiIpAddress !== currentIp) {
+      return jsonError("Store Wi-Fi verification failed.", 403);
     }
 
-    // Get current date and time in local timezone context (server time, assumed KST/UTC+9 for now)
     const now = new Date();
-    // A simple approach: use YYYY-MM-DD string as unique key per day
-    const dateStr = now.toISOString().split('T')[0];
+    const dateStr = getKstDateKey(now);
 
     let attendance = await prisma.attendance.findUnique({
       where: {
         employeeId_date: {
           employeeId: employee.id,
-          date: dateStr
-        }
-      }
+          date: dateStr,
+        },
+      },
     });
 
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const nowMinutes = getKstMinutes(now);
     const startExpected = timeStringToMinutes(employee.workStartTime);
     const endExpected = timeStringToMinutes(employee.workEndTime);
 
-    if (action === 'CHECK_IN') {
+    if (body.action === "CHECK_IN") {
       if (attendance?.checkInTime) {
-        return NextResponse.json({ error: 'Already checked in today.' }, { status: 400 });
+        return jsonError("Already checked in today.", 400);
       }
-
-      // Check if late (e.g. checked in after expected start time)
-      const isLate = nowMinutes > startExpected;
-      const status = isLate ? 'LATE' : 'NORMAL';
 
       attendance = await prisma.attendance.upsert({
         where: {
-          employeeId_date: { employeeId: employee.id, date: dateStr }
+          employeeId_date: { employeeId: employee.id, date: dateStr },
         },
         update: {
           checkInTime: now,
-          status,
+          status: nowMinutes > startExpected ? "LATE" : "NORMAL",
           wageType: employee.wageType,
           wageAmount: employee.wageAmount,
         },
@@ -87,41 +101,31 @@ export async function POST(req: Request) {
           employeeId: employee.id,
           date: dateStr,
           checkInTime: now,
-          status,
+          status: nowMinutes > startExpected ? "LATE" : "NORMAL",
           wageType: employee.wageType,
           wageAmount: employee.wageAmount,
-        }
+        },
       });
-    } else if (action === 'CHECK_OUT') {
+    } else {
       if (!attendance?.checkInTime) {
-        return NextResponse.json({ error: 'Cannot check out before checking in.' }, { status: 400 });
+        return jsonError("Cannot check out before checking in.", 400);
       }
       if (attendance.checkOutTime) {
-        return NextResponse.json({ error: 'Already checked out today.' }, { status: 400 });
+        return jsonError("Already checked out today.", 400);
       }
 
       const workMins = getMinutesDiff(attendance.checkInTime, now);
-      
       const expectedMins = endExpected - startExpected;
-      let calculatedWage = null;
-      if (attendance.wageType === 'HOURLY') {
-        calculatedWage = Math.floor((workMins / 60) * attendance.wageAmount);
-      } else if (attendance.wageType === 'DAILY') {
-        if (expectedMins > 0) {
-          if (workMins >= expectedMins) {
-            calculatedWage = attendance.wageAmount;
-          } else {
-            calculatedWage = Math.floor((workMins / expectedMins) * attendance.wageAmount);
-          }
-        } else {
-          calculatedWage = attendance.wageAmount;
-        }
-      }
+      let calculatedWage: number | null = null;
 
-      // Determine if early leave
-      let status = attendance.status;
-      if (nowMinutes < endExpected && status === 'NORMAL') {
-        status = 'EARLY_LEAVE';
+      if (attendance.wageType === "HOURLY") {
+        calculatedWage = Math.floor((workMins / 60) * attendance.wageAmount);
+      }
+      if (attendance.wageType === "DAILY") {
+        calculatedWage =
+          expectedMins > 0
+            ? Math.floor((Math.min(workMins, expectedMins) / expectedMins) * attendance.wageAmount)
+            : attendance.wageAmount;
       }
 
       attendance = await prisma.attendance.update({
@@ -129,76 +133,74 @@ export async function POST(req: Request) {
         data: {
           checkOutTime: now,
           workMinutes: workMins,
-          status,
+          status:
+            nowMinutes < endExpected && attendance.status === "NORMAL"
+              ? "EARLY_LEAVE"
+              : attendance.status,
           calculatedWage,
-        }
+        },
       });
-    } else {
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
     return NextResponse.json(attendance);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to record attendance' }, { status: 500 });
+    console.error("[Attendance POST Error]:", error);
+    return jsonError("Failed to record attendance", 500);
   }
 }
 
 export async function GET(req: Request) {
   const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!session?.user?.id) return jsonError("Unauthorized", 401);
 
   try {
     const { searchParams } = new URL(req.url);
-    const storeId = searchParams.get('storeId');
-    const month = searchParams.get('month'); // YYYY-MM
-    const queryEmployeeId = searchParams.get('employeeId');
+    const storeId = searchParams.get("storeId");
+    const month = searchParams.get("month");
+    const queryEmployeeId = searchParams.get("employeeId");
 
-    // If fetching for an employee
     const employee = await prisma.employee.findFirst({
-      where: { userId: session.user.id }
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
     });
 
     if (!storeId && !employee) {
-      return NextResponse.json({ error: 'No employee or store record found' }, { status: 404 });
+      return jsonError("No employee or store record found", 404);
     }
 
-    // Determine query context (Owner looking at store vs Employee looking at themselves)
-    const whereClause: any = {};
+    const whereClause: Prisma.AttendanceWhereInput = {};
+
     if (storeId) {
-      // Check if user is owner
       const store = await prisma.store.findUnique({ where: { id: storeId } });
       const isManager = await prisma.employee.findFirst({
-        where: { storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
+        where: { storeId, userId: session.user.id, role: "MANAGER", status: "ACTIVE" },
       });
-      if (store?.ownerId !== session.user.id && session.user.role !== 'ADMIN' && !isManager) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+      if (!store || (store.ownerId !== session.user.id && session.user.role !== "ADMIN" && !isManager)) {
+        return jsonError("Forbidden", 403);
       }
+
       whereClause.employee = { storeId };
-      if (queryEmployeeId) {
-        whereClause.employeeId = queryEmployeeId;
-      }
+      if (queryEmployeeId) whereClause.employeeId = queryEmployeeId;
     } else if (employee) {
       whereClause.employeeId = employee.id;
     }
 
-    if (month) {
-      whereClause.date = { startsWith: month };
-    }
+    if (month) whereClause.date = { startsWith: month };
 
     const attendances = await prisma.attendance.findMany({
       where: whereClause,
       include: {
         employee: {
-          include: { user: { select: { name: true, email: true } } }
-        }
+          include: { user: { select: { name: true, email: true } } },
+        },
       },
-      orderBy: { date: 'desc' }
+      orderBy: { date: "desc" },
     });
 
     return NextResponse.json(attendances);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch attendance' }, { status: 500 });
+    console.error("[Attendance GET Error]:", error);
+    return jsonError("Failed to fetch attendance", 500);
   }
 }

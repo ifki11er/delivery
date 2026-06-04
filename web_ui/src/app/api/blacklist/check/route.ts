@@ -1,34 +1,48 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import { auth } from "../../../../../auth";
+import { prisma } from "@/lib/prisma";
+import { jsonError, normalizePhone } from "@/lib/api";
 
-// This API is meant to be called by the Android Service in the background.
-// It doesn't require session auth, but in a real-world scenario, you should 
-// authenticate it using an API key or a special token passed by the Android app.
+async function canReadBlacklist(req: Request) {
+  const configuredToken = process.env.BLACKLIST_API_TOKEN;
+  const requestToken = req.headers.get("x-api-key");
+
+  if (configuredToken && requestToken === configuredToken) return true;
+
+  const session = await auth();
+  return Boolean(session?.user?.id && session.user.role !== "CUSTOMER");
+}
+
 export async function GET(req: Request) {
+  if (!(await canReadBlacklist(req))) {
+    return jsonError("Forbidden", 403);
+  }
+
   const { searchParams } = new URL(req.url);
-  const phone = searchParams.get('phone');
+  const phone = normalizePhone(searchParams.get("phone"));
 
   if (!phone) {
-    return NextResponse.json({ isBlacklisted: false, error: 'Phone parameter is required' }, { status: 400 });
+    return jsonError("Phone parameter is required", 400);
   }
 
   try {
-    const cleanedPhone = phone.replace(/[^0-9]/g, '');
-    
     const entries = await prisma.blacklist.findMany({
-      where: { phoneNumber: cleanedPhone }
+      where: { phoneNumber: phone },
+      select: {
+        id: true,
+        reason: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
     });
 
-    if (entries.length > 0) {
-      return NextResponse.json({ 
-        isBlacklisted: true, 
-        count: entries.length,
-        reasons: entries.map(e => e.reason)
-      });
-    } else {
-      return NextResponse.json({ isBlacklisted: false });
-    }
+    return NextResponse.json({
+      isBlacklisted: entries.length > 0,
+      count: entries.length,
+      reasons: entries.map((entry) => entry.reason),
+    });
   } catch (error) {
-    return NextResponse.json({ isBlacklisted: false, error: 'Internal server error' }, { status: 500 });
+    console.error("[Blacklist Check Error]:", error);
+    return jsonError("Internal server error", 500);
   }
 }

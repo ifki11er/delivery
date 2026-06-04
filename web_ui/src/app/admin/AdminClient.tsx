@@ -3,11 +3,18 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { Users, Store, FileText, CheckCircle, XCircle, Clock, AlertTriangle, Edit, Trash2, Save } from 'lucide-react';
+import type { AdminApplication, AdminBlacklist, AdminStats } from '@/types/admin';
 
-export default function AdminClient({ stats, allApps: initialApps, allBlacklists: initialBlacklists = [] }: any) {
+type AdminClientProps = {
+  stats: AdminStats;
+  allApps: AdminApplication[];
+  allBlacklists?: AdminBlacklist[];
+};
+
+export default function AdminClient({ stats, allApps: initialApps, allBlacklists: initialBlacklists = [] }: AdminClientProps) {
   const [mainTab, setMainTab] = useState<'APPLICATIONS' | 'BLACKLIST' | 'STATISTICS'>('STATISTICS');
-  const [apps, setApps] = useState(initialApps);
-  const [blacklists, setBlacklists] = useState(initialBlacklists);
+  const [apps, setApps] = useState<AdminApplication[]>(initialApps);
+  const [blacklists, setBlacklists] = useState<AdminBlacklist[]>(initialBlacklists);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
@@ -20,12 +27,12 @@ export default function AdminClient({ stats, allApps: initialApps, allBlacklists
     try {
       const res = await fetch(`/api/admin/blacklist?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
-        setBlacklists((prev: any) => prev.filter((b: any) => b.id !== id));
+        setBlacklists((prev) => prev.filter((b) => b.id !== id));
         alert('블랙리스트에서 해제되었습니다.');
       } else {
         alert('삭제 실패');
       }
-    } catch (e) {
+    } catch {
       alert('오류가 발생했습니다.');
     }
   };
@@ -39,13 +46,13 @@ export default function AdminClient({ stats, allApps: initialApps, allBlacklists
         body: JSON.stringify({ id, reason: newReason }),
       });
       if (res.ok) {
-        setBlacklists((prev: any) => prev.map((b: any) => b.id === id ? { ...b, reason: newReason } : b));
+        setBlacklists((prev) => prev.map((b) => b.id === id ? { ...b, reason: newReason } : b));
         setEditingBL(null);
         alert('사유가 수정되었습니다.');
       } else {
         alert('수정 실패');
       }
-    } catch (e) {
+    } catch {
       alert('오류가 발생했습니다.');
     }
   };
@@ -68,22 +75,22 @@ export default function AdminClient({ stats, allApps: initialApps, allBlacklists
       if (res.ok) {
         alert('처리되었습니다.');
         // 상태를 업데이트해서 다른 탭으로 이동하게 만듦
-        setApps((prev: any) => 
-          prev.map((app: any) => app.id === id ? { ...app, status: action === 'APPROVE' ? 'APPROVED' : 'REJECTED' } : app)
+        setApps((prev) =>
+          prev.map((app) => app.id === id ? { ...app, status: action === 'APPROVE' ? 'APPROVED' : 'REJECTED' } : app)
         );
         if (expandedId === id) setExpandedId(null);
       } else {
         alert('처리에 실패했습니다.');
       }
-    } catch (e) {
+    } catch {
       alert('오류가 발생했습니다.');
     } finally {
       setLoadingId(null);
     }
   };
 
-  const filteredApps = apps.filter((app: any) => app.status === filter);
-  const pendingCount = apps.filter((app: any) => app.status === 'PENDING').length;
+  const filteredApps = apps.filter((app) => app.status === filter);
+  const pendingCount = apps.filter((app) => app.status === 'PENDING').length;
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-8 pb-20">
@@ -245,7 +252,7 @@ export default function AdminClient({ stats, allApps: initialApps, allBlacklists
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredApps.map((app: any) => (
+                {filteredApps.map((app) => (
                   <React.Fragment key={app.id}>
                     <tr 
                       onClick={() => toggleExpand(app.id)}
@@ -318,7 +325,7 @@ export default function AdminClient({ stats, allApps: initialApps, allBlacklists
                                     src={app.imageUrl} 
                                     alt="사업자등록증" 
                                     className="max-h-full object-contain cursor-pointer hover:opacity-80 transition-opacity"
-                                    onClick={() => window.open(app.imageUrl, '_blank')}
+                                    onClick={() => window.open(app.imageUrl ?? undefined, '_blank')}
                                     onError={(e) => {
                                       (e.target as HTMLImageElement).style.display = 'none';
                                       e.currentTarget.parentElement?.classList.add('flex-col');
@@ -327,7 +334,7 @@ export default function AdminClient({ stats, allApps: initialApps, allBlacklists
                                   <div className="text-center p-4">
                                     <p className="text-xs text-gray-500 mb-2">클릭하여 원본 보기</p>
                                     <button 
-                                      onClick={() => window.open(app.imageUrl, '_blank')}
+                                      onClick={() => window.open(app.imageUrl ?? undefined, '_blank')}
                                       className="text-indigo-600 font-medium text-sm hover:underline"
                                     >
                                       파일 열기
@@ -378,7 +385,7 @@ export default function AdminClient({ stats, allApps: initialApps, allBlacklists
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {blacklists.map((bl: any) => (
+                  {blacklists.map((bl) => (
                     <tr key={bl.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4 font-bold text-gray-900">{bl.phoneNumber}</td>
                       <td className="px-6 py-4">
@@ -386,12 +393,12 @@ export default function AdminClient({ stats, allApps: initialApps, allBlacklists
                           <div className="flex items-center space-x-2">
                             <input 
                               type="text"
-                              value={editingBL.reason}
-                              onChange={(e) => setEditingBL({...editingBL, reason: e.target.value})}
+                              value={editingBL?.reason ?? ''}
+                              onChange={(e) => setEditingBL((current) => current ? { ...current, reason: e.target.value } : current)}
                               className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                             <button 
-                              onClick={() => handleUpdateBlacklist(bl.id, editingBL.reason)}
+                              onClick={() => editingBL && handleUpdateBlacklist(bl.id, editingBL.reason)}
                               className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700"
                             >
                               <Save className="w-4 h-4" />

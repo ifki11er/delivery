@@ -45,15 +45,20 @@ export default function OnboardingPage() {
         throw new Error(data.error || '저장에 실패했습니다.');
       }
 
-      // 세션 갱신하여 미들웨어 리다이렉트 무력화
-      await update({ name, phoneNumber: data.user.phoneNumber });
+      // 세션 갱신 후 홈으로 이동해야 미들웨어가 다시 온보딩으로 돌려보내지 않는다.
+      await update({
+        user: {
+          name: data.user.name,
+          phoneNumber: data.user.phoneNumber,
+        },
+      });
       
       alert('환영합니다!');
-      router.push('/');
+      router.replace('/');
       router.refresh();
       
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '온보딩 처리 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
