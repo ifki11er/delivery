@@ -2,16 +2,14 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { signIn } from 'next-auth/react';
+import { signIn as clientSignIn } from 'next-auth/react';
 import { Lock, Mail } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useI18n } from '@/i18n/I18nProvider';
-import { usePlatform } from '@/hooks/usePlatform';
+import { signInWithGoogle, signInWithKakao } from '@/app/actions/auth';
 
 export default function LoginForm() {
   const t = useI18n();
-  const { platform } = usePlatform();
-  const isApp = platform === 'app';
   const searchParams = useSearchParams();
   const initialMessage = searchParams?.get('message');
   const [errorMsg, setErrorMsg] = useState(initialMessage || '');
@@ -28,7 +26,7 @@ export default function LoginForm() {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
 
-    const res = await signIn('credentials', {
+    const res = await clientSignIn('credentials', {
       email,
       password,
       redirect: false,
@@ -123,23 +121,23 @@ export default function LoginForm() {
         </div>
       </div>
 
-      <div className={`mt-6 grid gap-4 ${isApp ? 'grid-cols-1' : 'grid-cols-2'}`}>
-        <button
-          onClick={() => signIn('kakao', { callbackUrl: '/' })}
-          type="button"
-          disabled={loading}
-          className="w-full py-3 px-4 bg-[#FEE500] hover:bg-[#FEE500]/90 text-[#000000] font-semibold rounded-xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 3C6.477 3 2 6.541 2 10.909c0 2.809 1.83 5.26 4.673 6.648-.22.825-.794 2.993-.822 3.125-.035.166.052.164.12.118.053-.035 3.32-2.222 4.622-3.1 1.108.156 2.253.238 3.407.238 5.523 0 10-3.541 10-7.909C24 6.541 19.523 3 12 3z" />
-          </svg>
-          Kakao
-        </button>
-
-        {!isApp && (
+      <div className="mt-6 grid grid-cols-2 gap-4">
+        <form action={signInWithKakao}>
           <button
-            onClick={() => signIn('google', { callbackUrl: '/' })}
-            type="button"
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 px-4 bg-[#FEE500] hover:bg-[#FEE500]/90 text-[#000000] font-semibold rounded-xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 3C6.477 3 2 6.541 2 10.909c0 2.809 1.83 5.26 4.673 6.648-.22.825-.794 2.993-.822 3.125-.035.166.052.164.12.118.053-.035 3.32-2.222 4.622-3.1 1.108.156 2.253.238 3.407.238 5.523 0 10-3.541 10-7.909C24 6.541 19.523 3 12 3z" />
+            </svg>
+            Kakao
+          </button>
+        </form>
+
+        <form action={signInWithGoogle}>
+          <button
+            type="submit"
             disabled={loading}
             className="w-full py-3 px-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold rounded-xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"
           >
@@ -151,14 +149,8 @@ export default function LoginForm() {
             </svg>
             Google
           </button>
-        )}
+        </form>
       </div>
-
-      {isApp && (
-        <p className="mt-3 text-xs text-center text-indigo-100/80">
-          {t.login_google_webview_notice}
-        </p>
-      )}
     </>
   );
 }
