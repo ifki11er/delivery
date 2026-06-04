@@ -85,15 +85,13 @@ export default function MypageClient() {
           {t.owner_menu || '사장님 메뉴'}
         </div>
         
-        {!isOwner && !isAdmin && (
-          <Link href="/business-apply" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-            <div className="flex items-center space-x-3 text-indigo-600">
-              <Store className="w-5 h-5" />
-              <span className="font-semibold">상점 입점 신청</span>
-            </div>
-            <ChevronRight className="w-5 h-5 text-indigo-400" />
-          </Link>
-        )}
+        <Link href="/business-apply" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+          <div className="flex items-center space-x-3 text-indigo-600">
+            <Store className="w-5 h-5" />
+            <span className="font-semibold">상점 입점 신청</span>
+          </div>
+          <ChevronRight className="w-5 h-5 text-indigo-400" />
+        </Link>
 
         {/* 최고 관리자(ADMIN) 전용 메뉴 */}
         {isAdmin && (

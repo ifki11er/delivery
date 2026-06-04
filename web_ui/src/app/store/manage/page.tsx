@@ -48,24 +48,7 @@ export default function StoreManagePage() {
     fetchStores();
   }, []);
 
-  const handleCreateStore = async () => {
-    const name = prompt('새로운 상점 이름을 입력하세요:');
-    if (!name) return;
-    
-    try {
-      const res = await fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-      });
-      if (res.ok) {
-        alert('상점이 생성되었습니다.');
-        fetchStores();
-      }
-    } catch (e) {
-      alert('오류가 발생했습니다.');
-    }
-  };
+
 
   const handleUpdateStore = async () => {
     try {
@@ -137,9 +120,7 @@ export default function StoreManagePage() {
       <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="font-bold text-lg text-gray-900">{t.store_management}</h1>
-          <button onClick={handleCreateStore} className="text-indigo-600 p-2">
-            <Plus className="w-6 h-6" />
-          </button>
+
         </div>
       </div>
 
@@ -148,12 +129,7 @@ export default function StoreManagePage() {
           <div className="py-20 text-center flex flex-col items-center justify-center space-y-4">
             <Store className="w-16 h-16 text-gray-200" />
             <p className="text-gray-500 font-medium">등록된 상점이 없습니다.</p>
-            <button 
-              onClick={handleCreateStore}
-              className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold"
-            >
-              상점 추가하기
-            </button>
+
           </div>
         ) : (
           <>
