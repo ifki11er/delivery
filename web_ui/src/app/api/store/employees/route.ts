@@ -25,7 +25,13 @@ export async function GET(req: Request) {
       where: { storeId },
       include: {
         user: {
-          select: { id: true, name: true, email: true }
+          select: { id: true, name: true, email: true, phoneNumber: true }
+        },
+        store: {
+          select: { currency: true }
+        },
+        histories: {
+          orderBy: { joinedAt: 'desc' }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -45,16 +51,16 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { storeId, email, role, wageType, wageAmount, workStartTime, workEndTime } = body;
+    const { storeId, phoneNumber, role, wageType, wageAmount, workStartTime, workEndTime } = body;
 
     const store = await prisma.store.findUnique({ where: { id: storeId } });
     if (!store || store.ownerId !== session.user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const targetUser = await prisma.user.findUnique({ where: { email } });
+    const targetUser = await prisma.user.findUnique({ where: { phoneNumber } });
     if (!targetUser) {
-      return NextResponse.json({ error: 'User not found. Please ensure they have signed up.' }, { status: 404 });
+      return NextResponse.json({ error: '사용자를 찾을 수 없습니다. 앱에 가입되어 있고 온보딩을 마쳤는지 확인해주세요.' }, { status: 404 });
     }
 
     const existingEmployee = await prisma.employee.findFirst({
@@ -62,7 +68,28 @@ export async function POST(req: Request) {
     });
 
     if (existingEmployee) {
-      return NextResponse.json({ error: 'Employee already exists in this store' }, { status: 400 });
+      if (existingEmployee.status === 'INACTIVE') {
+        // 재입사 (복직) 처리
+        const resurrectedEmployee = await prisma.employee.update({
+          where: { id: existingEmployee.id },
+          data: {
+            status: 'ACTIVE',
+            role: role || 'STAFF',
+            wageType: wageType || 'HOURLY',
+            wageAmount: wageAmount || 0,
+            workStartTime: workStartTime || '09:00',
+            workEndTime: workEndTime || '18:00',
+            histories: {
+              create: {}
+            }
+          },
+          include: {
+            user: { select: { id: true, name: true, email: true, phoneNumber: true } }
+          }
+        });
+        return NextResponse.json(resurrectedEmployee);
+      }
+      return NextResponse.json({ error: '이미 이 상점에 재직 중인 직원입니다.' }, { status: 400 });
     }
 
     const employee = await prisma.employee.create({
@@ -74,9 +101,12 @@ export async function POST(req: Request) {
         wageAmount: wageAmount || 0,
         workStartTime: workStartTime || '09:00',
         workEndTime: workEndTime || '18:00',
+        histories: {
+          create: {}
+        }
       },
       include: {
-        user: { select: { id: true, name: true, email: true } }
+        user: { select: { id: true, name: true, email: true, phoneNumber: true } }
       }
     });
 
@@ -146,8 +176,21 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    await prisma.employee.delete({
-      where: { id: employeeId }
+    const activeHistory = await prisma.employmentHistory.findFirst({
+      where: { employeeId, resignedAt: null },
+      orderBy: { joinedAt: 'desc' }
+    });
+
+    if (activeHistory) {
+      await prisma.employmentHistory.update({
+        where: { id: activeHistory.id },
+        data: { resignedAt: new Date() }
+      });
+    }
+
+    await prisma.employee.update({
+      where: { id: employeeId },
+      data: { status: 'INACTIVE' }
     });
 
     return NextResponse.json({ success: true });

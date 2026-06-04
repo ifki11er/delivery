@@ -50,10 +50,14 @@ function DashboardContent() {
 
   const handleAttendance = async (action: 'CHECK_IN' | 'CHECK_OUT') => {
     try {
+      const ipRes = await fetch('https://api.ipify.org?format=json');
+      const ipData = await ipRes.json();
+      const clientIp = ipData.ip;
+
       const res = await fetch('/api/store/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action })
+        body: JSON.stringify({ action, clientIp })
       });
       if (res.ok) {
         alert(action === 'CHECK_IN' ? '출근 처리되었습니다!' : '퇴근 처리되었습니다! 고생하셨습니다.');

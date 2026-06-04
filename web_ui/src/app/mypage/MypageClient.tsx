@@ -13,7 +13,13 @@ export default function MypageClient() {
   const { platform, isReady } = usePlatform();
   const t = useI18n();
   const [isEmployee, setIsEmployee] = useState(false);
+  const [storeName, setStoreName] = useState<string | null>(null);
   const [userRole, setUserRole] = useState(session?.user?.role || 'CUSTOMER');
+
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (session?.user) {
@@ -22,6 +28,7 @@ export default function MypageClient() {
         .then(res => res.json())
         .then(data => {
           setIsEmployee(data.isEmployee);
+          setStoreName(data.storeName);
           if (data.role && data.role !== session.user.role) {
             setUserRole(data.role);
             update({ role: data.role }); // 쿠키 세션 강제 업데이트
@@ -31,32 +38,117 @@ export default function MypageClient() {
     }
   }, [session, update]);
 
+  // 세션 정보가 준비되면 초기값 설정
+  useEffect(() => {
+    if (session?.user && !isEditingProfile) {
+      setEditName(session.user.name || '');
+      setEditPhone((session.user as any).phoneNumber || '');
+    }
+  }, [session, isEditingProfile]);
+
   if (status === 'loading' || !isReady) {
-    return <div className="p-8 text-center text-gray-500">로딩 중...</div>;
+    return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
   }
 
   if (!session?.user) {
-    return <div className="p-8 text-center text-gray-500">로그인이 필요합니다.</div>;
+    return <div className="p-8 text-center text-gray-500">{t.mypage_login_req}</div>;
   }
 
   const isOwner = userRole === 'OWNER';
   const isAdmin = userRole === 'ADMIN';
 
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editName, phoneNumber: editPhone })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || t.mypage_save_fail);
+      }
+      const data = await res.json();
+      await update({ name: editName, phoneNumber: data.user.phoneNumber });
+      setIsEditingProfile(false);
+      alert(t.mypage_profile_saved);
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto p-4 md:p-8 space-y-8">
       {/* 프로필 섹션 */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-4">
-        <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center">
-          <User className="w-8 h-8 text-indigo-600" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">
-            {t.greeting.replace('{name}', session.user.name || session.user.email?.split('@')[0] || '')}
-          </h2>
-          <p className="text-sm text-gray-500">{session.user.email}</p>
-          <div className="mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-            {isOwner ? t.owner : isAdmin ? t.admin : t.customer}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative">
+        {!isEditingProfile && (
+          <button 
+            onClick={() => setIsEditingProfile(true)}
+            className="absolute top-6 right-6 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+          >
+            {t.mypage_edit}
+          </button>
+        )}
+        
+        <div className="flex items-center space-x-4">
+          <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <User className="w-8 h-8 text-indigo-600" />
           </div>
+          
+          {isEditingProfile ? (
+            <div className="flex-1 space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500">{t.mypage_name}</label>
+                <input 
+                  type="text" 
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500">{t.mypage_phone}</label>
+                <input 
+                  type="tel" 
+                  value={editPhone}
+                  onChange={e => setEditPhone(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex space-x-2 pt-2">
+                <button 
+                  onClick={() => setIsEditingProfile(false)}
+                  className="flex-1 px-3 py-2 border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50"
+                >
+                  {t.mypage_cancel}
+                </button>
+                <button 
+                  onClick={handleSaveProfile}
+                  disabled={isSaving}
+                  className="flex-1 px-3 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {isSaving ? t.mypage_saving : t.mypage_save}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                {session.user.name || t.mypage_no_name}
+              </h2>
+              <p className="text-sm text-gray-500 mt-0.5">{session.user.email}</p>
+              <p className="text-sm text-gray-500">{(session.user as any).phoneNumber || t.mypage_no_phone}</p>
+              {isEmployee && storeName && (
+                <p className="text-sm font-semibold text-indigo-600 mt-1">🏠 {storeName}</p>
+              )}
+              <div className="mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                {isOwner ? t.owner : isAdmin ? t.admin : isEmployee ? t.mypage_employee : t.customer}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -65,7 +157,7 @@ export default function MypageClient() {
         
         {/* 일반 고객용 메뉴 */}
         <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-          {t.general_menu || '일반 메뉴'}
+          {t.mypage_general_menu}
         </div>
         <Link href="/orders" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
           <div className="flex items-center space-x-3 text-gray-700">
@@ -82,13 +174,13 @@ export default function MypageClient() {
 
         {/* 사장님 메뉴 (일반 고객은 입점신청, 사장님/관리자는 관리 메뉴) */}
         <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-          {t.owner_menu || '사장님 메뉴'}
+          {t.mypage_owner_menu}
         </div>
         
         <Link href="/business-apply" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
           <div className="flex items-center space-x-3 text-indigo-600">
             <Store className="w-5 h-5" />
-            <span className="font-semibold">상점 입점 신청</span>
+            <span className="font-semibold">{t.mypage_apply_store}</span>
           </div>
           <ChevronRight className="w-5 h-5 text-indigo-400" />
         </Link>
@@ -97,12 +189,12 @@ export default function MypageClient() {
         {isAdmin && (
           <>
             <div className="bg-red-50 px-4 py-2 text-xs font-bold text-red-600 uppercase tracking-wider">
-              {t.admin_only || '관리자 메뉴'}
+              {t.mypage_admin_menu}
             </div>
             <Link href="/admin" className="flex items-center justify-between p-4 hover:bg-red-50 transition-colors">
               <div className="flex items-center space-x-3 text-red-700">
                 <Shield className="w-5 h-5 text-red-500" />
-                <span className="font-bold">{t.admin_dashboard}</span>
+                <span className="font-bold">{t.mypage_admin_dash}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-red-400" />
             </Link>
@@ -136,17 +228,9 @@ export default function MypageClient() {
             <Link href="/store/blacklist" className="flex items-center justify-between p-4 hover:bg-red-50 transition-colors">
               <div className="flex items-center space-x-3 text-red-700">
                 <AlertTriangle className="w-5 h-5 text-red-500" />
-                <span className="font-bold">{t.blacklist || '블랙컨슈머 공유'}</span>
+                <span className="font-bold">{t.mypage_blacklist}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-red-400" />
-            </Link>
-            
-            <Link href="/store/employees/stats" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center space-x-3 text-gray-700">
-                <Calculator className="w-5 h-5 text-gray-400" />
-                <span className="font-medium">{t.employee_stats || '급여 및 통계'}</span>
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
             </Link>
             
             {/* 앱(웹뷰) 환경에서만 보이는 프린터 설정 메뉴 */}
@@ -173,12 +257,12 @@ export default function MypageClient() {
         {isEmployee && (
           <>
             <div className="bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-500 uppercase tracking-wider">
-              {t.employee_section || '직원 메뉴'}
+              {t.mypage_emp_menu}
             </div>
             <Link href="/employee/dashboard" className="flex items-center justify-between p-4 hover:bg-indigo-50 transition-colors">
               <div className="flex items-center space-x-3 text-indigo-700">
                 <Clock className="w-5 h-5 text-indigo-400" />
-                <span className="font-bold">{t.employee_dashboard || '내 근무 및 출퇴근'}</span>
+                <span className="font-bold">{t.mypage_emp_dash}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-indigo-400" />
             </Link>
@@ -187,7 +271,7 @@ export default function MypageClient() {
 
         {/* 계정 관리 */}
         <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-          {t.account_section}
+          {t.mypage_account}
         </div>
         <Link href="/settings" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
           <div className="flex items-center space-x-3 text-gray-700">

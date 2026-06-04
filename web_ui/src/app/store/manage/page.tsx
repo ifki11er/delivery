@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Store, Wifi, Save, Send, Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Store, Wifi, Save, Send, ChevronLeft } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 
 export default function StoreManagePage() {
+  const router = useRouter();
   const t = useI18n();
   const [stores, setStores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +19,7 @@ export default function StoreManagePage() {
   const [representativeName, setRepresentativeName] = useState('');
   const [businessRegNo, setBusinessRegNo] = useState('');
   const [wifiIp, setWifiIp] = useState('');
+  const [currency, setCurrency] = useState('원');
   const [transferEmail, setTransferEmail] = useState('');
 
   // Fetch stores on load
@@ -35,6 +38,7 @@ export default function StoreManagePage() {
           setRepresentativeName(primary.representativeName || '');
           setBusinessRegNo(primary.businessRegNo || '');
           setWifiIp(primary.wifiIpAddress || '');
+          setCurrency(primary.currency || '원');
         }
       }
     } catch (e) {
@@ -62,7 +66,8 @@ export default function StoreManagePage() {
           contact, 
           representativeName, 
           businessRegNo, 
-          wifiIpAddress: wifiIp 
+          wifiIpAddress: wifiIp,
+          currency
         })
       });
       if (res.ok) {
@@ -113,14 +118,16 @@ export default function StoreManagePage() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500">로딩 중...</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
       <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex justify-between items-center">
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center space-x-4">
+          <button onClick={() => router.back()} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+            <ChevronLeft className="w-6 h-6 text-gray-600" />
+          </button>
           <h1 className="font-bold text-lg text-gray-900">{t.store_management}</h1>
-
         </div>
       </div>
 
@@ -128,7 +135,7 @@ export default function StoreManagePage() {
         {stores.length === 0 ? (
           <div className="py-20 text-center flex flex-col items-center justify-center space-y-4">
             <Store className="w-16 h-16 text-gray-200" />
-            <p className="text-gray-500 font-medium">등록된 상점이 없습니다.</p>
+            <p className="text-gray-500 font-medium">{t.manage_no_store}</p>
 
           </div>
         ) : (
@@ -146,6 +153,7 @@ export default function StoreManagePage() {
                     setRepresentativeName(store.representativeName || '');
                     setBusinessRegNo(store.businessRegNo || '');
                     setWifiIp(store.wifiIpAddress || '');
+                    setCurrency(store.currency || '원');
                   }}
                   className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
                     storeId === store.id ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-700'
@@ -159,12 +167,12 @@ export default function StoreManagePage() {
             {/* 상점 정보 설정 */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-5">
               <h2 className="font-bold text-lg text-gray-900 flex items-center">
-                <Store className="w-5 h-5 mr-2 text-indigo-500" /> 기본 정보
+                <Store className="w-5 h-5 mr-2 text-indigo-500" /> {t.manage_basic_info}
               </h2>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">상호명</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_store_name}</label>
                   <input 
                     type="text" 
                     value={storeName}
@@ -175,7 +183,7 @@ export default function StoreManagePage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">대표자명</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_rep_name}</label>
                     <input 
                       type="text" 
                       value={representativeName}
@@ -184,7 +192,7 @@ export default function StoreManagePage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">연락처</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_contact}</label>
                     <input 
                       type="text" 
                       value={contact}
@@ -195,7 +203,7 @@ export default function StoreManagePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">상점 주소</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_address}</label>
                   <input 
                     type="text" 
                     value={address}
@@ -205,7 +213,7 @@ export default function StoreManagePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">사업자등록번호</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_biz_reg}</label>
                   <input 
                     type="text" 
                     value={businessRegNo}
@@ -215,14 +223,30 @@ export default function StoreManagePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">출퇴근용 와이파이(IP) 인증</label>
-                  <p className="text-xs text-gray-500 mb-2">가게의 와이파이에 연결된 상태에서 아래 버튼을 눌러주세요. 직원이 출퇴근 시 이 IP와 일치해야 정상 처리됩니다.</p>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_currency_setting}</label>
+                  <select 
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium"
+                  >
+                    <option value="원">{t.currency_krw}</option>
+                    <option value="$">{t.currency_usd}</option>
+                    <option value="₫">{t.currency_vnd}</option>
+                    <option value="¥">{t.currency_jpy}</option>
+                    <option value="€">{t.currency_eur}</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-2">{t.manage_currency_desc}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_wifi_auth}</label>
+                  <p className="text-xs text-gray-500 mb-2">{t.manage_wifi_desc}</p>
                   <div className="flex space-x-2">
                     <input 
                       type="text" 
                       value={wifiIp}
                       readOnly
-                      placeholder="IP 주소 없음"
+                      placeholder={t.manage_wifi_none}
                       className="flex-1 px-4 py-3 bg-gray-100 text-gray-500 border border-gray-200 rounded-xl focus:outline-none"
                     />
                     <button 
@@ -230,7 +254,7 @@ export default function StoreManagePage() {
                       className="px-4 py-3 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl font-bold flex items-center hover:bg-indigo-100 transition-colors"
                     >
                       <Wifi className="w-4 h-4 mr-2" />
-                      현재 공유기 등록
+                      {t.manage_wifi_btn}
                     </button>
                   </div>
                 </div>
@@ -240,7 +264,7 @@ export default function StoreManagePage() {
                   className="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-bold flex justify-center items-center hover:bg-indigo-700 transition-colors"
                 >
                   <Save className="w-5 h-5 mr-2" />
-                  정보 저장하기
+                  {t.manage_save_btn}
                 </button>
               </div>
             </div>
@@ -248,10 +272,10 @@ export default function StoreManagePage() {
             {/* 상점 양도 */}
             <div className="bg-red-50 rounded-2xl border border-red-100 p-5 space-y-4">
               <h2 className="font-bold text-lg text-red-700 flex items-center">
-                <Send className="w-5 h-5 mr-2 text-red-500" /> 상점 소유권 양도
+                <Send className="w-5 h-5 mr-2 text-red-500" /> {t.manage_transfer_title}
               </h2>
               <p className="text-sm text-red-600/80">
-                상점을 다른 사장님에게 양도합니다. 소속된 직원, 출퇴근 기록, 급여 통계 데이터가 함께 이관됩니다. 앱에 가입된 이메일을 입력하세요.
+                {t.manage_transfer_desc}
               </p>
               
               <div className="flex space-x-2">
@@ -259,14 +283,14 @@ export default function StoreManagePage() {
                   type="email" 
                   value={transferEmail}
                   onChange={(e) => setTransferEmail(e.target.value)}
-                  placeholder="받으실 분의 이메일"
+                  placeholder={t.manage_transfer_placeholder}
                   className="flex-1 px-4 py-3 bg-white border border-red-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none"
                 />
                 <button 
                   onClick={handleTransfer}
                   className="px-4 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors"
                 >
-                  양도하기
+                  {t.manage_transfer_btn}
                 </button>
               </div>
             </div>

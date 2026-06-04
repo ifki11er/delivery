@@ -22,15 +22,9 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { action } = body; // 'CHECK_IN' or 'CHECK_OUT'
+    const { action, clientIp } = body; // 'CHECK_IN' or 'CHECK_OUT'
 
-    // Get current IP address
-    const headersList = await headers();
-    let currentIp = headersList.get('x-forwarded-for') || headersList.get('x-real-ip') || 'unknown';
-    // Handle proxy comma-separated list
-    if (currentIp.includes(',')) {
-      currentIp = currentIp.split(',')[0].trim();
-    }
+    const currentIp = clientIp || 'unknown';
 
     // Find the employee record for the current user
     const employee = await prisma.employee.findFirst({
@@ -138,6 +132,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const storeId = searchParams.get('storeId');
     const month = searchParams.get('month'); // YYYY-MM
+    const queryEmployeeId = searchParams.get('employeeId');
 
     // If fetching for an employee
     const employee = await prisma.employee.findFirst({
@@ -157,6 +152,9 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       whereClause.employee = { storeId };
+      if (queryEmployeeId) {
+        whereClause.employeeId = queryEmployeeId;
+      }
     } else if (employee) {
       whereClause.employeeId = employee.id;
     }

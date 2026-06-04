@@ -1,8 +1,9 @@
 'use client';
 
 import { useI18n } from '@/i18n/I18nProvider';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { ClipboardList, ChevronRight } from 'lucide-react';
+import { ClipboardList, ChevronRight, ChevronLeft } from 'lucide-react';
 
 const MOCK_ORDERS = [
   {
@@ -26,12 +27,16 @@ const MOCK_ORDERS = [
 ];
 
 export default function OrdersPage() {
+  const router = useRouter();
   const t = useI18n();
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
       <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
-        <div className="max-w-2xl mx-auto px-4 py-4 text-center">
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center space-x-2">
+          <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
+            <ChevronLeft className="w-6 h-6 text-gray-600" />
+          </button>
           <h1 className="font-bold text-lg text-gray-900">{t.orders}</h1>
         </div>
       </div>

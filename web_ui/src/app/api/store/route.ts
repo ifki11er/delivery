@@ -69,7 +69,7 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json();
-    const { id, name, wifiIpAddress, newOwnerEmail, address, contact, representativeName, businessRegNo } = body;
+    const { id, name, wifiIpAddress, newOwnerEmail, address, contact, representativeName, businessRegNo, currency } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Store ID is required' }, { status: 400 });
@@ -105,6 +105,7 @@ export async function PUT(req: Request) {
         representativeName: representativeName !== undefined ? representativeName : undefined,
         businessRegNo: businessRegNo !== undefined ? businessRegNo : undefined,
         wifiIpAddress: wifiIpAddress !== undefined ? wifiIpAddress : undefined,
+        currency: currency !== undefined ? currency : undefined,
         ownerId,
       }
     });

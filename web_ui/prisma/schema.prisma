@@ -46,6 +46,7 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?
+  phoneNumber   String?   @unique
   role          Role      @default(CUSTOMER)
   accounts      Account[]
   sessions      Session[]
@@ -67,6 +68,7 @@ model Store {
   representativeName String?
   businessRegNo      String?
   wifiIpAddress      String?
+  currency           String     @default("원")
   employees          Employee[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
@@ -84,6 +86,7 @@ model Employee {
   workStartTime String       @default("09:00")
   workEndTime   String       @default("18:00")
   status        String       @default("ACTIVE") // ACTIVE, INACTIVE
+  histories     EmploymentHistory[]
   attendances   Attendance[]
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
@@ -137,4 +140,12 @@ model Blacklist {
   reporter    User     @relation(fields: [reporterId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model EmploymentHistory {
+  id          String    @id @default(cuid())
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  joinedAt    DateTime  @default(now())
+  resignedAt  DateTime?
 }

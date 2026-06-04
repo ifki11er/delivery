@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AlertTriangle, Search, Plus, UserX } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { AlertTriangle, Search, Plus, UserX, ChevronLeft } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 
 export default function BlacklistPage() {
+  const router = useRouter();
   const t = useI18n();
   const [blacklist, setBlacklist] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +43,7 @@ export default function BlacklistPage() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPhone || !newReason) {
-      alert('전화번호와 사유를 모두 입력해주세요.');
+      alert(t.blacklist_req || '전화번호와 사유를 모두 입력해주세요.');
       return;
     }
 
@@ -52,16 +54,16 @@ export default function BlacklistPage() {
         body: JSON.stringify({ phoneNumber: newPhone, reason: newReason })
       });
       if (res.ok) {
-        alert('블랙리스트에 등록되었습니다. 이제부터 해당 번호 주문 시 영수증에 표기됩니다.');
+        alert(t.blacklist_success || '블랙리스트에 등록되었습니다. 이제부터 해당 번호 주문 시 영수증에 표기됩니다.');
         setShowAdd(false);
         setNewPhone('');
         setNewReason('');
         fetchBlacklist();
       } else {
-        alert('등록에 실패했습니다.');
+        alert(t.blacklist_fail || '등록에 실패했습니다.');
       }
     } catch (e) {
-      alert('오류가 발생했습니다.');
+      alert(t.blacklist_error || '오류가 발생했습니다.');
     }
   };
 
@@ -77,14 +79,19 @@ export default function BlacklistPage() {
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
       <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="font-bold text-lg text-gray-900 flex items-center">
-            <AlertTriangle className="w-5 h-5 mr-2 text-red-500" /> 블랙컨슈머 공유
-          </h1>
+          <div className="flex items-center space-x-2">
+            <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
+              <ChevronLeft className="w-6 h-6 text-gray-600" />
+            </button>
+            <h1 className="font-bold text-lg text-gray-900 flex items-center">
+              <AlertTriangle className="w-5 h-5 mr-2 text-red-500" /> {t.mypage_blacklist}
+            </h1>
+          </div>
           <button 
             onClick={() => setShowAdd(!showAdd)} 
             className="text-red-600 bg-red-50 p-2 rounded-lg font-bold flex items-center text-sm"
           >
-            <Plus className="w-4 h-4 mr-1" /> 등록
+            <Plus className="w-4 h-4 mr-1" /> {t.blacklist_add}
           </button>
         </div>
       </div>
@@ -95,11 +102,11 @@ export default function BlacklistPage() {
         {showAdd && (
           <form onSubmit={handleAdd} className="bg-white p-5 rounded-2xl shadow-sm border border-red-100 bg-red-50/10">
             <h2 className="font-bold text-gray-900 mb-3 flex items-center">
-              <UserX className="w-5 h-5 mr-2 text-red-500" /> 신규 블랙컨슈머 등록
+              <UserX className="w-5 h-5 mr-2 text-red-500" /> {t.blacklist_add_title}
             </h2>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">전화번호 (숫자만)</label>
+                <label className="block text-xs font-bold text-gray-600 mb-1">{t.blacklist_phone}</label>
                 <input 
                   type="text" 
                   value={newPhone}
@@ -109,7 +116,7 @@ export default function BlacklistPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">사유</label>
+                <label className="block text-xs font-bold text-gray-600 mb-1">{t.blacklist_reason}</label>
                 <input 
                   type="text" 
                   value={newReason}
@@ -122,7 +129,7 @@ export default function BlacklistPage() {
                 type="submit"
                 className="w-full py-3.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors"
               >
-                블랙리스트에 올리기
+                {t.blacklist_submit}
               </button>
             </div>
           </form>
@@ -135,22 +142,22 @@ export default function BlacklistPage() {
             type="text" 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="전화번호 검색 (예: 1234)"
+            placeholder={t.blacklist_search}
             className="w-full pl-12 pr-4 py-3.5 bg-white shadow-sm border border-gray-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium"
           />
           <button type="submit" className="absolute right-3 top-2.5 px-4 py-1.5 bg-gray-100 text-gray-600 font-bold text-sm rounded-xl hover:bg-gray-200">
-            검색
+            {t.search_btn}
           </button>
         </form>
 
         {/* List */}
         <div className="space-y-3 pt-2">
           {loading ? (
-            <div className="text-center py-10 text-gray-500">목록을 불러오는 중...</div>
+            <div className="text-center py-10 text-gray-500">{t.mypage_loading}</div>
           ) : blacklist.length === 0 ? (
             <div className="text-center py-10 text-gray-500 bg-white rounded-2xl border border-gray-100 shadow-sm">
               <AlertTriangle className="w-10 h-10 text-gray-200 mx-auto mb-2" />
-              검색 결과가 없습니다.
+              {t.blacklist_empty}
             </div>
           ) : (
             blacklist.map(entry => (
@@ -162,19 +169,19 @@ export default function BlacklistPage() {
                       {formatPhone(entry.phoneNumber)}
                     </h3>
                     <p className="text-sm font-bold text-red-600 mt-1 bg-red-50 inline-block px-2 py-0.5 rounded-md">
-                      사유: {entry.reason}
+                      {t.blacklist_reason}: {entry.reason}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-gray-400">등록일</p>
+                    <p className="text-xs text-gray-400">{t.blacklist_date}</p>
                     <p className="text-xs font-medium text-gray-600">
                       {new Date(entry.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
                 <div className="mt-4 pt-3 border-t border-gray-50 pl-2 text-xs text-gray-500 flex items-center">
-                  <span className="bg-gray-100 px-2 py-1 rounded-md mr-2 text-gray-600">등록 제보자</span> 
-                  {entry.reporter.name || '익명 사장님'}
+                  <span className="bg-gray-100 px-2 py-1 rounded-md mr-2 text-gray-600">{t.blacklist_reporter}</span> 
+                  {entry.reporter.name || t.blacklist_anon}
                 </div>
               </div>
             ))

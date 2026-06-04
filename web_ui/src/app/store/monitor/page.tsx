@@ -1,7 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Wifi, ChevronLeft } from 'lucide-react';
+import { useI18n } from '@/i18n/I18nProvider';
 
-export default function Home() {
+export default function MonitorPage() {
+  const router = useRouter();
+  const t = useI18n();
   const [orders, setOrders] = useState<any[]>([]);
   const [printers, setPrinters] = useState<any[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState<string>("");
@@ -9,6 +13,32 @@ export default function Home() {
   const [showToast, setShowToast] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [autoPrint, setAutoPrint] = useState<boolean>(false);
+  const [wifiIp, setWifiIp] = useState<string>("");
+  const [ipLastUpdated, setIpLastUpdated] = useState<string>("");
+
+  const updateWifiIp = async (manual = false) => {
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      const currentIp = data.ip;
+      setWifiIp(currentIp);
+
+      await fetch('/api/store/wifi-ip', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wifiIpAddress: currentIp })
+      });
+      
+      const now = new Date();
+      setIpLastUpdated(now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+      
+      if (manual) {
+        alert(`출퇴근용 와이파이 공인 IP(${currentIp})를 즉시 갱신했습니다.`);
+      }
+    } catch (e) {
+      if (manual) alert('IP 갱신에 실패했습니다. 네트워크를 확인해주세요.');
+    }
+  };
 
   const fetchOrders = () => {
     if (typeof window !== "undefined" && (window as any).AndroidBridge) {
@@ -118,7 +148,11 @@ export default function Home() {
   useEffect(() => {
     fetchOrders();
     loadPrinters();
+    updateWifiIp(); // 마운트 시 즉시 1회 IP 갱신
+    
     const interval = setInterval(fetchOrders, 2000);
+    // 1시간(3600000ms)마다 백그라운드 IP 자동 갱신 봇
+    const ipInterval = setInterval(() => updateWifiIp(), 60 * 60 * 1000);
     
     // 사용자가 블루투스 설정 창에서 돌아왔을 때(화면 포커스 시) 자동으로 목록 새로고침
     const handleFocus = () => {
@@ -128,21 +162,43 @@ export default function Home() {
 
     return () => {
       clearInterval(interval);
+      clearInterval(ipInterval);
       window.removeEventListener("focus", handleFocus);
     };
   }, []);
 
   return (
     <main className="p-5 bg-gray-50 min-h-screen">
-      <h1 className="text-2xl font-extrabold mb-2 text-blue-600 tracking-tight">배달 주문 모니터</h1>
-      <p className="text-sm text-gray-500 mb-6">백그라운드에서 알림을 감지하면 이곳에 나타납니다.</p>
+      <div className="flex items-center space-x-4 mb-6">
+        <button onClick={() => router.back()} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+          <ChevronLeft className="w-6 h-6 text-gray-600" />
+        </button>
+        <h1 className="text-2xl font-extrabold text-blue-600 tracking-tight">{t.mypage_monitor}</h1>
+      </div>
+
+      {/* 유동 IP 갱신 현황바 (직원 출퇴근용 IP 봇) */}
+      <div className="mb-6 p-4 bg-indigo-50 rounded-xl flex items-center justify-between border border-indigo-100 shadow-sm">
+        <div className="flex items-center text-indigo-700">
+          <Wifi className="w-6 h-6 mr-3" />
+          <div>
+            <span className="font-bold text-sm block">{t.monitor_bot_active}</span>
+            <span className="text-xs opacity-80 mt-0.5 block">IP: {wifiIp || 'Loading...'} ({t.monitor_bot_last} {ipLastUpdated || '-'})</span>
+          </div>
+        </div>
+        <button 
+          onClick={() => updateWifiIp(true)}
+          className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow hover:bg-indigo-700 transition-colors"
+        >
+          {t.monitor_bot_manual}
+        </button>
+      </div>
 
       {/* 블루투스 프린터 테스트 섹션 */}
       <div className="mb-6 p-4 bg-white rounded-xl shadow-sm border border-gray-100">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-gray-800 whitespace-nowrap">🖨️ 블루투스 프린터</h2>
-            {showToast && <span className="text-xs font-semibold text-green-600 animate-pulse whitespace-nowrap">✓ 목록 갱신됨</span>}
+            <h2 className="text-lg font-bold text-gray-800 whitespace-nowrap">🖨️ {t.mypage_printer}</h2>
+            {showToast && <span className="text-xs font-semibold text-green-600 animate-pulse whitespace-nowrap">✓ Refreshed</span>}
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <button 
@@ -153,21 +209,21 @@ export default function Home() {
               }} 
               className="flex-1 sm:flex-none text-xs bg-blue-100 text-blue-700 px-2 py-2 rounded hover:bg-blue-200 whitespace-nowrap text-center font-medium"
             >
-              + 기기 페어링
+              + Pairing
             </button>
             <button onClick={handleManualRefresh} className="flex-1 sm:flex-none text-xs bg-gray-200 text-gray-700 px-2 py-2 rounded hover:bg-gray-300 transition-colors whitespace-nowrap text-center font-medium">
-              🔄 새로고침
+              🔄 Refresh
             </button>
           </div>
         </div>
-        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3">
           <select 
             className="p-2 border rounded text-sm text-black disabled:bg-gray-100 disabled:text-gray-400"
             value={selectedPrinter}
             onChange={(e) => setSelectedPrinter(e.target.value)}
             disabled={isConnecting}
           >
-            {printers.length === 0 ? <option>페어링된 블루투스 기기 없음</option> : null}
+            {printers.length === 0 ? <option>No Bluetooth Devices</option> : null}
             {printers.map(p => (
               <option key={p.mac} value={p.mac}>{p.name} ({p.mac})</option>
             ))}
@@ -178,21 +234,20 @@ export default function Home() {
               disabled={isConnecting}
               className={`flex-1 py-2 rounded text-sm font-semibold transition ${isConnecting ? 'bg-indigo-300 text-indigo-50 cursor-wait' : 'bg-indigo-500 text-white hover:bg-indigo-600'}`}
             >
-              {isConnecting ? '연결 중...' : '프린터 연결'}
+              {isConnecting ? 'Connecting...' : 'Connect Printer'}
             </button>
             <button 
               onClick={testPrint} 
               disabled={isConnecting}
               className={`flex-1 py-2 rounded text-sm font-semibold transition ${isConnecting ? 'bg-green-300 text-green-50 cursor-not-allowed' : 'bg-green-500 text-white hover:bg-green-600'}`}
             >
-              테스트 영수증 출력
+              Test Print
             </button>
           </div>
           
           <div className="mt-2 flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200">
             <div>
-              <p className="text-sm font-bold text-gray-800">자동 영수증 인쇄</p>
-              <p className="text-xs text-gray-500">알림 수신 시 백그라운드 자동 출력</p>
+              <p className="text-sm font-bold text-gray-800">Auto Print</p>
             </div>
             <button 
               onClick={toggleAutoPrint}
@@ -202,16 +257,15 @@ export default function Home() {
             </button>
           </div>
 
-          <p className="text-xs text-center text-gray-500 mt-1">상태: <span className="font-medium text-gray-700">{connectionStatus}</span></p>
+          <p className="text-xs text-center text-gray-500 mt-1">Status: <span className="font-medium text-gray-700">{connectionStatus}</span></p>
         </div>
       </div>
       
-      <h2 className="text-lg font-bold mb-3 text-gray-800">📋 수신된 알림 목록</h2>
+      <h2 className="text-lg font-bold mb-3 text-gray-800">📋 {t.monitor_orders_title}</h2>
       <div className="space-y-4">
         {orders.length === 0 ? (
           <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 text-center">
-            <p className="text-gray-500 mb-2">아직 수신된 알림이 없습니다.</p>
-            <p className="text-xs text-blue-500 font-semibold">💡 카카오톡 '나에게 보내기'로<br/>"배달 주문 들어왔어" 라고 메시지를 보내보세요!</p>
+            <p className="text-gray-500 mb-2">{t.monitor_orders_empty}</p>
           </div>
         ) : (
           orders.map((order, i) => (
@@ -224,7 +278,7 @@ export default function Home() {
                     onClick={() => printOrder(order.raw_text)}
                     className="text-xs font-bold px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 shadow-sm transition"
                   >
-                    🖨️ 인쇄
+                    🖨️ Print
                   </button>
                 </div>
               </div>

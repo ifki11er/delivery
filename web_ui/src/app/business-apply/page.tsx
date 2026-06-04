@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Store, Upload, CheckCircle2, ChevronLeft, Clock, XCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useI18n } from '@/i18n/I18nProvider';
 
 export default function BusinessApplyPage() {
   const router = useRouter();
+  const t = useI18n();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -63,7 +65,7 @@ export default function BusinessApplyPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) {
-      alert("사업자등록증 파일을 선택해주세요.");
+      alert(t.apply_file_notice);
       return;
     }
 
@@ -85,7 +87,7 @@ export default function BusinessApplyPage() {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || '신청에 실패했습니다.');
+        throw new Error(err.error || t.apply_error);
       }
 
       setSuccess(true);
@@ -103,7 +105,7 @@ export default function BusinessApplyPage() {
         fetchApplications();
       }, 2000);
     } catch (error) {
-      alert(error instanceof Error ? error.message : '오류가 발생했습니다.');
+      alert(error instanceof Error ? error.message : t.apply_error);
     } finally {
       setLoading(false);
     }
@@ -112,11 +114,11 @@ export default function BusinessApplyPage() {
   const getStatusBadge = (status: string) => {
     switch(status) {
       case 'PENDING':
-        return <span className="flex items-center text-orange-600 bg-orange-50 px-2 py-1 rounded-md text-xs font-bold"><Clock className="w-3 h-3 mr-1"/> 검토중</span>;
+        return <span className="flex items-center text-orange-600 bg-orange-50 px-2 py-1 rounded-md text-xs font-bold"><Clock className="w-3 h-3 mr-1"/> PENDING</span>;
       case 'APPROVED':
-        return <span className="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-md text-xs font-bold"><CheckCircle2 className="w-3 h-3 mr-1"/> 승인완료</span>;
+        return <span className="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-md text-xs font-bold"><CheckCircle2 className="w-3 h-3 mr-1"/> APPROVED</span>;
       case 'REJECTED':
-        return <span className="flex items-center text-red-600 bg-red-50 px-2 py-1 rounded-md text-xs font-bold"><XCircle className="w-3 h-3 mr-1"/> 반려됨</span>;
+        return <span className="flex items-center text-red-600 bg-red-50 px-2 py-1 rounded-md text-xs font-bold"><XCircle className="w-3 h-3 mr-1"/> REJECTED</span>;
       default:
         return null;
     }
@@ -127,10 +129,9 @@ export default function BusinessApplyPage() {
       <div className="max-w-2xl mx-auto p-4 md:p-8 min-h-screen flex flex-col items-center justify-center">
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center w-full">
           <CheckCircle2 className="w-16 h-16 text-green-500 mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">신청이 완료되었습니다!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Success!</h2>
           <p className="text-gray-600 mb-6">
-            상점 입점 신청이 성공적으로 접수되었습니다.<br/>
-            관리자 승인 후 사장님 메뉴를 이용하실 수 있습니다.
+            {t.apply_success}
           </p>
         </div>
       </div>
@@ -140,24 +141,23 @@ export default function BusinessApplyPage() {
   return (
     <div className="max-w-2xl mx-auto p-4 md:p-8 pb-20 space-y-8">
       <div className="flex items-center space-x-4">
-        <Link href="/mypage" className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+        <button onClick={() => router.back()} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
           <ChevronLeft className="w-6 h-6 text-gray-600" />
-        </Link>
+        </button>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <Store className="w-6 h-6 text-indigo-600" />
-          상점 입점 신청
+          {t.apply_title}
         </h1>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <p className="text-gray-600 mb-6 text-sm">
-          사장님으로 입점하시려면 아래 정보를 정확히 입력해 주세요. 등록하신 정보는 관리자 확인 후 승인됩니다.<br/>
-          <span className="text-red-500 font-bold">* 모든 필드는 필수 항목입니다.</span>
+          {t.apply_desc}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">상점 이름 *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t.apply_form_name} *</label>
             <input
               required
               name="businessName"
@@ -169,7 +169,7 @@ export default function BusinessApplyPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">상점 주소 *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t.apply_form_address} *</label>
             <input
               required
               name="address"
@@ -182,7 +182,7 @@ export default function BusinessApplyPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">연락처 *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t.apply_form_phone} *</label>
               <input
                 required
                 name="contact"
@@ -193,7 +193,7 @@ export default function BusinessApplyPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">대표자명 *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t.manage_rep_name} *</label>
               <input
                 required
                 name="representativeName"
@@ -206,7 +206,7 @@ export default function BusinessApplyPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">사업자등록번호 *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t.apply_form_biz_reg} *</label>
             <input
               required
               name="businessRegNo"
@@ -218,7 +218,7 @@ export default function BusinessApplyPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">사업자등록증 업로드 *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t.apply_form_file} *</label>
             <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl hover:bg-gray-50 transition-colors cursor-pointer group relative overflow-hidden min-h-[160px]">
               <input
                 type="file"
@@ -229,10 +229,10 @@ export default function BusinessApplyPage() {
               />
               {previewUrl ? (
                 <div className="absolute inset-0 w-full h-full p-2">
-                  <img src={previewUrl} alt="미리보기" className="w-full h-full object-contain rounded-lg" />
+                  <img src={previewUrl} alt="Preview" className="w-full h-full object-contain rounded-lg" />
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
                     <span className="text-white font-medium flex items-center">
-                      <Upload className="w-5 h-5 mr-2" /> 다른 사진으로 변경
+                      <Upload className="w-5 h-5 mr-2" /> Change Photo
                     </span>
                   </div>
                 </div>
@@ -241,11 +241,11 @@ export default function BusinessApplyPage() {
                   <Upload className={`mx-auto h-12 w-12 transition-colors ${file ? 'text-indigo-500' : 'text-gray-400 group-hover:text-indigo-500'}`} />
                   <div className="flex flex-col items-center text-sm text-gray-600 justify-center">
                     <span className="font-medium text-indigo-600 group-hover:text-indigo-500">
-                      {file ? file.name : '파일 선택 (클릭하여 앨범/파일 열기)'}
+                      {file ? file.name : 'Select File'}
                     </span>
-                    {file && <span className="text-xs text-gray-400 mt-1">(미리보기를 지원하지 않는 형식입니다)</span>}
+                    {file && <span className="text-xs text-gray-400 mt-1">{t.apply_file_invalid}</span>}
                   </div>
-                  {!file && <p className="text-xs text-gray-500 mt-2">PNG, JPG, PDF 지원</p>}
+                  {!file && <p className="text-xs text-gray-500 mt-2">{t.apply_file_notice}</p>}
                 </div>
               )}
             </div>
@@ -257,7 +257,7 @@ export default function BusinessApplyPage() {
               disabled={loading}
               className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold text-lg hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-200 transition-all disabled:bg-gray-400"
             >
-              {loading ? '신청 중...' : '입점 신청하기'}
+              {loading ? '...' : t.apply_submit}
             </button>
           </div>
         </form>
@@ -266,7 +266,7 @@ export default function BusinessApplyPage() {
       {applications.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-            <h3 className="font-bold text-gray-900">내 신청 내역</h3>
+            <h3 className="font-bold text-gray-900">Applications</h3>
           </div>
           <div className="divide-y divide-gray-100">
             {applications.map((app) => (
@@ -274,9 +274,9 @@ export default function BusinessApplyPage() {
                 <div>
                   <h4 className="font-bold text-gray-900 text-lg mb-1">{app.businessName}</h4>
                   <div className="text-sm text-gray-500 space-y-1">
-                    <p>등록번호: {app.businessRegNo}</p>
-                    <p>대표자: {app.representativeName} | 연락처: {app.contact}</p>
-                    <p>신청일: {new Date(app.createdAt).toLocaleDateString()}</p>
+                    <p>{t.apply_form_biz_reg}: {app.businessRegNo}</p>
+                    <p>{t.manage_rep_name}: {app.representativeName} | {t.apply_form_phone}: {app.contact}</p>
+                    <p>Date: {new Date(app.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
                 <div className="flex-shrink-0">

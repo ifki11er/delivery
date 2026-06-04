@@ -20,38 +20,63 @@ export const authConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       const isAuthPage = nextUrl.pathname.startsWith('/login');
+      const isOnboardingPage = nextUrl.pathname.startsWith('/onboarding');
+      const isApiRoute = nextUrl.pathname.startsWith('/api');
 
-      // 로그인 안 한 상태로 다른 페이지 접근 시 로그인 페이지로 리다이렉트 (false 반환 시 signIn 페이지로 감)
+      // 로그인 안 한 상태로 다른 페이지 접근 시 로그인 페이지로 리다이렉트
       if (!isLoggedIn && !isAuthPage) {
         return false;
       }
       
-      // 이미 로그인 한 상태로 로그인/가입 페이지 접근 시 메인으로 리다이렉트
+      // 이미 로그인 한 상태로 로그인 페이지 접근 시 메인으로 리다이렉트
       if (isLoggedIn && isAuthPage) {
         return Response.redirect(new URL('/', nextUrl));
+      }
+
+      // 로그인 유저 온보딩 처리 (이름 또는 전화번호 누락 시)
+      if (isLoggedIn && !isApiRoute) {
+        const hasMissingInfo = !auth.user.name || !(auth.user as any).phoneNumber;
+        
+        if (hasMissingInfo && !isOnboardingPage) {
+          return Response.redirect(new URL('/onboarding', nextUrl));
+        }
+        
+        // 정보가 다 있는데 온보딩 페이지로 접근하면 홈으로
+        if (!hasMissingInfo && isOnboardingPage) {
+          return Response.redirect(new URL('/', nextUrl));
+        }
       }
 
       return true;
     },
     async session({ session, user, token }) {
       if (session.user && token?.sub) {
-        session.user.id = token.sub
+        session.user.id = token.sub;
       }
       if (session.user && token?.role) {
-        session.user.role = token.role as 'CUSTOMER' | 'OWNER' | 'ADMIN'
+        session.user.role = token.role as 'CUSTOMER' | 'OWNER' | 'ADMIN';
       }
-      return session
+      if (session.user && token?.phoneNumber !== undefined) {
+        (session.user as any).phoneNumber = token.phoneNumber as string | null;
+      }
+      if (session.user && token?.name !== undefined) {
+        session.user.name = token.name as string | null;
+      }
+      return session;
     },
     async jwt({ token, user, trigger, session }) {
       if (user) {
-        token.sub = user.id
-        token.role = user.role
+        token.sub = user.id;
+        token.role = user.role;
+        token.phoneNumber = (user as any).phoneNumber;
+        token.name = user.name;
       }
-      // 세션 업데이트(강제 갱신 등)를 지원하려면 아래와 같이 작성 가능
-      if (trigger === 'update' && session?.role) {
-        token.role = session.role
+      if (trigger === 'update' && session) {
+        if (session.role) token.role = session.role;
+        if (session.name) token.name = session.name;
+        if (session.phoneNumber !== undefined) token.phoneNumber = session.phoneNumber;
       }
-      return token
+      return token;
     },
   },
   session: {

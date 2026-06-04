@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, UserPlus, Search, Trash2, Edit3, Save } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { UserPlus, Search, Clock, Users, Save, ChevronLeft, Trash2, Edit3 } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 
-export default function EmployeesPage() {
+export default function StoreEmployeesPage() {
+  const router = useRouter();
   const t = useI18n();
   const [stores, setStores] = useState<any[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
@@ -12,12 +14,21 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true);
 
   // Add form
-  const [searchEmail, setSearchEmail] = useState('');
+  const [searchPhone, setSearchPhone] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Edit form
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
+
+  // Stats view
+  const [statsEmployeeId, setStatsEmployeeId] = useState<string | null>(null);
+  const [statsMonth, setStatsMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [employeeStats, setEmployeeStats] = useState<any[]>([]);
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
 
   const fetchStoresAndEmployees = async () => {
     try {
@@ -53,8 +64,28 @@ export default function EmployeesPage() {
     fetchStoresAndEmployees();
   }, []);
 
+  useEffect(() => {
+    if (statsEmployeeId) {
+      fetchEmployeeStats(statsEmployeeId, statsMonth);
+    }
+  }, [statsMonth]);
+
+  const fetchEmployeeStats = async (empId: string, month: string) => {
+    setIsStatsLoading(true);
+    try {
+      const res = await fetch(`/api/store/attendance?storeId=${selectedStoreId}&employeeId=${empId}&month=${month}`);
+      if (res.ok) {
+        setEmployeeStats(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsStatsLoading(false);
+    }
+  };
+
   const handleAddEmployee = async () => {
-    if (!searchEmail) return alert('이메일을 입력하세요.');
+    if (!searchPhone) return alert('전화번호를 입력하세요.');
     
     try {
       const res = await fetch('/api/store/employees', {
@@ -62,7 +93,7 @@ export default function EmployeesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           storeId: selectedStoreId, 
-          email: searchEmail,
+          phoneNumber: searchPhone,
           wageType: 'HOURLY',
           wageAmount: 10000,
           workStartTime: '09:00',
@@ -71,7 +102,7 @@ export default function EmployeesPage() {
       });
       if (res.ok) {
         alert('직원이 등록되었습니다.');
-        setSearchEmail('');
+        setSearchPhone('');
         setShowAddForm(false);
         fetchEmployees(selectedStoreId);
       } else {
@@ -84,14 +115,14 @@ export default function EmployeesPage() {
   };
 
   const handleDelete = async (employeeId: string) => {
-    if (!confirm('정말로 이 직원을 해고/삭제하시겠습니까? (과거 통계는 남습니다)')) return;
+    if (!confirm('해당 직원을 퇴사 처리하시겠습니까? (과거 통계는 남습니다)')) return;
     
     try {
       const res = await fetch(`/api/store/employees?employeeId=${employeeId}`, {
         method: 'DELETE'
       });
       if (res.ok) {
-        alert('삭제되었습니다.');
+        alert('퇴사 처리되었습니다.');
         fetchEmployees(selectedStoreId);
       }
     } catch (e) {
@@ -121,7 +152,7 @@ export default function EmployeesPage() {
   if (stores.length === 0) {
     return (
       <div className="p-8 text-center text-gray-500">
-        상점이 없습니다. [상점 관리]에서 먼저 상점을 등록해주세요.
+        {t.manage_no_store}
       </div>
     );
   }
@@ -130,7 +161,12 @@ export default function EmployeesPage() {
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
       <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="font-bold text-lg text-gray-900">{t.employee_management}</h1>
+          <div className="flex items-center space-x-2">
+            <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
+              <ChevronLeft className="w-6 h-6 text-gray-600" />
+            </button>
+            <h1 className="font-bold text-lg text-gray-900">{t.employee_management}</h1>
+          </div>
           <button onClick={() => setShowAddForm(!showAddForm)} className="text-indigo-600 p-2">
             <UserPlus className="w-6 h-6" />
           </button>
@@ -139,131 +175,323 @@ export default function EmployeesPage() {
 
       <div className="max-w-2xl mx-auto px-4 space-y-4 mt-6">
         
+        {/* Store Selection Tabs */}
+        {stores.length > 1 && (
+          <div className="flex space-x-2 overflow-x-auto pb-2">
+            {stores.map(store => (
+              <button 
+                key={store.id}
+                onClick={() => {
+                  setSelectedStoreId(store.id);
+                  fetchEmployees(store.id);
+                }}
+                className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
+                  selectedStoreId === store.id ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-700'
+                }`}
+              >
+                {store.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Add Employee Form */}
         {showAddForm && (
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h2 className="font-bold text-gray-900 mb-3 text-sm">직원 등록 (이메일 검색)</h2>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
+            <h2 className="font-bold text-gray-900 mb-3 text-sm">{t.emp_register_title}</h2>
             <div className="flex space-x-2">
               <div className="relative flex-1">
                 <Search className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
                 <input 
-                  type="email" 
-                  value={searchEmail}
-                  onChange={(e) => setSearchEmail(e.target.value)}
-                  placeholder="가입된 이메일 주소"
+                  type="tel" 
+                  value={searchPhone}
+                  onChange={(e) => setSearchPhone(e.target.value)}
+                  placeholder={t.emp_phone_placeholder}
                   className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 />
               </div>
               <button 
-                onClick={handleAddEmployee}
-                className="px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700"
+                onClick={handleSearchUser}
+                className="px-6 py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-colors flex items-center"
               >
-                검색 및 추가
+                <Search className="w-4 h-4 mr-2" /> {t.emp_search_btn}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-2">* 직원은 반드시 미리 앱에 가입되어 있어야 합니다.</p>
+            {selectedSearchUser && (
+              <div className="mt-4 p-3 bg-indigo-50 rounded-lg flex justify-between items-center">
+                <span className="font-bold text-indigo-900">{selectedSearchUser.name}</span>
+                <button onClick={handleAddEmployee} className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-full font-bold">{t.emp_add_btn}</button>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-2">{t.emp_search_hint}</p>
           </div>
         )}
 
-        {/* Employee List */}
         <div className="space-y-4">
-          <h2 className="font-bold text-gray-900 flex items-center">
-            <Users className="w-5 h-5 mr-2 text-indigo-500" /> 소속 직원 ({employees.length}명)
+          <h2 className="font-bold text-lg text-gray-900 flex items-center mb-4">
+            <Users className="w-5 h-5 mr-2 text-indigo-500" /> {t.emp_list_title} ({employees.length})
           </h2>
 
           {employees.length === 0 ? (
-            <div className="text-center py-10 text-gray-500">
-              등록된 직원이 없습니다. 상단 + 버튼을 눌러 직원을 추가하세요.
+            <div className="bg-white p-8 rounded-2xl border border-gray-100 text-center text-gray-500">
+              {t.emp_empty_list}
             </div>
           ) : (
             employees.map(emp => (
               <div key={emp.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="p-4 flex justify-between items-center bg-gray-50/50 border-b border-gray-50">
+                <div className={`p-4 flex justify-between items-center border-b border-gray-50 ${emp.status === 'INACTIVE' ? 'bg-gray-100' : 'bg-gray-50/50'}`}>
                   <div>
-                    <span className="font-bold text-gray-900 text-lg">{emp.user.name || emp.user.email?.split('@')[0]}</span>
-                    <span className="ml-2 text-xs text-gray-500">{emp.user.email}</span>
+                    <div className="flex items-center space-x-2">
+                      <span className={`font-bold text-lg ${emp.status === 'INACTIVE' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                        {emp.user.name || emp.user.email?.split('@')[0]}
+                      </span>
+                      {emp.status === 'INACTIVE' && (
+                        <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-bold rounded">
+                          {t.emp_badge_resigned}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500">{emp.user.phoneNumber || emp.user.email}</span>
                   </div>
                   <div className="flex space-x-2">
-                    <button onClick={() => {
-                      setEditingId(emp.id);
-                      setEditForm({
-                        wageType: emp.wageType,
-                        wageAmount: emp.wageAmount,
-                        workStartTime: emp.workStartTime,
-                        workEndTime: emp.workEndTime
-                      });
-                    }} className="p-2 text-gray-400 hover:text-indigo-600">
-                      <Edit3 className="w-5 h-5" />
-                    </button>
-                    <button onClick={() => handleDelete(emp.id)} className="p-2 text-gray-400 hover:text-red-600">
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                    {emp.status !== 'INACTIVE' && (
+                      <>
+                        <button onClick={() => {
+                          setEditingId(emp.id);
+                          setExpandedStatsEmpId(null);
+                          setEditForm({
+                            role: emp.role,
+                            wageType: emp.wageType,
+                            wageAmount: emp.wageAmount,
+                            workStartTime: emp.workStartTime,
+                            workEndTime: emp.workEndTime
+                          });
+                        }} className="p-2 text-gray-400 hover:text-indigo-600">
+                          <Edit3 className="w-5 h-5" />
+                        </button>
+                        <button onClick={() => handleDelete(emp.id)} className="p-2 text-gray-400 hover:text-red-600">
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                {editingId === emp.id ? (
-                  <div className="p-4 space-y-4 bg-indigo-50/30">
-                    <div className="grid grid-cols-2 gap-4">
+                {editingId === emp.id && (
+                  <div className="p-4 bg-gray-50 border-t border-gray-100">
+                    <div className="grid grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">급여 형태</label>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">{t.emp_form_role}</label>
                         <select 
-                          value={editForm.wageType}
-                          onChange={e => setEditForm({...editForm, wageType: e.target.value})}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none"
+                          value={editForm.role}
+                          onChange={(e) => setEditForm({...editForm, role: e.target.value})}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
                         >
-                          <option value="HOURLY">시급 (Hourly)</option>
-                          <option value="DAILY">일당 (Daily)</option>
+                          <option value="STAFF">Staff</option>
+                          <option value="MANAGER">Manager</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">금액 (원)</label>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">{t.emp_form_wage_type}</label>
+                        <select 
+                          value={editForm.wageType}
+                          onChange={(e) => setEditForm({...editForm, wageType: e.target.value})}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                        >
+                          <option value="HOURLY">{t.emp_wage_hourly}</option>
+                          <option value="DAILY">{t.emp_wage_daily}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">{t.emp_form_wage_amount} ({emp.store?.currency || '원'})</label>
                         <input 
                           type="number" 
                           value={editForm.wageAmount}
-                          onChange={e => setEditForm({...editForm, wageAmount: Number(e.target.value)})}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none"
+                          onChange={(e) => setEditForm({...editForm, wageAmount: Number(e.target.value)})}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
                         />
                       </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">출근 예정 시간</label>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">{t.emp_form_start_time}</label>
                         <input 
                           type="time" 
                           value={editForm.workStartTime}
-                          onChange={e => setEditForm({...editForm, workStartTime: e.target.value})}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none"
+                          onChange={(e) => setEditForm({...editForm, workStartTime: e.target.value})}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">퇴근 예정 시간</label>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">{t.emp_form_end_time}</label>
                         <input 
                           type="time" 
                           value={editForm.workEndTime}
-                          onChange={e => setEditForm({...editForm, workEndTime: e.target.value})}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none"
+                          onChange={(e) => setEditForm({...editForm, workEndTime: e.target.value})}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
                         />
                       </div>
                     </div>
-                    <div className="flex justify-end space-x-2 mt-2">
-                      <button onClick={() => setEditingId(null)} className="px-4 py-2 text-sm text-gray-500 font-bold">취소</button>
-                      <button onClick={handleSaveEdit} className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg font-bold flex items-center">
-                        <Save className="w-4 h-4 mr-1" /> 저장
+                    <div className="flex justify-end space-x-2">
+                      <button 
+                        onClick={() => setEditingId(null)}
+                        className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50"
+                      >
+                        {t.emp_form_cancel}
+                      </button>
+                      <button 
+                        onClick={() => handleSaveEmployee(emp.id)}
+                        className="px-4 py-2 bg-indigo-600 rounded-lg text-sm font-bold text-white hover:bg-indigo-700 flex items-center"
+                      >
+                        <Save className="w-4 h-4 mr-1" /> {t.emp_form_save}
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <div className="p-4 grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+                )}
+
+                {!editingId && (
+                  <div className="p-4 bg-white border-t border-gray-50 flex items-center justify-between">
                     <div>
-                      <span className="text-gray-500 block text-xs mb-0.5">급여 설정</span>
+                      <span className="text-gray-500 block text-xs mb-0.5">{t.emp_wage_setting}</span>
                       <span className="font-bold text-gray-900">
-                        {emp.wageType === 'HOURLY' ? '시급' : '일당'} {emp.wageAmount.toLocaleString()}원
+                        {emp.wageType === 'HOURLY' ? t.emp_wage_hourly : t.emp_wage_daily} {emp.wageAmount.toLocaleString()}{emp.store?.currency || '원'}
                       </span>
                     </div>
-                    <div>
-                      <span className="text-gray-500 block text-xs mb-0.5">근무 스케줄</span>
-                      <span className="font-bold text-gray-900">
-                        {emp.workStartTime} ~ {emp.workEndTime}
-                      </span>
+                  </div>
+                )}
+                
+                {!editingId && emp.histories && emp.histories.length > 0 && (
+                  <div className="p-4 bg-white border-t border-gray-50">
+                    <span className="text-gray-500 block text-xs mb-2 font-bold flex items-center">
+                      <Clock className="w-3 h-3 mr-1" /> {t.emp_history_title}
+                    </span>
+                    <ul className="space-y-1.5 pl-1 border-l-2 border-indigo-100 ml-1">
+                      {emp.histories.map((hist: any, index: number) => (
+                        <li key={hist.id} className="relative text-xs text-gray-700 pl-3">
+                          <span className={`absolute -left-[5px] top-1 w-2 h-2 rounded-full border-2 border-white ${hist.resignedAt ? 'bg-gray-400' : 'bg-green-500'}`}></span>
+                          <span className="font-bold text-gray-900 mr-1.5">[{emp.histories.length - index}{t.emp_history_nth_join}]</span>
+                          <span>
+                            {new Date(hist.joinedAt).toLocaleDateString()} ~{' '}
+                            {hist.resignedAt ? (
+                              <span className="text-gray-500">{new Date(hist.resignedAt).toLocaleDateString()} {t.emp_history_resigned}</span>
+                            ) : (
+                              <span className="text-green-600 font-bold bg-green-50 px-1 py-0.5 rounded">{t.emp_history_working}</span>
+                            )}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {/* Stats Toggle Button */}
+                {!editingId && (
+                  <div className="border-t border-gray-100 p-3 bg-white text-center">
+                    <button 
+                      onClick={() => {
+                        if (statsEmployeeId === emp.id) {
+                          setStatsEmployeeId(null);
+                        } else {
+                          setStatsEmployeeId(emp.id);
+                          fetchEmployeeStats(emp.id, statsMonth);
+                        }
+                      }}
+                      className="text-indigo-600 text-sm font-bold hover:text-indigo-800 transition-colors"
+                    >
+                      {statsEmployeeId === emp.id ? '통계 접기 ▲' : '출결/급여 통계 보기 ▼'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Stats View Area */}
+                {statsEmployeeId === emp.id && (
+                  <div className="p-4 bg-gray-50/80 border-t border-gray-100">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-gray-800 text-sm">월별 출퇴근 기록</h3>
+                      <input 
+                        type="month" 
+                        value={statsMonth}
+                        onChange={(e) => setStatsMonth(e.target.value)}
+                        className="px-2 py-1 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none"
+                      />
                     </div>
+                    
+                    {isStatsLoading ? (
+                      <div className="py-8 text-center text-gray-500 text-sm">불러오는 중...</div>
+                    ) : (
+                      <>
+                        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm mb-4">
+                          <table className="w-full text-left text-sm whitespace-nowrap">
+                            <thead className="bg-gray-100 text-gray-600">
+                              <tr>
+                                <th className="px-4 py-2 font-semibold">날짜</th>
+                                <th className="px-4 py-2 font-semibold">출근</th>
+                                <th className="px-4 py-2 font-semibold">퇴근</th>
+                                <th className="px-4 py-2 font-semibold">상태</th>
+                                <th className="px-4 py-2 font-semibold text-right">근무 시간</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {employeeStats.length === 0 ? (
+                                <tr>
+                                  <td colSpan={5} className="px-4 py-6 text-center text-gray-400">기록이 없습니다.</td>
+                                </tr>
+                              ) : (
+                                employeeStats.map((att: any) => (
+                                  <tr key={att.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-4 py-3 text-gray-900 font-medium">{att.date.split('-').slice(1).join('/')}</td>
+                                    <td className="px-4 py-3 text-gray-600">{att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
+                                    <td className="px-4 py-3 text-gray-600">{att.checkOutTime ? new Date(att.checkOutTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
+                                    <td className="px-4 py-3">
+                                      <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${
+                                        att.status === 'NORMAL' ? 'bg-green-100 text-green-700' :
+                                        att.status === 'LATE' ? 'bg-red-100 text-red-700' :
+                                        att.status === 'EARLY_LEAVE' ? 'bg-orange-100 text-orange-700' :
+                                        'bg-gray-100 text-gray-700'
+                                      }`}>
+                                        {att.status === 'NORMAL' ? '정상' : att.status === 'LATE' ? '지각' : att.status === 'EARLY_LEAVE' ? '조퇴' : '결근'}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                      {att.workMinutes > 0 ? `${Math.floor(att.workMinutes / 60)}h ${att.workMinutes % 60}m` : '-'}
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                        
+                        {/* Summary Block */}
+                        <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex justify-between items-center">
+                          <span className="text-sm font-bold text-indigo-800">예상 급여 요약 (해당 월)</span>
+                          <div className="text-right">
+                            {(() => {
+                              const totalMins = employeeStats.reduce((acc, curr) => acc + (curr.workMinutes || 0), 0);
+                              const totalHours = totalMins / 60;
+                              let estimatedWage = 0;
+                              if (emp.wageType === 'HOURLY') {
+                                estimatedWage = totalHours * emp.wageAmount;
+                              } else {
+                                // DAILY
+                                const daysWorked = employeeStats.filter(s => s.workMinutes > 0).length;
+                                estimatedWage = daysWorked * emp.wageAmount;
+                              }
+                              return (
+                                <>
+                                  <div className="text-xs text-indigo-600 mb-1">
+                                    {t.emp_total_work_time.replace('{h}', String(Math.floor(totalHours))).replace('{m}', String(totalMins % 60))}
+                                  </div>
+                                  <div className="text-lg font-black text-indigo-900">
+                                    {t.emp_expected_salary} {Math.floor(estimatedWage).toLocaleString()}{emp.store?.currency || '원'}
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

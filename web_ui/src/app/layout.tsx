@@ -22,6 +22,7 @@ import { getI18n } from "@/i18n/server";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import Sidebar from "@/components/layout/Sidebar";
 import BottomNav from "@/components/layout/BottomNav";
+import AuthProvider from "@/components/providers/AuthProvider";
 
 export default async function RootLayout({
   children,
@@ -37,21 +38,23 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-gray-50 text-gray-900">
-        <I18nProvider dictionary={t}>
-          {session ? (
-            <div className="flex h-screen overflow-hidden">
-              <Sidebar session={session} />
-              <main className="flex-1 md:ml-64 w-full h-full overflow-y-auto pb-16 md:pb-0">
+        <AuthProvider>
+          <I18nProvider dictionary={t}>
+            {session ? (
+              <div className="flex h-screen overflow-hidden">
+                <Sidebar session={session} />
+                <main className="flex-1 md:ml-64 w-full h-full overflow-y-auto pb-16 md:pb-0">
+                  {children}
+                </main>
+                <BottomNav session={session} />
+              </div>
+            ) : (
+              <main className="flex-1 w-full h-full">
                 {children}
               </main>
-              <BottomNav session={session} />
-            </div>
-          ) : (
-            <main className="flex-1 w-full h-full">
-              {children}
-            </main>
-          )}
-        </I18nProvider>
+            )}
+          </I18nProvider>
+        </AuthProvider>
       </body>
     </html>
   );

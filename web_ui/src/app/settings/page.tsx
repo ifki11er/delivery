@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { ChevronLeft } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 
 export default function SettingsPage() {
@@ -28,7 +29,12 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl mx-auto p-4 md:p-8 space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">{t.settings}</h1>
+        <div className="flex items-center space-x-2 mb-6">
+          <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
+            <ChevronLeft className="w-6 h-6 text-gray-600" />
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">{t.settings}</h1>
+        </div>
         
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {/* 언어 설정 항목 */}
@@ -56,7 +62,7 @@ export default function SettingsPage() {
           
           <div className="p-4 bg-gray-50/50">
             <p className="text-xs text-gray-500">
-              * 언어를 변경하면 즉시 앱 전체에 적용됩니다.
+              {t.settings_lang_desc || '* Language changes are applied immediately across the app.'}
             </p>
           </div>
         </div>

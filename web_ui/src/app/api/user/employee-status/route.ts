@@ -15,12 +15,14 @@ export async function GET() {
     });
     
     const emp = await prisma.employee.findFirst({
-      where: { userId: session.user.id }
+      where: { userId: session.user.id },
+      include: { store: true }
     });
     
     return NextResponse.json({ 
       isEmployee: !!emp,
-      role: user?.role || session.user.role
+      role: user?.role || session.user.role,
+      storeName: emp?.store?.name || null
     });
   } catch (error) {
     console.error('[API Status GET Error]:', error);
