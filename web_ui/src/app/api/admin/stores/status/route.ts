@@ -22,8 +22,28 @@ export async function PUT(req: Request) {
         id: true,
         name: true,
         status: true,
+        ownerId: true,
       }
     });
+
+    if (status !== 'CLOSED') {
+      // If store is revived (ACTIVE or SUSPENDED), ensure user is OWNER
+      await prisma.user.update({
+        where: { id: updatedStore.ownerId },
+        data: { role: 'OWNER' }
+      });
+    } else {
+      // If CLOSED, check if they have other active stores. If not, downgrade.
+      const remainingStores = await prisma.store.count({
+        where: { ownerId: updatedStore.ownerId, status: { not: 'CLOSED' } }
+      });
+      if (remainingStores === 0) {
+        await prisma.user.update({
+          where: { id: updatedStore.ownerId },
+          data: { role: 'CUSTOMER' }
+        });
+      }
+    }
 
     return NextResponse.json({ success: true, store: updatedStore });
   } catch (error) {

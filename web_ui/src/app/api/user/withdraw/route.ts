@@ -27,8 +27,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Admins cannot delete their account.' }, { status: 403 });
     }
 
-    if (user.stores.length > 0) {
-      return NextResponse.json({ error: '가게를 소유하고 있습니다. 가게를 먼저 삭제하거나 소유권을 이전해야 탈퇴할 수 있습니다.' }, { status: 400 });
+    const activeStores = user.stores.filter(s => s.status !== 'CLOSED');
+    if (activeStores.length > 0) {
+      return NextResponse.json({ error: '운영 중이거나 정지된 가게를 소유하고 있습니다. 상점을 먼저 폐업 처리하거나 소유권을 이전해야 탈퇴할 수 있습니다.' }, { status: 400 });
     }
 
     const activeEmployments = user.employments.filter(e => e.status === 'ACTIVE');
@@ -45,7 +46,6 @@ export async function POST(req: Request) {
         data: {
           email: `DELETED_${uniqueSuffix}_${user.email || ''}`,
           phoneNumber: `DELETED_${uniqueSuffix}_${user.phoneNumber || ''}`,
-          name: '탈퇴한 사용자',
           password: null,
           image: null,
           deletedAt: new Date(),

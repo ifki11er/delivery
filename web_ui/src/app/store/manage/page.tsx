@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Store, Wifi, Save, Send, ChevronLeft, Search, User } from 'lucide-react';
+import { Store, Wifi, Save, Send, ChevronLeft, Search, User, Trash2 } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 
 export default function StoreManagePage() {
@@ -143,6 +143,37 @@ export default function StoreManagePage() {
     }
   };
 
+  const handleDeleteStore = async () => {
+    if (!confirm(`[확인] 상점 '${storeName}'을(를) 폐업 처리하시겠습니까?\n모든 출결/급여 기록은 과거 조회용으로 보존되지만, 더 이상 새로운 운영은 불가능해집니다.`)) return;
+    
+    // 이중 확인
+    const confirmName = prompt(`폐업을 진행하시려면 상점 이름 '${storeName}'을(를) 똑같이 입력해주세요.`);
+    if (confirmName !== storeName) {
+      alert('상점 이름이 일치하지 않아 취소되었습니다.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/store?id=${storeId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alert('상점이 성공적으로 폐업 처리되었습니다.');
+        if (data.remainingStores === 0) {
+          router.push('/');
+        } else {
+          fetchStores(); // Reload
+        }
+      } else {
+        const err = await res.json();
+        alert(`폐업 처리 실패: ${err.error}`);
+      }
+    } catch (e) {
+      alert('처리 중 오류가 발생했습니다.');
+    }
+  };
+
   if (loading) return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
 
   return (
@@ -180,11 +211,14 @@ export default function StoreManagePage() {
                     setWifiIp(store.wifiIpAddress || '');
                     setCurrency(store.currency || '원');
                   }}
-                  className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
+                  className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors flex items-center ${
                     storeId === store.id ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-700'
                   }`}
                 >
                   {store.name}
+                  {store.status === 'CLOSED' && (
+                    <span className="ml-2 text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-sm">폐업</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -352,6 +386,27 @@ export default function StoreManagePage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* 상점 폐업 (Soft Delete) */}
+            <div className="bg-gray-900 rounded-2xl border border-gray-800 p-5 space-y-4 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+                <Trash2 className="w-32 h-32 text-white" />
+              </div>
+              <h2 className="font-bold text-lg text-gray-100 flex items-center relative z-10">
+                <Store className="w-5 h-5 mr-2" /> 상점 폐업 (운영 종료)
+              </h2>
+              <p className="text-sm text-gray-400 relative z-10 leading-relaxed">
+                해당 상점을 <strong>'폐업'</strong> 상태로 전환합니다.<br />
+                폐업 처리 이후에는 해당 상점의 새로운 출퇴근 등록이나 스케줄 관리가 전면 중단됩니다.
+              </p>
+              
+              <button 
+                onClick={handleDeleteStore}
+                className="w-full py-3.5 bg-gray-800 text-red-400 border border-red-900/30 rounded-xl font-bold hover:bg-red-950 transition-colors flex items-center justify-center relative z-10"
+              >
+                상점 폐업 처리하기
+              </button>
             </div>
           </>
         )}

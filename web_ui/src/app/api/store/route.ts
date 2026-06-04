@@ -11,6 +11,7 @@ export async function GET() {
   try {
     const stores = await prisma.store.findMany({
       where: {
+        status: { not: 'CLOSED' },
         OR: [
           { ownerId: session.user.id },
           {
@@ -140,5 +141,54 @@ export async function PUT(req: Request) {
   } catch (error) {
     console.error('[API Store PUT Error]:', error);
     return NextResponse.json({ error: 'Failed to update store' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  const session = await auth();
+  // Only OWNER (or ADMIN) can delete a store
+  if (!session?.user?.id || session.user.role === 'CUSTOMER') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
+  try {
+    const url = new URL(req.url);
+    const id = url.searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Store ID is required' }, { status: 400 });
+    }
+
+    // Verify ownership
+    const existingStore = await prisma.store.findUnique({ where: { id } });
+    if (!existingStore || existingStore.ownerId !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Soft Delete Store (Change status to CLOSED instead of hard deleting)
+    await prisma.store.update({ 
+      where: { id }, 
+      data: { status: 'CLOSED' } 
+    });
+
+    // Check remaining active stores, downgrade to CUSTOMER if 0
+    const remainingStores = await prisma.store.count({
+      where: { 
+        ownerId: session.user.id,
+        status: { not: 'CLOSED' }
+      }
+    });
+
+    if (remainingStores === 0) {
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: { role: 'CUSTOMER' }
+      });
+    }
+
+    return NextResponse.json({ success: true, isSoftDeleted: true, remainingStores });
+  } catch (error) {
+    console.error('[API Store DELETE Error]:', error);
+    return NextResponse.json({ error: 'Failed to close store' }, { status: 500 });
   }
 }

@@ -73,7 +73,7 @@ export default function UserListClient({ users: initialUsers, filterType }: { us
                 <th className="py-4 px-6 font-semibold">이름</th>
                 <th className="py-4 px-6 font-semibold">이메일</th>
                 <th className="py-4 px-6 font-semibold">연락처</th>
-                <th className="py-4 px-6 font-semibold">권한 / 소속</th>
+                <th className="py-4 px-6 font-semibold">권한</th>
                 <th className="py-4 px-6 font-semibold">가입일</th>
                 <th className="py-4 px-6 font-semibold">현재 상태 및 관리</th>
               </tr>
@@ -95,11 +95,6 @@ export default function UserListClient({ users: initialUsers, filterType }: { us
                       <span className={`px-2 py-1 rounded-md text-xs font-bold ${user.role === 'OWNER' ? 'bg-purple-100 text-purple-700' : user.role === 'ADMIN' ? 'bg-gray-100 text-gray-700' : user.role === 'EMPLOYEE' ? 'bg-teal-100 text-teal-700' : 'bg-orange-100 text-orange-700'}`}>
                         {user.role}
                       </span>
-                      {user.storeName && (
-                        <span className="ml-2 text-xs text-gray-500 truncate max-w-[150px] inline-block align-bottom">
-                          @{user.storeName}
-                        </span>
-                      )}
                     </td>
                     <td className="py-4 px-6 text-gray-500">
                       {new Date(user.createdAt).toLocaleDateString('ko-KR')}
