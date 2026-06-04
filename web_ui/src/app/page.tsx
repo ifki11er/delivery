@@ -2,73 +2,69 @@
 
 import { MapPin, Search, ShoppingCart, ChevronDown, Star, Clock, Bike } from 'lucide-react';
 import Image from 'next/image';
+import { useI18n } from '@/i18n/I18nProvider';
 
 const CATEGORIES = [
-  { name: '1인분', icon: '🍲' },
-  { name: '족발·보쌈', icon: '🍖' },
-  { name: '찜·탕·찌개', icon: '🥘' },
-  { name: '돈까스·회·일식', icon: '🍣' },
-  { name: '피자', icon: '🍕' },
-  { name: '고기·구이', icon: '🥩' },
-  { name: '야식', icon: '🌙' },
-  { name: '양식', icon: '🍝' },
-  { name: '치킨', icon: '🍗' },
-  { name: '중식', icon: '🍜' },
+  { key: 'home_category_single', icon: '1' },
+  { key: 'home_category_jokbal', icon: 'JB' },
+  { key: 'home_category_soup', icon: 'ST' },
+  { key: 'home_category_japanese', icon: 'JP' },
+  { key: 'home_category_pizza', icon: 'PZ' },
+  { key: 'home_category_grill', icon: 'GR' },
+  { key: 'home_category_late', icon: 'NT' },
+  { key: 'home_category_western', icon: 'WS' },
+  { key: 'home_category_chicken', icon: 'CK' },
+  { key: 'home_category_chinese', icon: 'CN' },
 ];
 
 const MOCK_STORES = [
   {
     id: 1,
-    name: '육즙가득 프리미엄 수제버거 역삼점',
+    nameKey: 'mock_store_burger',
     rating: 4.9,
     reviews: 1250,
-    deliveryTime: '20~35분',
-    deliveryFee: '무료배달',
-    minOrder: '15,000원',
+    deliveryTimeKey: 'mock_delivery_20_35',
+    deliveryFeeKey: 'free_delivery',
+    minOrder: '15,000',
     imageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=800&auto=format&fit=crop',
-    tags: ['쿠폰할인', '포장가능'],
+    tagKeys: ['tag_coupon', 'tag_takeout'],
   },
   {
     id: 2,
-    name: '장인 화덕피자 & 파스타',
+    nameKey: 'mock_store_pizza',
     rating: 4.8,
     reviews: 843,
-    deliveryTime: '30~45분',
-    deliveryFee: '1,500원',
-    minOrder: '18,000원',
+    deliveryTimeKey: 'mock_delivery_30_45',
+    deliveryFeeKey: 'mock_fee_1500',
+    minOrder: '18,000',
     imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=800&auto=format&fit=crop',
-    tags: ['신규', '배달할인'],
+    tagKeys: ['tag_new', 'tag_delivery_discount'],
   },
   {
     id: 3,
-    name: '바삭바삭 옛날통닭과 떡볶이',
+    nameKey: 'mock_store_chicken',
     rating: 4.7,
     reviews: 3200,
-    deliveryTime: '25~40분',
-    deliveryFee: '무료배달',
-    minOrder: '16,000원',
+    deliveryTimeKey: 'mock_delivery_25_40',
+    deliveryFeeKey: 'free_delivery',
+    minOrder: '16,000',
     imageUrl: 'https://images.unsplash.com/photo-1626074353765-517a681e40be?q=80&w=800&auto=format&fit=crop',
-    tags: ['인기', '무료배달'],
+    tagKeys: ['tag_popular', 'free_delivery'],
   },
 ];
-
-import { useI18n } from '@/i18n/I18nProvider';
 
 export default function Home() {
   const t = useI18n();
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
-      
-      {/* 1. 상단 헤더 (위치 및 검색) */}
       <div className="bg-white sticky top-0 z-40 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 pt-4 pb-3">
-          {/* 위치 선택기 */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-1 cursor-pointer group">
               <MapPin className="w-5 h-5 text-gray-900 group-hover:text-indigo-600 transition-colors" />
               <span className="font-bold text-lg text-gray-900 group-hover:text-indigo-600 transition-colors">
-                역삼동 123-45
+                {t.sample_location}
               </span>
               <ChevronDown className="w-4 h-4 text-gray-900" />
             </div>
@@ -80,7 +76,6 @@ export default function Home() {
             </button>
           </div>
 
-          {/* 검색바 */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-5 w-5 text-gray-400" />
@@ -95,66 +90,57 @@ export default function Home() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 space-y-6 mt-4">
-        
-        {/* 2. 프로모션 배너 (Hero Carousel Placeholder) */}
         <div className="relative w-full h-36 md:h-48 rounded-2xl overflow-hidden shadow-sm group cursor-pointer">
-          <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-600" />
           <div className="absolute inset-0 flex flex-col justify-center p-6 text-white">
             <span className="inline-block px-2 py-1 bg-white/20 rounded-md text-xs font-bold w-fit mb-2 backdrop-blur-sm">{t.limited_event}</span>
             <h2 className="text-xl md:text-2xl font-extrabold leading-tight whitespace-pre-line">{t.hero_title}</h2>
           </div>
-          {/* 장식용 그래픽 요소 */}
-          <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-          <div className="absolute right-8 top-4 text-5xl opacity-80 transform group-hover:scale-110 transition-transform">🎉</div>
+          <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+          <div className="absolute right-8 top-4 text-5xl opacity-80 transform group-hover:scale-110 transition-transform">%</div>
         </div>
 
-        {/* 3. 카테고리 그리드 */}
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="grid grid-cols-5 gap-y-4 gap-x-2">
-            {CATEGORIES.map((cat, idx) => (
-              <div key={idx} className="flex flex-col items-center justify-center space-y-2 cursor-pointer group">
-                <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-2xl group-hover:bg-indigo-50 transition-colors">
+            {CATEGORIES.map((cat) => (
+              <div key={cat.key} className="flex flex-col items-center justify-center space-y-2 cursor-pointer group">
+                <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-sm font-black text-indigo-600 group-hover:bg-indigo-50 transition-colors">
                   {cat.icon}
                 </div>
                 <span className="text-[11px] font-medium text-gray-700 text-center tracking-tight leading-tight">
-                  {cat.name}
+                  {t[cat.key]}
                 </span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* 4. 추천 맛집 리스트 (Store Feed) */}
         <div>
           <h3 className="text-lg font-bold text-gray-900 mb-4 px-1">{t.popular_stores}</h3>
           <div className="space-y-5">
             {MOCK_STORES.map((store, idx) => (
               <div key={store.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow group">
-                {/* 이미지 영역 */}
                 <div className="relative h-48 w-full overflow-hidden bg-gray-200">
                   <Image
                     unoptimized
                     src={store.imageUrl}
-                    alt={store.name}
+                    alt={t[store.nameKey]}
                     fill
                     priority={idx === 0}
                     className="object-cover group-hover:scale-105 transition-transform duration-500"
                     sizes="(max-width: 768px) 100vw, 800px"
                   />
-                  {/* 태그 */}
                   <div className="absolute top-3 left-3 flex gap-1">
-                    {store.tags.map((tag, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold rounded-sm">
-                        {tag}
+                    {store.tagKeys.map((tagKey) => (
+                      <span key={tagKey} className="px-2 py-1 bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold rounded-sm">
+                        {t[tagKey]}
                       </span>
                     ))}
                   </div>
                 </div>
-                
-                {/* 정보 영역 */}
+
                 <div className="p-4">
-                  <h4 className="font-bold text-lg text-gray-900 mb-1 truncate">{store.name}</h4>
-                  
+                  <h4 className="font-bold text-lg text-gray-900 mb-1 truncate">{t[store.nameKey]}</h4>
                   <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
                     <div className="flex items-center font-bold text-gray-900">
                       <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 mr-1" />
@@ -162,29 +148,27 @@ export default function Home() {
                     </div>
                     <span>({store.reviews.toLocaleString()})</span>
                   </div>
-                  
                   <div className="flex items-center space-x-3 text-xs text-gray-500">
                     <div className="flex items-center bg-gray-100 px-2 py-1 rounded-md">
                       <Clock className="w-3.5 h-3.5 mr-1 text-gray-600" />
-                      <span className="font-medium text-gray-700">{store.deliveryTime}</span>
+                      <span className="font-medium text-gray-700">{t[store.deliveryTimeKey]}</span>
                     </div>
                     <div className="flex items-center">
                       <Bike className="w-3.5 h-3.5 mr-1 text-indigo-500" />
-                      <span className={`font-medium ${store.deliveryFee === '무료배달' ? 'text-indigo-600 font-bold' : ''}`}>
-                        {store.deliveryFee === '무료배달' ? t.free_delivery : store.deliveryFee}
+                      <span className={`font-medium ${store.deliveryFeeKey === 'free_delivery' ? 'text-indigo-600 font-bold' : ''}`}>
+                        {t[store.deliveryFeeKey]}
                       </span>
                     </div>
                     <span className="text-gray-300">|</span>
-                    <span>{t.min_order} {store.minOrder}</span>
+                    <span>{t.min_order} {store.minOrder}{t.currency_won}</span>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
-        
-        {/* 여백 */}
-        <div className="h-6"></div>
+
+        <div className="h-6" />
       </div>
     </div>
   );

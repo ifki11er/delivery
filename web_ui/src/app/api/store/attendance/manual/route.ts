@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '../../../../../../auth';
 import { prisma } from '@/lib/prisma';
+import { normalizeTimeZone, zonedDateTimeToUtc } from '@/lib/time-zone';
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -15,7 +16,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { employeeId, date, checkInTimeStr, checkOutTimeStr, status } = body; 
+    const { employeeId, date, checkInTimeStr, checkOutTimeStr, status, timeZone } = body; 
 
     if (!employeeId || !date || !status) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -45,13 +46,15 @@ export async function POST(req: Request) {
     let checkInTime = null;
     let checkOutTime = null;
     let workMinutes = 0;
+    const effectiveTimeZone =
+      employee.store.timeZone === 'UTC' ? normalizeTimeZone(timeZone) : employee.store.timeZone;
 
     if (status !== 'ABSENT') {
       if (checkInTimeStr) {
-        checkInTime = new Date(`${date}T${checkInTimeStr}:00`);
+        checkInTime = zonedDateTimeToUtc(date, checkInTimeStr, effectiveTimeZone);
       }
       if (checkOutTimeStr) {
-        checkOutTime = new Date(`${date}T${checkOutTimeStr}:00`);
+        checkOutTime = zonedDateTimeToUtc(date, checkOutTimeStr, effectiveTimeZone);
       }
       
       if (checkInTime && checkOutTime) {

@@ -7,25 +7,21 @@ import { Star, Clock, Bike, Heart } from 'lucide-react';
 const MOCK_FAVORITES = [
   {
     id: 1,
-    name: '육즙가득 프리미엄 수제버거 역삼점',
+    nameKey: 'mock_store_burger',
     rating: 4.9,
     reviews: 1250,
-    deliveryTime: '20~35분',
-    deliveryFee: '무료배달',
-    minOrder: '15,000원',
+    deliveryTimeKey: 'mock_delivery_20_35',
+    deliveryFeeKey: 'free_delivery',
     imageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=800&auto=format&fit=crop',
-    tags: ['쿠폰할인', '포장가능'],
   },
   {
     id: 3,
-    name: '바삭바삭 옛날통닭과 떡볶이',
+    nameKey: 'mock_store_chicken',
     rating: 4.7,
     reviews: 3200,
-    deliveryTime: '25~40분',
-    deliveryFee: '무료배달',
-    minOrder: '16,000원',
+    deliveryTimeKey: 'mock_delivery_25_40',
+    deliveryFeeKey: 'free_delivery',
     imageUrl: 'https://images.unsplash.com/photo-1626074353765-517a681e40be?q=80&w=800&auto=format&fit=crop',
-    tags: ['인기', '무료배달'],
   },
 ];
 
@@ -49,14 +45,14 @@ export default function FavoritesPage() {
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
-              <span className="font-bold text-gray-900">총 {MOCK_FAVORITES.length}개</span>
+              <span className="font-bold text-gray-900">{t.total_count.replace('{count}', String(MOCK_FAVORITES.length))}</span>
             </div>
             {MOCK_FAVORITES.map((store) => (
               <div key={store.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow group flex flex-col sm:flex-row">
                 <div className="relative h-48 sm:h-auto sm:w-1/3 sm:aspect-square w-full overflow-hidden bg-gray-200 shrink-0">
                   <Image
                     src={store.imageUrl}
-                    alt={store.name}
+                    alt={t[store.nameKey]}
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-500"
                     sizes="(max-width: 640px) 100vw, 33vw"
@@ -65,10 +61,9 @@ export default function FavoritesPage() {
                     <Heart className="w-5 h-5 text-red-500 fill-red-500" />
                   </div>
                 </div>
-                
+
                 <div className="p-4 flex flex-col justify-center flex-grow">
-                  <h4 className="font-bold text-lg text-gray-900 mb-1 line-clamp-1">{store.name}</h4>
-                  
+                  <h4 className="font-bold text-lg text-gray-900 mb-1 line-clamp-1">{t[store.nameKey]}</h4>
                   <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
                     <div className="flex items-center font-bold text-gray-900">
                       <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 mr-1" />
@@ -76,17 +71,14 @@ export default function FavoritesPage() {
                     </div>
                     <span>({store.reviews.toLocaleString()})</span>
                   </div>
-                  
                   <div className="flex flex-wrap gap-2 text-xs text-gray-500 mt-2">
                     <div className="flex items-center bg-gray-100 px-2 py-1 rounded-md">
                       <Clock className="w-3.5 h-3.5 mr-1 text-gray-600" />
-                      <span className="font-medium text-gray-700">{store.deliveryTime}</span>
+                      <span className="font-medium text-gray-700">{t[store.deliveryTimeKey]}</span>
                     </div>
                     <div className="flex items-center">
                       <Bike className="w-3.5 h-3.5 mr-1 text-indigo-500" />
-                      <span className={`font-medium ${store.deliveryFee === '무료배달' ? 'text-indigo-600 font-bold' : ''}`}>
-                        {store.deliveryFee === '무료배달' ? t.free_delivery : store.deliveryFee}
-                      </span>
+                      <span className="font-medium text-indigo-600 font-bold">{t[store.deliveryFeeKey]}</span>
                     </div>
                   </div>
                 </div>

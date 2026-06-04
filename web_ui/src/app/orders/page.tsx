@@ -9,18 +9,18 @@ const MOCK_ORDERS = [
   {
     id: 'ORD-2023-1101',
     date: '2023-11-01 19:30',
-    storeName: '육즙가득 프리미엄 수제버거 역삼점',
-    menuSummary: '더블 치즈버거 세트 외 1개',
-    price: '21,500원',
+    storeNameKey: 'mock_store_burger',
+    menuSummaryKey: 'mock_order_burger_menu',
+    price: '21,500',
     status: 'completed',
     imageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=800&auto=format&fit=crop',
   },
   {
     id: 'ORD-2023-1025',
     date: '2023-10-25 18:15',
-    storeName: '장인 화덕피자 & 파스타',
-    menuSummary: '마르게리따 피자 라지사이즈',
-    price: '24,000원',
+    storeNameKey: 'mock_store_pizza',
+    menuSummaryKey: 'mock_order_pizza_menu',
+    price: '24,000',
     status: 'completed',
     imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=800&auto=format&fit=crop',
   },
@@ -55,7 +55,7 @@ export default function OrdersPage() {
                   <div>
                     <span className="text-xs text-gray-500">{t.order_date} {order.date}</span>
                     <div className="mt-1 flex items-center space-x-2">
-                      <span className="font-bold text-gray-900 text-lg">{order.storeName}</span>
+                      <span className="font-bold text-gray-900 text-lg">{t[order.storeNameKey]}</span>
                       <ChevronRight className="w-4 h-4 text-gray-400" />
                     </div>
                   </div>
@@ -63,23 +63,17 @@ export default function OrdersPage() {
                     {order.status === 'completed' ? t.delivery_completed : order.status}
                   </span>
                 </div>
-                
+
                 <div className="p-4 flex items-center space-x-4">
                   <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-                    <Image
-                      src={order.imageUrl}
-                      alt={order.storeName}
-                      fill
-                      className="object-cover"
-                      sizes="64px"
-                    />
+                    <Image src={order.imageUrl} alt={t[order.storeNameKey]} fill className="object-cover" sizes="64px" />
                   </div>
                   <div className="flex-grow">
-                    <p className="text-sm text-gray-700 font-medium line-clamp-1">{order.menuSummary}</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1">{order.price}</p>
+                    <p className="text-sm text-gray-700 font-medium line-clamp-1">{t[order.menuSummaryKey]}</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1">{order.price}{t.currency_won}</p>
                   </div>
                 </div>
-                
+
                 <div className="p-3 bg-gray-50/50 border-t border-gray-50 flex space-x-2">
                   <button className="flex-1 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors">
                     {t.view_details}

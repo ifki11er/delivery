@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '../../../../auth';
 import { prisma } from '@/lib/prisma';
+import { normalizeTimeZone } from '@/lib/time-zone';
 
 export async function GET() {
   const session = await auth();
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { name, wifiIpAddress } = body;
+    const { name, timeZone } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Store name is required' }, { status: 400 });
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
     const store = await prisma.store.create({
       data: {
         name,
-        wifiIpAddress: wifiIpAddress || null,
+        timeZone: normalizeTimeZone(timeZone),
         ownerId: session.user.id,
       }
     });
@@ -84,7 +85,7 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json();
-    const { id, name, wifiIpAddress, newOwnerId, address, contact, representativeName, businessRegNo, currency } = body;
+    const { id, name, newOwnerId, address, contact, representativeName, businessRegNo, currency, timeZone } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Store ID is required' }, { status: 400 });
@@ -119,8 +120,8 @@ export async function PUT(req: Request) {
         contact: contact !== undefined ? contact : undefined,
         representativeName: representativeName !== undefined ? representativeName : undefined,
         businessRegNo: businessRegNo !== undefined ? businessRegNo : undefined,
-        wifiIpAddress: wifiIpAddress !== undefined ? wifiIpAddress : undefined,
         currency: currency !== undefined ? currency : undefined,
+        timeZone: timeZone !== undefined ? normalizeTimeZone(timeZone) : undefined,
         ownerId,
       }
     });

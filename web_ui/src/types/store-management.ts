@@ -7,8 +7,11 @@ export type StoreSummary = {
   businessRegNo?: string | null;
   wifiIpAddress?: string | null;
   currency?: string | null;
+  timeZone?: string | null;
   status?: string | null;
 };
+
+export type EmployeeStoreSummary = Pick<StoreSummary, "currency" | "timeZone">;
 
 export type UserSearchResult = {
   id: string;
@@ -53,7 +56,7 @@ export type EmployeeRow = {
   workStartTime: string;
   workEndTime: string;
   user: EmployeeUser;
-  store?: StoreSummary | null;
+  store?: EmployeeStoreSummary | null;
   histories?: EmployeeHistory[];
 };
 

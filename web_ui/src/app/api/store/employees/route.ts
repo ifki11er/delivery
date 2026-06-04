@@ -31,13 +31,16 @@ export async function GET(req: Request) {
           select: { id: true, name: true, email: true, phoneNumber: true }
         },
         store: {
-          select: { currency: true }
+          select: { currency: true, timeZone: true }
         },
         histories: {
           orderBy: { joinedAt: 'desc' }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: [
+        { status: 'asc' },
+        { createdAt: 'desc' }
+      ]
     });
 
     return NextResponse.json(employees);

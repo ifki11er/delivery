@@ -6,6 +6,23 @@ import { Store, Wifi, Save, Send, ChevronLeft, Search, User, Trash2 } from 'luci
 import { useI18n } from '@/i18n/I18nProvider';
 import type { StoreSummary, UserSearchResult } from '@/types/store-management';
 
+const DEFAULT_TIME_ZONE =
+  typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' : 'UTC';
+
+const TIME_ZONE_OPTIONS = [
+  'Asia/Seoul',
+  'Asia/Tokyo',
+  'Asia/Ho_Chi_Minh',
+  'Asia/Bangkok',
+  'Asia/Manila',
+  'Asia/Singapore',
+  'UTC',
+];
+
+function resolveStoreTimeZone(timeZone?: string | null) {
+  return timeZone && timeZone !== 'UTC' ? timeZone : DEFAULT_TIME_ZONE;
+}
+
 export default function StoreManagePage() {
   const router = useRouter();
   const t = useI18n();
@@ -21,6 +38,7 @@ export default function StoreManagePage() {
   const [businessRegNo, setBusinessRegNo] = useState('');
   const [wifiIp, setWifiIp] = useState('');
   const [currency, setCurrency] = useState('원');
+  const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
   const [searchPhone, setSearchPhone] = useState('');
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -42,6 +60,7 @@ export default function StoreManagePage() {
           setBusinessRegNo(primary.businessRegNo || '');
           setWifiIp(primary.wifiIpAddress || '');
           setCurrency(primary.currency || '원');
+          setTimeZone(resolveStoreTimeZone(primary.timeZone));
         }
       }
     } catch (error) {
@@ -69,8 +88,8 @@ export default function StoreManagePage() {
           contact, 
           representativeName, 
           businessRegNo, 
-          wifiIpAddress: wifiIp,
-          currency
+          currency,
+          timeZone
         })
       });
       if (res.ok) {
@@ -86,13 +105,19 @@ export default function StoreManagePage() {
   };
 
   const handleRegisterWifi = async () => {
+    if (!storeId) return alert(t.manage_wifi_ip_failed);
+
     try {
-      // In a real app, you might use a 3rd party service like ipify to get the true public IP
-      // from the client's perspective, or rely on the server.
-      const res = await fetch('https://api.ipify.org?format=json');
+      const res = await fetch('/api/store/wifi-ip', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId }),
+      });
       const data = await res.json();
-      setWifiIp(data.ip);
-      alert(t.manage_wifi_ip_loaded.replace('{ip}', data.ip));
+      if (!res.ok) throw new Error(data.error || 'Failed to update IP');
+
+      setWifiIp(data.wifiIpAddress);
+      alert(t.manage_wifi_ip_loaded.replace('{ip}', data.wifiIpAddress));
     } catch {
       alert(t.manage_wifi_ip_failed);
     }
@@ -211,6 +236,7 @@ export default function StoreManagePage() {
                     setBusinessRegNo(store.businessRegNo || '');
                     setWifiIp(store.wifiIpAddress || '');
                     setCurrency(store.currency || '원');
+                    setTimeZone(resolveStoreTimeZone(store.timeZone));
                   }}
                   className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors flex items-center ${
                     storeId === store.id ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-700'
@@ -299,6 +325,21 @@ export default function StoreManagePage() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_timezone_setting}</label>
+                  <select
+                    value={timeZone}
+                    onChange={(e) => setTimeZone(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium"
+                  >
+                    {!TIME_ZONE_OPTIONS.includes(timeZone) && <option value={timeZone}>{timeZone}</option>}
+                    {TIME_ZONE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-2">{t.manage_timezone_desc}</p>
+                </div>
+
+                <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_wifi_auth}</label>
                   <p className="text-xs text-gray-500 mb-2">{t.manage_wifi_desc}</p>
                   <div className="flex space-x-2">
@@ -372,12 +413,12 @@ export default function StoreManagePage() {
                             <User className="w-5 h-5 text-red-500" />
                           </div>
                           <div>
-                            <p className="font-bold text-gray-900">{user.name || '이름 없음'}</p>
+                            <p className="font-bold text-gray-900">{user.name || t.mypage_no_name}</p>
                             <p className="text-sm text-gray-500">{user.phoneNumber || user.email}</p>
                           </div>
                         </div>
                         <button
-                          onClick={() => handleTransfer(user.id, user.name || '이름 없음')}
+                          onClick={() => handleTransfer(user.id, user.name || t.mypage_no_name)}
                           className="px-4 py-2 bg-red-100 text-red-600 font-bold rounded-lg hover:bg-red-200 transition-colors text-sm whitespace-nowrap"
                         >
                           {t.manage_transfer_btn}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { UserPlus, Search, Users, Save, ChevronLeft, Trash2, Edit3 } from 'lucide-react';
+import { UserPlus, Search, Users, Save, ChevronLeft, Trash2, Edit3, ChevronDown, ChevronRight } from 'lucide-react';
 import { useI18n, useLocale } from '@/i18n/I18nProvider';
 import { EmployeeHistoryList } from '@/components/store/EmployeeHistoryList';
 import type {
@@ -12,6 +12,21 @@ import type {
   StoreSummary,
   UserSearchResult,
 } from '@/types/store-management';
+
+const DEFAULT_TIME_ZONE =
+  typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' : 'UTC';
+
+function getLocalDateKey(date: Date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function resolveStoreTimeZone(timeZone?: string | null) {
+  return timeZone && timeZone !== 'UTC' ? timeZone : DEFAULT_TIME_ZONE;
+}
 
 export default function StoreEmployeesPage() {
   const router = useRouter();
@@ -38,19 +53,23 @@ export default function StoreEmployeesPage() {
   });
 
   // Stats view
+  const [detailEmployeeId, setDetailEmployeeId] = useState<string | null>(null);
   const [statsEmployeeId, setStatsEmployeeId] = useState<string | null>(null);
   const [statsMonth, setStatsMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
   const [manualRecord, setManualRecord] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDateKey(new Date()),
     checkIn: '',
     checkOut: '',
     status: 'NORMAL'
   });
   const [employeeStats, setEmployeeStats] = useState<AttendanceStat[]>([]);
   const [isStatsLoading, setIsStatsLoading] = useState(false);
+  const selectedStoreTimeZone = resolveStoreTimeZone(
+    stores.find((store) => store.id === selectedStoreId)?.timeZone,
+  );
 
   const fetchStoresAndEmployees = async () => {
     try {
@@ -100,6 +119,19 @@ export default function StoreEmployeesPage() {
     }
   };
 
+  const toggleEmployeeDetails = (employeeId: string) => {
+    setDetailEmployeeId((current) => {
+      if (current === employeeId) {
+        setStatsEmployeeId(null);
+        if (editingId === employeeId) setEditingId(null);
+        return null;
+      }
+      setStatsEmployeeId(null);
+      if (editingId && editingId !== employeeId) setEditingId(null);
+      return employeeId;
+    });
+  };
+
   useEffect(() => {
     if (statsEmployeeId) {
       fetchEmployeeStats(statsEmployeeId, statsMonth);
@@ -107,7 +139,7 @@ export default function StoreEmployeesPage() {
   }, [statsMonth]);
 
   const handleAddEmployee = async () => {
-    if (!searchPhone) return alert('전화번호를 입력하세요.');
+    if (!searchPhone) return alert(t.emp_phone_required);
     
     try {
       const res = await fetch('/api/store/employees', {
@@ -123,7 +155,7 @@ export default function StoreEmployeesPage() {
         })
       });
       if (res.ok) {
-        alert('직원이 등록되었습니다.');
+        alert(t.emp_add_success);
         setSearchPhone('');
         setSelectedSearchUser(null);
         setShowAddForm(false);
@@ -133,40 +165,40 @@ export default function StoreEmployeesPage() {
         alert(err.error);
       }
     } catch {
-      alert('등록 중 오류가 발생했습니다.');
+      alert(t.emp_add_error);
     }
   };
 
   const handleSearchUser = async () => {
-    if (!searchPhone) return alert('전화번호를 입력하세요.');
+    if (!searchPhone) return alert(t.emp_phone_required);
     try {
       const res = await fetch(`/api/user/search?phone=${searchPhone}`);
       if (res.ok) {
         setSelectedSearchUser((await res.json()) as UserSearchResult);
       } else {
         const err = await res.json();
-        alert(err.error || '사용자를 찾을 수 없습니다.');
+        alert(err.error || t.emp_user_not_found);
         setSelectedSearchUser(null);
       }
     } catch {
-      alert('검색 중 오류가 발생했습니다.');
+      alert(t.emp_search_error);
       setSelectedSearchUser(null);
     }
   };
 
   const handleDelete = async (employeeId: string) => {
-    if (!confirm('해당 직원을 퇴사 처리하시겠습니까? (과거 통계는 남습니다)')) return;
+    if (!confirm(t.emp_resign_confirm)) return;
     
     try {
       const res = await fetch(`/api/store/employees?employeeId=${employeeId}`, {
         method: 'DELETE'
       });
       if (res.ok) {
-        alert('퇴사 처리되었습니다.');
+        alert(t.emp_resign_success);
         fetchEmployees(selectedStoreId);
       }
     } catch {
-      alert('오류가 발생했습니다.');
+      alert(t.emp_generic_error);
     }
   };
 
@@ -178,12 +210,12 @@ export default function StoreEmployeesPage() {
         body: JSON.stringify({ employeeId: editingId, ...editForm })
       });
       if (res.ok) {
-        alert(t.emp_form_update || '저장되었습니다.');
+        alert(t.emp_update_success);
         setEditingId(null);
         fetchEmployees(selectedStoreId);
       }
     } catch {
-      alert(t.emp_error_msg || '오류가 발생했습니다.');
+      alert(t.emp_error_msg);
     }
   };
 
@@ -199,24 +231,25 @@ export default function StoreEmployeesPage() {
           date: manualRecord.date,
           checkInTimeStr: manualRecord.checkIn,
           checkOutTimeStr: manualRecord.checkOut,
-          status: manualRecord.status
+          status: manualRecord.status,
+          timeZone: selectedStoreTimeZone
         })
       });
       if (res.ok) {
-        alert(t.emp_manual_success || '수동 근태 기록이 저장되었습니다.');
+        alert(t.emp_manual_success);
         fetchEmployeeStats(employeeId, statsMonth); // Refresh table
         // Optionally reset form
         setManualRecord({ ...manualRecord, checkIn: '', checkOut: '', status: 'NORMAL' });
       } else {
         const data = await res.json();
-        alert(data.error || '오류가 발생했습니다.');
+        alert(data.error || t.emp_generic_error);
       }
     } catch {
-      alert(t.emp_error_msg || '오류가 발생했습니다.');
+      alert(t.emp_error_msg);
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500">로딩 중...</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
 
   if (stores.length === 0) {
     return (
@@ -252,6 +285,9 @@ export default function StoreEmployeesPage() {
                 key={store.id}
                 onClick={() => {
                   setSelectedStoreId(store.id);
+                  setDetailEmployeeId(null);
+                  setStatsEmployeeId(null);
+                  setEditingId(null);
                   fetchEmployees(store.id);
                 }}
                 className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
@@ -308,8 +344,16 @@ export default function StoreEmployeesPage() {
           ) : (
             employees.map(emp => (
               <div key={emp.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className={`p-4 flex justify-between items-center border-b border-gray-50 ${emp.status === 'INACTIVE' ? 'bg-gray-100' : 'bg-gray-50/50'}`}>
-                  <div>
+                <div
+                  onClick={() => toggleEmployeeDetails(emp.id)}
+                  className={`p-4 flex justify-between items-center cursor-pointer transition-colors ${emp.status === 'INACTIVE' ? 'bg-gray-100' : 'bg-white hover:bg-gray-50'}`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {detailEmployeeId === emp.id ? (
+                      <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    )}
                     <div className="flex items-center space-x-2">
                       <span className={`font-bold text-lg ${emp.status === 'INACTIVE' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                         {emp.user.name || emp.user.email?.split('@')[0]}
@@ -320,12 +364,13 @@ export default function StoreEmployeesPage() {
                         </span>
                       )}
                     </div>
-                    <span className="text-xs text-gray-500">{emp.user.phoneNumber || emp.user.email}</span>
                   </div>
                   <div className="flex space-x-2">
-                    {emp.status !== 'INACTIVE' && (
+                    {emp.status !== 'INACTIVE' && detailEmployeeId === emp.id && (
                       <>
-                        <button onClick={() => {
+                        <button onClick={(event) => {
+                          event.stopPropagation();
+                          setDetailEmployeeId(emp.id);
                           setEditingId(emp.id);
                           setStatsEmployeeId(null);
                           setEditForm({
@@ -335,16 +380,25 @@ export default function StoreEmployeesPage() {
                             workStartTime: emp.workStartTime,
                             workEndTime: emp.workEndTime
                           });
-                        }} className="p-2 text-gray-400 hover:text-indigo-600">
+                        }} className="p-2 text-gray-400 hover:text-indigo-600" onMouseDown={(e) => e.stopPropagation()}>
                           <Edit3 className="w-5 h-5" />
                         </button>
-                        <button onClick={() => handleDelete(emp.id)} className="p-2 text-gray-400 hover:text-red-600">
+                        <button onClick={(event) => {
+                          event.stopPropagation();
+                          handleDelete(emp.id);
+                        }} className="p-2 text-gray-400 hover:text-red-600" onMouseDown={(e) => e.stopPropagation()}>
                           <Trash2 className="w-5 h-5" />
                         </button>
                       </>
                     )}
                   </div>
                 </div>
+
+                {detailEmployeeId === emp.id && (
+                  <>
+                    <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 text-sm text-gray-600">
+                      {emp.user.phoneNumber || emp.user.email}
+                    </div>
 
                 {editingId === emp.id && (
                   <div className="p-4 bg-gray-50 border-t border-gray-100">
@@ -369,7 +423,7 @@ export default function StoreEmployeesPage() {
                         >
                           <option value="HOURLY">{t.emp_wage_hourly}</option>
                           <option value="DAILY">{t.emp_wage_daily}</option>
-                          <option value="MONTHLY">{t.emp_wage_monthly || '월급'}</option>
+                          <option value="MONTHLY">{t.emp_wage_monthly}</option>
                         </select>
                       </div>
                       <div>
@@ -425,17 +479,17 @@ export default function StoreEmployeesPage() {
                       <div>
                         <span className="text-gray-500 block text-xs mb-0.5">{t.emp_wage_setting}</span>
                         <span className="font-bold text-gray-900">
-                          {emp.wageType === 'HOURLY' ? t.emp_wage_hourly : emp.wageType === 'DAILY' ? t.emp_wage_daily : (t.emp_wage_monthly || '월급')} {emp.wageAmount.toLocaleString()}{emp.store?.currency || '원'}
+                          {emp.wageType === 'HOURLY' ? t.emp_wage_hourly : emp.wageType === 'DAILY' ? t.emp_wage_daily : t.emp_wage_monthly} {emp.wageAmount.toLocaleString()}{emp.store?.currency || '원'}
                         </span>
                       </div>
                       <div>
                         <span className="text-gray-500 block text-xs mb-0.5">{t.emp_form_role}</span>
                         <span className="font-bold text-gray-900">
-                          {emp.role === 'MANAGER' ? (t.emp_role_manager || '매니저') : (t.emp_role_staff || '스태프')}
+                          {emp.role === 'MANAGER' ? t.emp_role_manager : t.emp_role_staff}
                         </span>
                       </div>
                       <div>
-                        <span className="text-gray-500 block text-xs mb-0.5">{t.emp_work_time || '근무 시간'}</span>
+                        <span className="text-gray-500 block text-xs mb-0.5">{t.emp_work_time}</span>
                         <span className="font-bold text-gray-900">
                           {emp.workStartTime} ~ {emp.workEndTime}
                         </span>
@@ -460,7 +514,7 @@ export default function StoreEmployeesPage() {
                       }}
                       className="text-indigo-600 text-sm font-bold hover:text-indigo-800 transition-colors"
                     >
-                      {statsEmployeeId === emp.id ? '통계 접기 ▲' : '출결/급여 통계 보기 ▼'}
+                      {statsEmployeeId === emp.id ? `${t.emp_stats_hide} ▲` : `${t.emp_stats_view} ▼`}
                     </button>
                   </div>
                 )}
@@ -469,7 +523,7 @@ export default function StoreEmployeesPage() {
                 {statsEmployeeId === emp.id && (
                   <div className="p-4 bg-gray-50/80 border-t border-gray-100">
                     <div className="flex justify-between items-center mb-4">
-                      <h3 className="font-bold text-gray-800 text-sm">월별 출퇴근 기록</h3>
+                      <h3 className="font-bold text-gray-800 text-sm">{t.emp_stats_monthly_title}</h3>
                       <input 
                         type="month" 
                         value={statsMonth}
@@ -536,32 +590,32 @@ export default function StoreEmployeesPage() {
                     </div>
                     
                     {isStatsLoading ? (
-                      <div className="py-8 text-center text-gray-500 text-sm">불러오는 중...</div>
+                      <div className="py-8 text-center text-gray-500 text-sm">{t.mypage_loading}</div>
                     ) : (
                       <>
                         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm mb-4">
                           <table className="w-full text-left text-sm whitespace-nowrap">
                             <thead className="bg-gray-100 text-gray-600">
                               <tr>
-                                <th className="px-4 py-2 font-semibold">날짜</th>
-                                <th className="px-4 py-2 font-semibold">출근</th>
-                                <th className="px-4 py-2 font-semibold">퇴근</th>
-                                <th className="px-4 py-2 font-semibold">상태</th>
-                                <th className="px-4 py-2 font-semibold text-right">근무 시간</th>
-                                <th className="px-4 py-2 font-semibold text-right">당일 급여</th>
+                                <th className="px-4 py-2 font-semibold">{t.emp_stats_date}</th>
+                                <th className="px-4 py-2 font-semibold">{t.emp_stats_check_in}</th>
+                                <th className="px-4 py-2 font-semibold">{t.emp_stats_check_out}</th>
+                                <th className="px-4 py-2 font-semibold">{t.emp_stats_status}</th>
+                                <th className="px-4 py-2 font-semibold text-right">{t.emp_stats_work_time}</th>
+                                <th className="px-4 py-2 font-semibold text-right">{t.emp_stats_daily_wage}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                               {employeeStats.length === 0 ? (
                                 <tr>
-                                  <td colSpan={6} className="px-4 py-6 text-center text-gray-400">기록이 없습니다.</td>
+                                  <td colSpan={6} className="px-4 py-6 text-center text-gray-400">{t.emp_no_history}</td>
                                 </tr>
                               ) : (
                                 employeeStats.map((att) => (
                                   <tr key={att.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-4 py-3 text-gray-900 font-medium">{att.date.split('-').slice(1).join('/')}</td>
-                                    <td className="px-4 py-3 text-gray-600">{att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString(locale, {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
-                                    <td className="px-4 py-3 text-gray-600">{att.checkOutTime ? new Date(att.checkOutTime).toLocaleTimeString(locale, {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
+                                    <td className="px-4 py-3 text-gray-600">{att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString(locale, {hour: '2-digit', minute:'2-digit', timeZone: selectedStoreTimeZone}) : '-'}</td>
+                                    <td className="px-4 py-3 text-gray-600">{att.checkOutTime ? new Date(att.checkOutTime).toLocaleTimeString(locale, {hour: '2-digit', minute:'2-digit', timeZone: selectedStoreTimeZone}) : '-'}</td>
                                     <td className="px-4 py-3">
                                       <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${
                                         att.status === 'NORMAL' ? 'bg-green-100 text-green-700' :
@@ -569,7 +623,7 @@ export default function StoreEmployeesPage() {
                                         att.status === 'EARLY_LEAVE' ? 'bg-orange-100 text-orange-700' :
                                         'bg-gray-100 text-gray-700'
                                       }`}>
-                                        {att.status === 'NORMAL' ? '정상' : att.status === 'LATE' ? '지각' : att.status === 'EARLY_LEAVE' ? '조퇴' : '결근'}
+                                        {att.status === 'NORMAL' ? t.emp_status_normal : att.status === 'LATE' ? t.emp_status_late : att.status === 'EARLY_LEAVE' ? t.emp_status_early : t.emp_status_absent}
                                       </span>
                                     </td>
                                     <td className="px-4 py-3 text-right font-medium text-gray-900">
@@ -589,7 +643,7 @@ export default function StoreEmployeesPage() {
                         
                         {/* Summary Block */}
                         <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex justify-between items-center">
-                          <span className="text-sm font-bold text-indigo-800">예상 급여 요약 (해당 월)</span>
+                          <span className="text-sm font-bold text-indigo-800">{t.emp_stats_salary_summary}</span>
                           <div className="text-right">
                             {(() => {
                               const totalMins = employeeStats.reduce((acc, curr) => acc + (curr.workMinutes || 0), 0);
@@ -623,6 +677,8 @@ export default function StoreEmployeesPage() {
                       </>
                     )}
                   </div>
+                )}
+                  </>
                 )}
               </div>
             ))

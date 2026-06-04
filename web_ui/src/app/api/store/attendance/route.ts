@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { auth } from "../../../../../auth";
 import { prisma } from "@/lib/prisma";
 import { getClientIp, jsonError, readJson } from "@/lib/api";
+import { getDateKeyInTimeZone, getMinutesInTimeZone } from "@/lib/time-zone";
 
 type AttendanceAction = "CHECK_IN" | "CHECK_OUT";
 
@@ -13,28 +14,6 @@ function getMinutesDiff(start: Date, end: Date) {
 function timeStringToMinutes(timeStr: string) {
   const [hours = 0, minutes = 0] = timeStr.split(":").map(Number);
   return hours * 60 + minutes;
-}
-
-function getKstDateKey(date: Date) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
-
-function getKstMinutes(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Seoul",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date);
-
-  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
-  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
-  return hour * 60 + minute;
 }
 
 function isAttendanceAction(action: unknown): action is AttendanceAction {
@@ -62,12 +41,21 @@ export async function POST(req: Request) {
     }
 
     const currentIp = getClientIp(req);
-    if (employee.store.wifiIpAddress && employee.store.wifiIpAddress !== currentIp) {
+    if (currentIp === "unknown") {
+      return jsonError("Could not determine request IP address.", 403);
+    }
+
+    if (!employee.store.wifiIpAddress) {
+      return jsonError("Store Wi-Fi IP is not registered.", 403);
+    }
+
+    if (employee.store.wifiIpAddress !== currentIp) {
       return jsonError("Store Wi-Fi verification failed.", 403);
     }
 
     const now = new Date();
-    const dateStr = getKstDateKey(now);
+    const storeTimeZone = employee.store.timeZone;
+    const dateStr = getDateKeyInTimeZone(now, storeTimeZone);
 
     let attendance = await prisma.attendance.findUnique({
       where: {
@@ -78,7 +66,7 @@ export async function POST(req: Request) {
       },
     });
 
-    const nowMinutes = getKstMinutes(now);
+    const nowMinutes = getMinutesInTimeZone(now, storeTimeZone);
     const startExpected = timeStringToMinutes(employee.workStartTime);
     const endExpected = timeStringToMinutes(employee.workEndTime);
 
@@ -158,9 +146,11 @@ export async function GET(req: Request) {
     const storeId = searchParams.get("storeId");
     const month = searchParams.get("month");
     const queryEmployeeId = searchParams.get("employeeId");
+    const includeToday = searchParams.get("includeToday") === "true";
 
     const employee = await prisma.employee.findFirst({
       where: { userId: session.user.id },
+      include: { store: true },
       orderBy: { createdAt: "desc" },
     });
 
@@ -197,6 +187,20 @@ export async function GET(req: Request) {
       },
       orderBy: { date: "desc" },
     });
+
+    if (includeToday && !storeId && employee) {
+      const todayDate = getDateKeyInTimeZone(new Date(), employee.store.timeZone);
+      const todayAttendance = await prisma.attendance.findUnique({
+        where: {
+          employeeId_date: {
+            employeeId: employee.id,
+            date: todayDate,
+          },
+        },
+      });
+
+      return NextResponse.json({ attendances, todayAttendance });
+    }
 
     return NextResponse.json(attendances);
   } catch (error) {

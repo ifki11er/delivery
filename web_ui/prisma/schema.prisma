@@ -83,6 +83,7 @@ model Store {
   businessRegNo      String?
   wifiIpAddress      String?
   currency           String     @default("원")
+  timeZone           String     @default("UTC")
   status             StoreStatus @default(ACTIVE)
   employees          Employee[]
   createdAt          DateTime   @default(now())

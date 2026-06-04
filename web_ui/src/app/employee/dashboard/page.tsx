@@ -1,17 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useI18n, useLocale } from '@/i18n/I18nProvider';
 import { MapPin, Clock, LogIn, LogOut, CheckCircle2, ChevronLeft } from 'lucide-react';
-
-export default function EmployeeDashboardPage() {
-  return (
-    <DashboardContent />
-  );
-}
 
 type AttendanceRecord = {
   id: string;
@@ -22,7 +15,12 @@ type AttendanceRecord = {
   status: 'NORMAL' | 'LATE' | 'EARLY_LEAVE' | 'ABSENT';
 };
 
-function DashboardContent() {
+type AttendanceResponse = {
+  attendances: AttendanceRecord[];
+  todayAttendance: AttendanceRecord | null;
+};
+
+export default function EmployeeDashboardPage() {
   const router = useRouter();
   const t = useI18n();
   const locale = useLocale();
@@ -38,15 +36,11 @@ function DashboardContent() {
   const fetchAttendances = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/store/attendance?month=${month}`);
+      const res = await fetch(`/api/store/attendance?month=${month}&includeToday=true`);
       if (res.ok) {
-        const data = (await res.json()) as AttendanceRecord[];
-        setAttendances(data);
-        
-        // Check if there is an attendance for today
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayRecord = data.find((a: { date: string }) => a.date === todayStr);
-        setTodayAttendance(todayRecord || null);
+        const data = (await res.json()) as AttendanceResponse;
+        setAttendances(data.attendances);
+        setTodayAttendance(data.todayAttendance);
       }
     } catch (error) {
       console.error(error);
@@ -56,9 +50,7 @@ function DashboardContent() {
   }, [month]);
 
   useEffect(() => {
-    if (session) {
-      void fetchAttendances();
-    }
+    if (session) void fetchAttendances();
   }, [fetchAttendances, session]);
 
   const handleAttendance = async (action: 'CHECK_IN' | 'CHECK_OUT') => {
@@ -66,21 +58,32 @@ function DashboardContent() {
       const res = await fetch('/api/store/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action })
+        body: JSON.stringify({ action }),
       });
+
       if (res.ok) {
-        alert(action === 'CHECK_IN' ? (t.emp_check_in_msg || '출근 처리되었습니다!') : (t.emp_check_out_msg || '퇴근 처리되었습니다! 고생하셨습니다.'));
+        const savedAttendance = (await res.json()) as AttendanceRecord;
+        setTodayAttendance(savedAttendance);
+        setAttendances((current) => {
+          const exists = current.some((item) => item.id === savedAttendance.id);
+          if (exists) return current.map((item) => item.id === savedAttendance.id ? savedAttendance : item);
+          return [savedAttendance, ...current];
+        });
+        alert(action === 'CHECK_IN' ? t.emp_check_in_msg : t.emp_check_out_msg);
         await fetchAttendances();
-      } else {
-        const err = await res.json();
-        alert(`오류: ${err.error}`);
+        return;
       }
+
+      const err = await res.json();
+      alert(t.error_with_message.replace('{error}', err.error));
     } catch {
-      alert(t.emp_error_msg || '출퇴근 처리 중 오류가 발생했습니다.');
+      alert(t.emp_error_msg);
     }
   };
 
-  if (loading && attendances.length === 0) return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
+  if (loading && attendances.length === 0) {
+    return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
+  }
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
@@ -94,32 +97,31 @@ function DashboardContent() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 space-y-6 mt-6">
-        {/* Action Card */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 text-center">
           <h2 className="text-gray-500 font-bold mb-4 flex items-center justify-center">
             <MapPin className="w-4 h-4 mr-1 text-indigo-500" />
             {t.emp_wifi_notice}
           </h2>
-          
+
           <div className="flex space-x-3">
-            <button 
+            <button
               onClick={() => handleAttendance('CHECK_IN')}
               disabled={!!todayAttendance?.checkInTime}
               className={`flex-1 py-5 rounded-2xl font-black text-lg flex flex-col items-center justify-center transition-all ${
-                todayAttendance?.checkInTime 
-                  ? 'bg-gray-100 text-gray-400' 
+                todayAttendance?.checkInTime
+                  ? 'bg-gray-100 text-gray-400'
                   : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg'
               }`}
             >
               <LogIn className="w-8 h-8 mb-2" />
               {t.emp_check_in}
             </button>
-            <button 
+            <button
               onClick={() => handleAttendance('CHECK_OUT')}
               disabled={!todayAttendance?.checkInTime || !!todayAttendance?.checkOutTime}
               className={`flex-1 py-5 rounded-2xl font-black text-lg flex flex-col items-center justify-center transition-all ${
                 !todayAttendance?.checkInTime || todayAttendance?.checkOutTime
-                  ? 'bg-gray-100 text-gray-400' 
+                  ? 'bg-gray-100 text-gray-400'
                   : 'bg-rose-500 text-white hover:bg-rose-600 shadow-md hover:shadow-lg'
               }`}
             >
@@ -131,17 +133,16 @@ function DashboardContent() {
           {todayAttendance?.checkInTime && (
             <div className="mt-5 p-3 bg-indigo-50 rounded-xl flex items-center justify-center text-sm font-bold text-indigo-700">
               <CheckCircle2 className="w-5 h-5 mr-2 text-indigo-500" />
-              {t.emp_check_in_done} {new Date(todayAttendance.checkInTime).toLocaleTimeString(locale, {hour: '2-digit', minute:'2-digit'})}
+              {t.emp_check_in_done} {new Date(todayAttendance.checkInTime).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
             </div>
           )}
         </div>
 
-        {/* History List */}
         <div>
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-bold text-gray-900">{t.emp_work_history}</h3>
-            <input 
-              type="month" 
+            <input
+              type="month"
               value={month}
               onChange={(e) => setMonth(e.target.value)}
               className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 focus:outline-none"
@@ -157,9 +158,9 @@ function DashboardContent() {
                   <div>
                     <span className="text-gray-500 text-xs block mb-1">{att.date}</span>
                     <div className="font-bold text-gray-900 flex items-center">
-                      {att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString(locale, {hour: '2-digit', minute:'2-digit'}) : '--:--'}
+                      {att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                       <span className="mx-2 text-gray-300">~</span>
-                      {att.checkOutTime ? new Date(att.checkOutTime).toLocaleTimeString(locale, {hour: '2-digit', minute:'2-digit'}) : '--:--'}
+                      {att.checkOutTime ? new Date(att.checkOutTime).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                     </div>
                   </div>
                   <div className="text-right">
@@ -174,7 +175,7 @@ function DashboardContent() {
                     {att.checkOutTime && (
                       <div className="text-xs text-gray-500 mt-1 flex items-center justify-end">
                         <Clock className="w-3 h-3 mr-1" />
-                        {Math.floor(att.workMinutes / 60)}h {att.workMinutes % 60}m
+                        {t.work_duration_short.replace('{h}', String(Math.floor(att.workMinutes / 60))).replace('{m}', String(att.workMinutes % 60))}
                       </div>
                     )}
                   </div>

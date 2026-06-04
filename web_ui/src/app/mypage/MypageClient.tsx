@@ -49,7 +49,7 @@ export default function MypageClient() {
           signOut({ callbackUrl: '/login' });
         }
       } catch {
-        alert('Error processing withdrawal.');
+        alert(t.mypage_withdraw_error);
       }
     }
   };
@@ -191,7 +191,7 @@ export default function MypageClient() {
                 <span>{session.user.phoneNumber || t.mypage_no_phone}</span>
               </p>
               {isEmployee && storeName && (
-                <p className="text-sm font-semibold text-indigo-600 mt-1">근무 상점: {storeName}</p>
+                <p className="text-sm font-semibold text-indigo-600 mt-1">{t.mypage_work_store}: {storeName}</p>
               )}
               <div className="mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                 {isAdmin ? t.admin : isOwner ? t.owner : isEmployee ? t.mypage_employee : t.customer}
@@ -209,14 +209,14 @@ export default function MypageClient() {
             className={`flex-1 py-2.5 rounded-lg transition-all flex items-center justify-center ${viewMode === 'OWNER' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
           >
             <Store className="w-4 h-4 mr-2" />
-            사장님 모드
+            {t.mypage_owner_mode}
           </button>
           <button 
             onClick={() => handleModeSwitch('EMPLOYEE')}
             className={`flex-1 py-2.5 rounded-lg transition-all flex items-center justify-center ${viewMode === 'EMPLOYEE' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
           >
             <User className="w-4 h-4 mr-2" />
-            알바생 모드
+            {t.mypage_employee_mode}
           </button>
         </div>
       )}
