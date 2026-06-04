@@ -1,16 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession, SessionProvider } from 'next-auth/react';
+
 import { useRouter } from 'next/navigation';
 import { useI18n, useLocale } from '@/i18n/I18nProvider';
 import { MapPin, Clock, LogIn, LogOut, AlertCircle, CheckCircle2, ChevronLeft } from 'lucide-react';
 
 export default function EmployeeDashboardPage() {
   return (
-    <SessionProvider>
-      <DashboardContent />
-    </SessionProvider>
+    <DashboardContent />
   );
 }
 

@@ -133,6 +133,7 @@ export default function Home() {
                 {/* 이미지 영역 */}
                 <div className="relative h-48 w-full overflow-hidden bg-gray-200">
                   <Image
+                    unoptimized
                     src={store.imageUrl}
                     alt={store.name}
                     fill

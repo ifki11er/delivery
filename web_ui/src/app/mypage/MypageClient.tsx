@@ -6,7 +6,7 @@ import { LogOut, User, Store, Settings, Printer, ChevronRight, ClipboardList, Sh
 import Link from 'next/link';
 
 import { useI18n } from '@/i18n/I18nProvider';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function MypageClient() {
   const { data: session, status, update } = useSession();
@@ -21,8 +21,29 @@ export default function MypageClient() {
   const [editPhone, setEditPhone] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  const handleWithdraw = async () => {
+    if (confirm(t.mypage_withdraw_desc)) {
+      try {
+        const res = await fetch('/api/user/withdraw', { method: 'POST' });
+        const data = await res.json();
+        if (data.error) {
+          alert(data.error);
+        } else {
+          alert(t.mypage_withdraw_success);
+          signOut({ callbackUrl: '/login' });
+        }
+      } catch (err) {
+        alert('Error processing withdrawal.');
+      }
+    }
+  };
+
+  const userId = session?.user?.id;
+  const hasFetchedRole = useRef(false);
+
   useEffect(() => {
-    if (session?.user) {
+    if (userId && !hasFetchedRole.current) {
+      hasFetchedRole.current = true;
       setUserRole(session.user.role);
       fetch('/api/user/employee-status')
         .then(res => res.json())
@@ -36,7 +57,7 @@ export default function MypageClient() {
         })
         .catch(() => setIsEmployee(false));
     }
-  }, [session, update]);
+  }, [userId, update]); // 의존성 배열 길이를 이전과 동일하게 유지(HMR 에러 방지)
 
   // 세션 정보가 준비되면 초기값 설정
   useEffect(() => {
@@ -156,34 +177,42 @@ export default function MypageClient() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
         
         {/* 일반 고객용 메뉴 */}
-        <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-          {t.mypage_general_menu}
-        </div>
-        <Link href="/orders" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-          <div className="flex items-center space-x-3 text-gray-700">
-            <span className="font-medium">{t.orders}</span>
-          </div>
-          <ChevronRight className="w-5 h-5 text-gray-400" />
-        </Link>
-        <Link href="/favorites" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-          <div className="flex items-center space-x-3 text-gray-700">
-            <span className="font-medium">{t.favorites}</span>
-          </div>
-          <ChevronRight className="w-5 h-5 text-gray-400" />
-        </Link>
+        {!isAdmin && (
+          <>
+            <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              {t.mypage_general_menu}
+            </div>
+            <Link href="/orders" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center space-x-3 text-gray-700">
+                <span className="font-medium">{t.orders}</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </Link>
+            <Link href="/favorites" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center space-x-3 text-gray-700">
+                <span className="font-medium">{t.favorites}</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </Link>
+          </>
+        )}
 
         {/* 사장님 메뉴 (일반 고객은 입점신청, 사장님/관리자는 관리 메뉴) */}
-        <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-          {t.mypage_owner_menu}
-        </div>
-        
-        <Link href="/business-apply" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-          <div className="flex items-center space-x-3 text-indigo-600">
-            <Store className="w-5 h-5" />
-            <span className="font-semibold">{t.mypage_apply_store}</span>
-          </div>
-          <ChevronRight className="w-5 h-5 text-indigo-400" />
-        </Link>
+        {!isAdmin && (
+          <>
+            <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              {t.mypage_owner_menu}
+            </div>
+            
+            <Link href="/business-apply" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center space-x-3 text-indigo-600">
+                <Store className="w-5 h-5" />
+                <span className="font-semibold">{t.mypage_apply_store}</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-indigo-400" />
+            </Link>
+          </>
+        )}
 
         {/* 최고 관리자(ADMIN) 전용 메뉴 */}
         {isAdmin && (
@@ -202,7 +231,7 @@ export default function MypageClient() {
         )}
 
         {/* 사장님 전용 메뉴 */}
-        {(isOwner || isAdmin) && (
+        {isOwner && !isAdmin && (
           <>
             <Link href="/store/monitor" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
               <div className="flex items-center space-x-3 text-gray-700">
@@ -254,7 +283,7 @@ export default function MypageClient() {
         )}
 
         {/* 직원 전용 메뉴 */}
-        {isEmployee && (
+        {isEmployee && !isAdmin && (
           <>
             <div className="bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-500 uppercase tracking-wider">
               {t.mypage_emp_menu}
@@ -288,6 +317,12 @@ export default function MypageClient() {
             <LogOut className="w-5 h-5" />
             <span className="font-medium">{t.logout}</span>
           </div>
+        </button>
+        <button
+          onClick={handleWithdraw}
+          className="w-full flex items-center justify-center p-4 hover:bg-gray-100 transition-colors text-center border-t border-gray-100 mt-4"
+        >
+          <span className="text-xs text-gray-400 underline">{t.mypage_withdraw}</span>
         </button>
       </div>
     </div>

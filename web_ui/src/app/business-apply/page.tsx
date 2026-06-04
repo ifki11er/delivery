@@ -114,11 +114,11 @@ export default function BusinessApplyPage() {
   const getStatusBadge = (status: string) => {
     switch(status) {
       case 'PENDING':
-        return <span className="flex items-center text-orange-600 bg-orange-50 px-2 py-1 rounded-md text-xs font-bold"><Clock className="w-3 h-3 mr-1"/> PENDING</span>;
+        return <span className="flex items-center text-orange-600 bg-orange-50 px-2 py-1 rounded-md text-xs font-bold"><Clock className="w-3 h-3 mr-1"/> 심사 대기</span>;
       case 'APPROVED':
-        return <span className="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-md text-xs font-bold"><CheckCircle2 className="w-3 h-3 mr-1"/> APPROVED</span>;
+        return <span className="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-md text-xs font-bold"><CheckCircle2 className="w-3 h-3 mr-1"/> 승인 완료</span>;
       case 'REJECTED':
-        return <span className="flex items-center text-red-600 bg-red-50 px-2 py-1 rounded-md text-xs font-bold"><XCircle className="w-3 h-3 mr-1"/> REJECTED</span>;
+        return <span className="flex items-center text-red-600 bg-red-50 px-2 py-1 rounded-md text-xs font-bold"><XCircle className="w-3 h-3 mr-1"/> 승인 거절</span>;
       default:
         return null;
     }
@@ -129,7 +129,7 @@ export default function BusinessApplyPage() {
       <div className="max-w-2xl mx-auto p-4 md:p-8 min-h-screen flex flex-col items-center justify-center">
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center w-full">
           <CheckCircle2 className="w-16 h-16 text-green-500 mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Success!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">신청 완료!</h2>
           <p className="text-gray-600 mb-6">
             {t.apply_success}
           </p>
@@ -232,7 +232,7 @@ export default function BusinessApplyPage() {
                   <img src={previewUrl} alt="Preview" className="w-full h-full object-contain rounded-lg" />
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
                     <span className="text-white font-medium flex items-center">
-                      <Upload className="w-5 h-5 mr-2" /> Change Photo
+                      <Upload className="w-5 h-5 mr-2" /> 사진 변경
                     </span>
                   </div>
                 </div>
@@ -241,7 +241,7 @@ export default function BusinessApplyPage() {
                   <Upload className={`mx-auto h-12 w-12 transition-colors ${file ? 'text-indigo-500' : 'text-gray-400 group-hover:text-indigo-500'}`} />
                   <div className="flex flex-col items-center text-sm text-gray-600 justify-center">
                     <span className="font-medium text-indigo-600 group-hover:text-indigo-500">
-                      {file ? file.name : 'Select File'}
+                      {file ? file.name : '파일 선택'}
                     </span>
                     {file && <span className="text-xs text-gray-400 mt-1">{t.apply_file_invalid}</span>}
                   </div>
@@ -266,7 +266,7 @@ export default function BusinessApplyPage() {
       {applications.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-            <h3 className="font-bold text-gray-900">Applications</h3>
+            <h3 className="font-bold text-gray-900">나의 입점 신청 내역</h3>
           </div>
           <div className="divide-y divide-gray-100">
             {applications.map((app) => (
@@ -276,7 +276,7 @@ export default function BusinessApplyPage() {
                   <div className="text-sm text-gray-500 space-y-1">
                     <p>{t.apply_form_biz_reg}: {app.businessRegNo}</p>
                     <p>{t.manage_rep_name}: {app.representativeName} | {t.apply_form_phone}: {app.contact}</p>
-                    <p>Date: {new Date(app.createdAt).toLocaleDateString()}</p>
+                    <p>신청일: {new Date(app.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
                 <div className="flex-shrink-0">

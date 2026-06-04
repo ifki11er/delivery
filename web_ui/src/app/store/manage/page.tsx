@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Store, Wifi, Save, Send, ChevronLeft } from 'lucide-react';
+import { Store, Wifi, Save, Send, ChevronLeft, Search, User } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 
 export default function StoreManagePage() {
@@ -20,7 +20,9 @@ export default function StoreManagePage() {
   const [businessRegNo, setBusinessRegNo] = useState('');
   const [wifiIp, setWifiIp] = useState('');
   const [currency, setCurrency] = useState('원');
-  const [transferEmail, setTransferEmail] = useState('');
+  const [searchPhone, setSearchPhone] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Fetch stores on load
   const fetchStores = async () => {
@@ -95,22 +97,42 @@ export default function StoreManagePage() {
     }
   };
 
-  const handleTransfer = async () => {
-    if (!transferEmail) {
-      alert('양도받을 사장님의 이메일을 입력하세요.');
-      return;
+  const handleSearchUser = async () => {
+    if (!searchPhone) return alert('양도받을 사장님의 전화번호를 입력하세요.');
+    setIsSearching(true);
+    try {
+      const res = await fetch(`/api/user/search?phone=${searchPhone}`);
+      if (res.ok) {
+        const user = await res.json();
+        setSearchResults([user]);
+      } else if (res.status === 404) {
+        alert('해당 전화번호로 가입된 회원이 없습니다.');
+        setSearchResults([]);
+      } else {
+        alert('검색에 실패했습니다.');
+        setSearchResults([]);
+      }
+    } catch (e) {
+      alert('검색 중 오류가 발생했습니다.');
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
     }
-    if (!confirm(`정말로 상점을 [${transferEmail}]님에게 양도하시겠습니까?\n모든 직원과 통계 데이터가 함께 넘어갑니다.`)) return;
+  };
+
+  const handleTransfer = async (userId: string, userName: string) => {
+    if (!confirm(`정말로 상점을 [${userName}]님에게 양도하시겠습니까?\n모든 직원과 통계 데이터가 함께 넘어갑니다.`)) return;
 
     try {
       const res = await fetch('/api/store', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: storeId, newOwnerEmail: transferEmail })
+        body: JSON.stringify({ id: storeId, newOwnerId: userId })
       });
       if (res.ok) {
         alert('양도가 완료되었습니다. 이제 해당 상점에 접근할 수 없습니다.');
-        setTransferEmail('');
+        setSearchPhone('');
+        setSearchResults([]);
         fetchStores(); // Reload
       } else {
         const err = await res.json();
@@ -283,19 +305,53 @@ export default function StoreManagePage() {
               
               <div className="flex space-x-2">
                 <input 
-                  type="email" 
-                  value={transferEmail}
-                  onChange={(e) => setTransferEmail(e.target.value)}
-                  placeholder={t.manage_transfer_placeholder}
+                  type="text" 
+                  value={searchPhone}
+                  onChange={(e) => setSearchPhone(e.target.value)}
+                  placeholder="전화번호 검색 (예: 01012345678)"
                   className="flex-1 px-4 py-3 bg-white border border-red-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none"
                 />
                 <button 
-                  onClick={handleTransfer}
-                  className="px-4 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors"
+                  onClick={handleSearchUser}
+                  disabled={isSearching}
+                  className="px-4 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors flex items-center justify-center min-w-[80px]"
                 >
-                  {t.manage_transfer_btn}
+                  {isSearching ? (
+                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4 mr-1" />
+                      검색
+                    </>
+                  )}
                 </button>
               </div>
+
+              {searchResults.length > 0 && (
+                <div className="mt-4 bg-white border border-red-200 rounded-xl overflow-hidden shadow-sm">
+                  <div className="divide-y divide-red-100">
+                    {searchResults.map((user) => (
+                      <div key={user.id} className="p-4 flex items-center justify-between hover:bg-red-50 transition-colors">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                            <User className="w-5 h-5 text-red-500" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900">{user.name || '이름 없음'}</p>
+                            <p className="text-sm text-gray-500">{user.phoneNumber || user.email}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleTransfer(user.id, user.name || '이름 없음')}
+                          className="px-4 py-2 bg-red-100 text-red-600 font-bold rounded-lg hover:bg-red-200 transition-colors text-sm whitespace-nowrap"
+                        >
+                          양도하기
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

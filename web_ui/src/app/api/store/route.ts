@@ -69,7 +69,7 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json();
-    const { id, name, wifiIpAddress, newOwnerEmail, address, contact, representativeName, businessRegNo, currency } = body;
+    const { id, name, wifiIpAddress, newOwnerId, address, contact, representativeName, businessRegNo, currency } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Store ID is required' }, { status: 400 });
@@ -84,8 +84,8 @@ export async function PUT(req: Request) {
     let ownerId = session.user.id;
 
     // Handle transfer
-    if (newOwnerEmail) {
-      const newOwner = await prisma.user.findUnique({ where: { email: newOwnerEmail } });
+    if (newOwnerId) {
+      const newOwner = await prisma.user.findUnique({ where: { id: newOwnerId } });
       if (!newOwner) {
         return NextResponse.json({ error: 'User not found for transfer' }, { status: 404 });
       }
@@ -109,6 +109,19 @@ export async function PUT(req: Request) {
         ownerId,
       }
     });
+
+    // If transferred, check if the old owner has any stores left. If not, downgrade to CUSTOMER.
+    if (newOwnerId && session.user.id !== newOwnerId) {
+      const remainingStores = await prisma.store.count({
+        where: { ownerId: session.user.id }
+      });
+      if (remainingStores === 0 && session.user.role === 'OWNER') {
+        await prisma.user.update({
+          where: { id: session.user.id },
+          data: { role: 'CUSTOMER' }
+        });
+      }
+    }
 
     return NextResponse.json(store);
   } catch (error) {

@@ -34,7 +34,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return user
         }
 
-        // 사용자가 존재하면 비밀번호 검증
+        // 사용자가 존재하면 탈퇴 및 정지 여부, 비밀번호 검증
+        if (user.deletedAt || user.status === 'WITHDRAWN') return null
+        if (user.status === 'SUSPENDED') throw new Error('계정이 정지되었습니다.')
         if (!user.password) return null
 
         const passwordsMatch = await bcrypt.compare(password, user.password)

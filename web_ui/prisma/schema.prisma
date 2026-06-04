@@ -39,6 +39,18 @@ enum Role {
   ADMIN
 }
 
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  WITHDRAWN
+}
+
+enum StoreStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -48,12 +60,14 @@ model User {
   password      String?
   phoneNumber   String?   @unique
   role          Role      @default(CUSTOMER)
+  status        UserStatus @default(ACTIVE)
   accounts      Account[]
   sessions      Session[]
   applications  BusinessApplication[]
   stores        Store[]
   employments   Employee[]
   blacklists    Blacklist[]
+  deletedAt     DateTime? // 소프트 삭제용 필드
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -69,6 +83,7 @@ model Store {
   businessRegNo      String?
   wifiIpAddress      String?
   currency           String     @default("원")
+  status             StoreStatus @default(ACTIVE)
   employees          Employee[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt

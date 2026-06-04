@@ -355,6 +355,7 @@ export default function StoreEmployeesPage() {
                         >
                           <option value="HOURLY">{t.emp_wage_hourly}</option>
                           <option value="DAILY">{t.emp_wage_daily}</option>
+                          <option value="MONTHLY">{t.emp_wage_monthly || '월급'}</option>
                         </select>
                       </div>
                       <div>
@@ -410,7 +411,7 @@ export default function StoreEmployeesPage() {
                       <div>
                         <span className="text-gray-500 block text-xs mb-0.5">{t.emp_wage_setting}</span>
                         <span className="font-bold text-gray-900">
-                          {emp.wageType === 'HOURLY' ? t.emp_wage_hourly : t.emp_wage_daily} {emp.wageAmount.toLocaleString()}{emp.store?.currency || '원'}
+                          {emp.wageType === 'HOURLY' ? t.emp_wage_hourly : emp.wageType === 'DAILY' ? t.emp_wage_daily : (t.emp_wage_monthly || '월급')} {emp.wageAmount.toLocaleString()}{emp.store?.currency || '원'}
                         </span>
                       </div>
                       <div>
@@ -555,12 +556,13 @@ export default function StoreEmployeesPage() {
                                 <th className="px-4 py-2 font-semibold">퇴근</th>
                                 <th className="px-4 py-2 font-semibold">상태</th>
                                 <th className="px-4 py-2 font-semibold text-right">근무 시간</th>
+                                <th className="px-4 py-2 font-semibold text-right">당일 급여</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                               {employeeStats.length === 0 ? (
                                 <tr>
-                                  <td colSpan={5} className="px-4 py-6 text-center text-gray-400">기록이 없습니다.</td>
+                                  <td colSpan={6} className="px-4 py-6 text-center text-gray-400">기록이 없습니다.</td>
                                 </tr>
                               ) : (
                                 employeeStats.map((att: any) => (
@@ -581,6 +583,11 @@ export default function StoreEmployeesPage() {
                                     <td className="px-4 py-3 text-right font-medium text-gray-900">
                                       {att.checkOutTime ? `${Math.floor(att.workMinutes / 60)}h ${att.workMinutes % 60}m` : '-'}
                                     </td>
+                                    <td className="px-4 py-3 text-right font-bold text-indigo-600">
+                                      {att.wageType !== 'MONTHLY' && att.calculatedWage != null 
+                                        ? att.calculatedWage.toLocaleString() + (emp.store?.currency || '원')
+                                        : '-'}
+                                    </td>
                                   </tr>
                                 ))
                               )}
@@ -596,12 +603,17 @@ export default function StoreEmployeesPage() {
                               const totalMins = employeeStats.reduce((acc, curr) => acc + (curr.workMinutes || 0), 0);
                               const totalHours = totalMins / 60;
                               let estimatedWage = 0;
-                              if (emp.wageType === 'HOURLY') {
-                                estimatedWage = totalHours * emp.wageAmount;
+                              if (emp.wageType === 'MONTHLY') {
+                                // For MONTHLY, we take the latest monthly snapshot amount, or fallback to current Employee amount
+                                const monthlyStats = employeeStats.filter(s => s.wageType === 'MONTHLY' && s.wageAmount > 0);
+                                if (monthlyStats.length > 0) {
+                                  estimatedWage = monthlyStats[monthlyStats.length - 1].wageAmount;
+                                } else {
+                                  estimatedWage = emp.wageAmount;
+                                }
                               } else {
-                                // DAILY
-                                const daysWorked = employeeStats.filter(s => s.workMinutes > 0).length;
-                                estimatedWage = daysWorked * emp.wageAmount;
+                                // For HOURLY and DAILY, sum up the calculatedWage from the snapshots
+                                estimatedWage = employeeStats.reduce((acc, curr) => acc + (curr.calculatedWage || 0), 0);
                               }
                               return (
                                 <>
