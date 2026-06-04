@@ -112,6 +112,7 @@ export async function PUT(req: Request) {
 
     return NextResponse.json(store);
   } catch (error) {
+    console.error('[API Store PUT Error]:', error);
     return NextResponse.json({ error: 'Failed to update store' }, { status: 500 });
   }
 }

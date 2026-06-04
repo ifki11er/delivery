@@ -19,6 +19,7 @@ export const metadata: Metadata = {
 
 import { auth } from "../../auth";
 import { getI18n } from "@/i18n/server";
+import { cookies } from "next/headers";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import Sidebar from "@/components/layout/Sidebar";
 import BottomNav from "@/components/layout/BottomNav";
@@ -31,15 +32,17 @@ export default async function RootLayout({
 }>) {
   const session = await auth();
   const t = await getI18n();
+  const cookieStore = await cookies();
+  const locale = cookieStore.get('NEXT_LOCALE')?.value || 'ko';
 
   return (
     <html
-      lang="ko"
+      lang={locale}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-gray-50 text-gray-900">
         <AuthProvider>
-          <I18nProvider dictionary={t}>
+          <I18nProvider dictionary={t} locale={locale}>
             {session ? (
               <div className="flex h-screen overflow-hidden">
                 <Sidebar session={session} />

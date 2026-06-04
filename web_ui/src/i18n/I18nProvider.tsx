@@ -5,12 +5,16 @@ import { dictionaries, Locale } from './dictionaries';
 
 type Dictionary = typeof dictionaries['ko'];
 
-const I18nContext = createContext<Dictionary>(dictionaries.ko);
+const I18nContext = createContext<{t: Dictionary, locale: string}>({ t: dictionaries.ko, locale: 'ko' });
 
-export function I18nProvider({ children, dictionary }: { children: React.ReactNode; dictionary: Dictionary }) {
-  return <I18nContext.Provider value={dictionary}>{children}</I18nContext.Provider>;
+export function I18nProvider({ children, dictionary, locale }: { children: React.ReactNode; dictionary: Dictionary; locale: string }) {
+  return <I18nContext.Provider value={{ t: dictionary, locale }}>{children}</I18nContext.Provider>;
 }
 
 export function useI18n() {
-  return useContext(I18nContext);
+  return useContext(I18nContext).t;
+}
+
+export function useLocale() {
+  return useContext(I18nContext).locale;
 }

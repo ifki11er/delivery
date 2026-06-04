@@ -1,11 +1,13 @@
 "use client";
+import { useState, useEffect } from 'react';
 import { useRouter } from "next/navigation";
 import { Wifi, ChevronLeft } from 'lucide-react';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n, useLocale } from '@/i18n/I18nProvider';
 
 export default function MonitorPage() {
   const router = useRouter();
   const t = useI18n();
+  const locale = useLocale();
   const [orders, setOrders] = useState<any[]>([]);
   const [printers, setPrinters] = useState<any[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState<string>("");
@@ -30,7 +32,7 @@ export default function MonitorPage() {
       });
       
       const now = new Date();
-      setIpLastUpdated(now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+      setIpLastUpdated(now.toLocaleTimeString(locale, {hour: '2-digit', minute:'2-digit'}));
       
       if (manual) {
         alert(`출퇴근용 와이파이 공인 IP(${currentIp})를 즉시 갱신했습니다.`);

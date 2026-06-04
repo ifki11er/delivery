@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserPlus, Search, Clock, Users, Save, ChevronLeft, Trash2, Edit3 } from 'lucide-react';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n, useLocale } from '@/i18n/I18nProvider';
 
 export default function StoreEmployeesPage() {
   const router = useRouter();
   const t = useI18n();
+  const locale = useLocale();
   const [stores, setStores] = useState<any[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [employees, setEmployees] = useState<any[]>([]);
@@ -16,6 +17,7 @@ export default function StoreEmployeesPage() {
   // Add form
   const [searchPhone, setSearchPhone] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedSearchUser, setSelectedSearchUser] = useState<any>(null);
 
   // Edit form
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -26,6 +28,12 @@ export default function StoreEmployeesPage() {
   const [statsMonth, setStatsMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [manualRecord, setManualRecord] = useState({
+    date: new Date().toISOString().split('T')[0],
+    checkIn: '',
+    checkOut: '',
+    status: 'NORMAL'
   });
   const [employeeStats, setEmployeeStats] = useState<any[]>([]);
   const [isStatsLoading, setIsStatsLoading] = useState(false);
@@ -103,6 +111,7 @@ export default function StoreEmployeesPage() {
       if (res.ok) {
         alert('직원이 등록되었습니다.');
         setSearchPhone('');
+        setSelectedSearchUser(null);
         setShowAddForm(false);
         fetchEmployees(selectedStoreId);
       } else {
@@ -111,6 +120,23 @@ export default function StoreEmployeesPage() {
       }
     } catch (e) {
       alert('등록 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleSearchUser = async () => {
+    if (!searchPhone) return alert('전화번호를 입력하세요.');
+    try {
+      const res = await fetch(`/api/user/search?phone=${searchPhone}`);
+      if (res.ok) {
+        setSelectedSearchUser(await res.json());
+      } else {
+        const err = await res.json();
+        alert(err.error || '사용자를 찾을 수 없습니다.');
+        setSelectedSearchUser(null);
+      }
+    } catch (e) {
+      alert('검색 중 오류가 발생했습니다.');
+      setSelectedSearchUser(null);
     }
   };
 
@@ -138,12 +164,41 @@ export default function StoreEmployeesPage() {
         body: JSON.stringify({ employeeId: editingId, ...editForm })
       });
       if (res.ok) {
-        alert('저장되었습니다.');
+        alert(t.emp_form_update || '저장되었습니다.');
         setEditingId(null);
         fetchEmployees(selectedStoreId);
       }
     } catch (e) {
-      alert('오류가 발생했습니다.');
+      alert(t.emp_error_msg || '오류가 발생했습니다.');
+    }
+  };
+
+  const handleSaveManual = async (employeeId: string) => {
+    if (!manualRecord.date) return;
+
+    try {
+      const res = await fetch('/api/store/attendance/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          employeeId, 
+          date: manualRecord.date,
+          checkInTimeStr: manualRecord.checkIn,
+          checkOutTimeStr: manualRecord.checkOut,
+          status: manualRecord.status
+        })
+      });
+      if (res.ok) {
+        alert(t.emp_manual_success || '수동 근태 기록이 저장되었습니다.');
+        fetchEmployeeStats(employeeId, statsMonth); // Refresh table
+        // Optionally reset form
+        setManualRecord({ ...manualRecord, checkIn: '', checkOut: '', status: 'NORMAL' });
+      } else {
+        const data = await res.json();
+        alert(data.error || '오류가 발생했습니다.');
+      }
+    } catch (e) {
+      alert(t.emp_error_msg || '오류가 발생했습니다.');
     }
   };
 
@@ -258,7 +313,7 @@ export default function StoreEmployeesPage() {
                       <>
                         <button onClick={() => {
                           setEditingId(emp.id);
-                          setExpandedStatsEmpId(null);
+                          setStatsEmployeeId(null);
                           setEditForm({
                             role: emp.role,
                             wageType: emp.wageType,
@@ -340,22 +395,36 @@ export default function StoreEmployeesPage() {
                         {t.emp_form_cancel}
                       </button>
                       <button 
-                        onClick={() => handleSaveEmployee(emp.id)}
+                        onClick={handleSaveEdit}
                         className="px-4 py-2 bg-indigo-600 rounded-lg text-sm font-bold text-white hover:bg-indigo-700 flex items-center"
                       >
-                        <Save className="w-4 h-4 mr-1" /> {t.emp_form_save}
+                        <Save className="w-4 h-4 mr-1" /> {t.emp_form_update}
                       </button>
                     </div>
                   </div>
                 )}
 
                 {!editingId && (
-                  <div className="p-4 bg-white border-t border-gray-50 flex items-center justify-between">
-                    <div>
-                      <span className="text-gray-500 block text-xs mb-0.5">{t.emp_wage_setting}</span>
-                      <span className="font-bold text-gray-900">
-                        {emp.wageType === 'HOURLY' ? t.emp_wage_hourly : t.emp_wage_daily} {emp.wageAmount.toLocaleString()}{emp.store?.currency || '원'}
-                      </span>
+                  <div className="p-4 bg-white border-t border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex flex-wrap gap-x-6 gap-y-3">
+                      <div>
+                        <span className="text-gray-500 block text-xs mb-0.5">{t.emp_wage_setting}</span>
+                        <span className="font-bold text-gray-900">
+                          {emp.wageType === 'HOURLY' ? t.emp_wage_hourly : t.emp_wage_daily} {emp.wageAmount.toLocaleString()}{emp.store?.currency || '원'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-xs mb-0.5">{t.emp_form_role}</span>
+                        <span className="font-bold text-gray-900">
+                          {emp.role === 'MANAGER' ? (t.emp_role_manager || '매니저') : (t.emp_role_staff || '스태프')}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-xs mb-0.5">{t.emp_work_time || '근무 시간'}</span>
+                        <span className="font-bold text-gray-900">
+                          {emp.workStartTime} ~ {emp.workEndTime}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -415,6 +484,63 @@ export default function StoreEmployeesPage() {
                         className="px-2 py-1 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none"
                       />
                     </div>
+
+                    {/* Manual Attendance Entry Form */}
+                    <div className="bg-white p-4 rounded-xl mb-4 border border-gray-200 shadow-sm">
+                      <h4 className="font-bold text-sm text-gray-800 mb-3">{t.emp_manual_title}</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 mb-1">{t.emp_date_select}</label>
+                          <input 
+                            type="date"
+                            value={manualRecord.date}
+                            onChange={(e) => setManualRecord({...manualRecord, date: e.target.value})}
+                            className="w-full px-2 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 mb-1">{t.emp_manual_status}</label>
+                          <select 
+                            value={manualRecord.status}
+                            onChange={(e) => setManualRecord({...manualRecord, status: e.target.value})}
+                            className="w-full px-2 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          >
+                            <option value="NORMAL">{t.emp_status_normal}</option>
+                            <option value="LATE">{t.emp_status_late}</option>
+                            <option value="EARLY_LEAVE">{t.emp_status_early}</option>
+                            <option value="ABSENT">{t.emp_status_absent}</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 mb-1">{t.emp_manual_check_in}</label>
+                          <input 
+                            type="time"
+                            value={manualRecord.checkIn}
+                            onChange={(e) => setManualRecord({...manualRecord, checkIn: e.target.value})}
+                            disabled={manualRecord.status === 'ABSENT'}
+                            className="w-full px-2 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 mb-1">{t.emp_manual_check_out}</label>
+                          <input 
+                            type="time"
+                            value={manualRecord.checkOut}
+                            onChange={(e) => setManualRecord({...manualRecord, checkOut: e.target.value})}
+                            disabled={manualRecord.status === 'ABSENT'}
+                            className="w-full px-2 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-400"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <button 
+                          onClick={() => handleSaveManual(emp.id)}
+                          className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors"
+                        >
+                          {t.emp_manual_save}
+                        </button>
+                      </div>
+                    </div>
                     
                     {isStatsLoading ? (
                       <div className="py-8 text-center text-gray-500 text-sm">불러오는 중...</div>
@@ -440,8 +566,8 @@ export default function StoreEmployeesPage() {
                                 employeeStats.map((att: any) => (
                                   <tr key={att.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-4 py-3 text-gray-900 font-medium">{att.date.split('-').slice(1).join('/')}</td>
-                                    <td className="px-4 py-3 text-gray-600">{att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
-                                    <td className="px-4 py-3 text-gray-600">{att.checkOutTime ? new Date(att.checkOutTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
+                                    <td className="px-4 py-3 text-gray-600">{att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString(locale, {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
+                                    <td className="px-4 py-3 text-gray-600">{att.checkOutTime ? new Date(att.checkOutTime).toLocaleTimeString(locale, {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
                                     <td className="px-4 py-3">
                                       <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${
                                         att.status === 'NORMAL' ? 'bg-green-100 text-green-700' :
@@ -453,7 +579,7 @@ export default function StoreEmployeesPage() {
                                       </span>
                                     </td>
                                     <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                      {att.workMinutes > 0 ? `${Math.floor(att.workMinutes / 60)}h ${att.workMinutes % 60}m` : '-'}
+                                      {att.checkOutTime ? `${Math.floor(att.workMinutes / 60)}h ${att.workMinutes % 60}m` : '-'}
                                     </td>
                                   </tr>
                                 ))

@@ -94,6 +94,13 @@ model Employee {
   @@unique([storeId, userId])
 }
 
+enum AttendanceStatus {
+  NORMAL
+  LATE
+  EARLY_LEAVE
+  ABSENT
+}
+
 model Attendance {
   id           String    @id @default(cuid())
   employeeId   String
@@ -101,8 +108,14 @@ model Attendance {
   date         String    // YYYY-MM-DD
   checkInTime  DateTime?
   checkOutTime DateTime?
-  status       String    @default("NORMAL") // NORMAL, LATE, EARLY_LEAVE, ABSENT
   workMinutes  Int       @default(0)
+  status       AttendanceStatus @default(NORMAL)
+  
+  // 급여 스냅샷 필드
+  wageType     String    @default("HOURLY") // HOURLY, DAILY, MONTHLY
+  wageAmount   Int       @default(0)
+  calculatedWage Int?    // 당일 정산된 최종 급여 (월급은 null)
+
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

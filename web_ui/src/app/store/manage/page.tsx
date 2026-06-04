@@ -71,11 +71,14 @@ export default function StoreManagePage() {
         })
       });
       if (res.ok) {
-        alert('상점 정보가 저장되었습니다.');
+        alert(t.manage_save_success || '상점 정보가 저장되었습니다.');
         fetchStores();
+      } else {
+        const err = await res.json();
+        alert((t.manage_save_fail || '저장 실패: ') + (err.error || 'Unknown error'));
       }
     } catch (e) {
-      alert('저장 실패');
+      alert(t.manage_save_fail || '저장 실패');
     }
   };
 

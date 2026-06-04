@@ -80,12 +80,16 @@ export async function POST(req: Request) {
         update: {
           checkInTime: now,
           status,
+          wageType: employee.wageType,
+          wageAmount: employee.wageAmount,
         },
         create: {
           employeeId: employee.id,
           date: dateStr,
           checkInTime: now,
           status,
+          wageType: employee.wageType,
+          wageAmount: employee.wageAmount,
         }
       });
     } else if (action === 'CHECK_OUT') {
@@ -98,6 +102,22 @@ export async function POST(req: Request) {
 
       const workMins = getMinutesDiff(attendance.checkInTime, now);
       
+      const expectedMins = endExpected - startExpected;
+      let calculatedWage = null;
+      if (attendance.wageType === 'HOURLY') {
+        calculatedWage = Math.floor((workMins / 60) * attendance.wageAmount);
+      } else if (attendance.wageType === 'DAILY') {
+        if (expectedMins > 0) {
+          if (workMins >= expectedMins) {
+            calculatedWage = attendance.wageAmount;
+          } else {
+            calculatedWage = Math.floor((workMins / expectedMins) * attendance.wageAmount);
+          }
+        } else {
+          calculatedWage = attendance.wageAmount;
+        }
+      }
+
       // Determine if early leave
       let status = attendance.status;
       if (nowMinutes < endExpected && status === 'NORMAL') {
@@ -110,6 +130,7 @@ export async function POST(req: Request) {
           checkOutTime: now,
           workMinutes: workMins,
           status,
+          calculatedWage,
         }
       });
     } else {
