@@ -5,16 +5,16 @@ import Image from 'next/image';
 import { useI18n } from '@/i18n/I18nProvider';
 
 const CATEGORIES = [
-  { key: 'home_category_single', icon: '1' },
-  { key: 'home_category_jokbal', icon: 'JB' },
-  { key: 'home_category_soup', icon: 'ST' },
-  { key: 'home_category_japanese', icon: 'JP' },
-  { key: 'home_category_pizza', icon: 'PZ' },
-  { key: 'home_category_grill', icon: 'GR' },
-  { key: 'home_category_late', icon: 'NT' },
-  { key: 'home_category_western', icon: 'WS' },
-  { key: 'home_category_chicken', icon: 'CK' },
-  { key: 'home_category_chinese', icon: 'CN' },
+  { key: 'home_category_single', icon: '🍲' },
+  { key: 'home_category_jokbal', icon: '🍖' },
+  { key: 'home_category_soup', icon: '🥘' },
+  { key: 'home_category_japanese', icon: '🍣' },
+  { key: 'home_category_pizza', icon: '🍕' },
+  { key: 'home_category_grill', icon: '🥩' },
+  { key: 'home_category_late', icon: '🌙' },
+  { key: 'home_category_western', icon: '🍝' },
+  { key: 'home_category_chicken', icon: '🍗' },
+  { key: 'home_category_chinese', icon: '🍜' },
 ];
 
 const MOCK_STORES = [
@@ -104,7 +104,7 @@ export default function Home() {
           <div className="grid grid-cols-5 gap-y-4 gap-x-2">
             {CATEGORIES.map((cat) => (
               <div key={cat.key} className="flex flex-col items-center justify-center space-y-2 cursor-pointer group">
-                <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-sm font-black text-indigo-600 group-hover:bg-indigo-50 transition-colors">
+                <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-2xl group-hover:bg-indigo-50 transition-colors">
                   {cat.icon}
                 </div>
                 <span className="text-[11px] font-medium text-gray-700 text-center tracking-tight leading-tight">

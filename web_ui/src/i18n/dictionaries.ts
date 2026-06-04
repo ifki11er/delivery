@@ -260,6 +260,7 @@ const ko: Dictionary = {
   login_email_continue: "이메일로 계속하기",
   login_processing: "로그인 처리 중...",
   login_social_divider: "또는 소셜 로그인",
+  login_google_webview_notice: "Google 로그인은 보안 정책상 앱 안에서는 사용할 수 없습니다. 웹 브라우저에서는 사용할 수 있습니다.",
 };
 
 const en: Dictionary = {
@@ -351,6 +352,7 @@ const en: Dictionary = {
   login_email_continue: "Continue with email",
   login_processing: "Signing in...",
   login_social_divider: "Or sign in with",
+  login_google_webview_notice: "Google sign-in is not available inside the app due to Google's security policy. It is available in a web browser.",
 };
 
 const vi: Dictionary = {
@@ -425,6 +427,7 @@ const vi: Dictionary = {
   login_email_continue: "Tiếp tục bằng email",
   login_processing: "Đang đăng nhập...",
   login_social_divider: "Hoặc đăng nhập bằng",
+  login_google_webview_notice: "Không thể đăng nhập Google bên trong ứng dụng do chính sách bảo mật của Google. Bạn có thể dùng trong trình duyệt web.",
 };
 
 Object.assign(ko, {
@@ -1350,6 +1353,7 @@ Object.assign(en, {
   mypage_withdraw_desc: "Delete your account? All information will be removed.",
   mypage_withdraw_success: "Your account has been deleted.",
   printer_settings: "Bluetooth Printer Settings",
+  login_google_webview_notice: "Google sign-in is not available inside the app due to Google's security policy. It is available in a web browser.",
   search_btn: "Search",
   currency_krw: "Won (KRW)",
   currency_usd: "Dollar (USD)",
@@ -1613,6 +1617,7 @@ Object.assign(vi, {
   mypage_withdraw_desc: "Bạn có chắc muốn rút tài khoản? Tất cả thông tin sẽ bị xóa.",
   mypage_withdraw_success: "Tài khoản đã được rút thành công.",
   printer_settings: "Cài đặt máy in Bluetooth",
+  login_google_webview_notice: "Không thể đăng nhập Google bên trong ứng dụng do chính sách bảo mật của Google. Bạn có thể dùng trong trình duyệt web.",
   currency_krw: "Won (KRW)",
   currency_usd: "Đô la (USD)",
   currency_vnd: "Đồng (VND)",

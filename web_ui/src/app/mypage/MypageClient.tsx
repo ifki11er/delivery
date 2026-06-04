@@ -1,8 +1,7 @@
 ﻿'use client';
 
 import { useSession, signOut } from 'next-auth/react';
-import { usePlatform } from '@/hooks/usePlatform';
-import { LogOut, User, Store, Settings, Printer, ChevronRight, ClipboardList, Shield, Clock, AlertTriangle, Mail, Phone } from 'lucide-react';
+import { LogOut, User, Store, Settings, ChevronRight, ClipboardList, Shield, Clock, AlertTriangle, Mail, Phone } from 'lucide-react';
 import Link from 'next/link';
 
 import { useI18n } from '@/i18n/I18nProvider';
@@ -10,7 +9,6 @@ import { useState, useEffect, useRef } from 'react';
 
 export default function MypageClient() {
   const { data: session, status, update } = useSession();
-  const { platform, isReady } = usePlatform();
   const t = useI18n();
   const [isEmployee, setIsEmployee] = useState(false);
   const [empRole, setEmpRole] = useState<string | null>(null);
@@ -84,7 +82,7 @@ export default function MypageClient() {
     }
   }, [session, isEditingProfile]);
 
-  if (status === 'loading' || !isReady) {
+  if (status === 'loading') {
     return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
   }
 
@@ -309,24 +307,6 @@ export default function MypageClient() {
               </div>
               <ChevronRight className="w-5 h-5 text-red-400" />
             </Link>
-            
-            {/* 앱 환경에서만 프린터 설정 메뉴를 표시한다. */}
-            {platform === 'app' && (
-              <button 
-                onClick={() => {
-                  if (typeof window !== 'undefined' && window.AndroidBridge) {
-                    window.AndroidBridge.openBluetoothSettings();
-                  }
-                }}
-                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex items-center space-x-3 text-gray-700">
-                  <Printer className="w-5 h-5 text-blue-500" />
-                  <span className="font-medium">{t.printer_settings}</span>
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-400" />
-              </button>
-            )}
           </>
         )}
 
