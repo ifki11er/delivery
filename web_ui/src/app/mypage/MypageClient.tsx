@@ -13,8 +13,24 @@ export default function MypageClient() {
   const { platform, isReady } = usePlatform();
   const t = useI18n();
   const [isEmployee, setIsEmployee] = useState(false);
+  const [empRole, setEmpRole] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string | null>(null);
   const [userRole, setUserRole] = useState(session?.user?.role || 'CUSTOMER');
+  
+  // 모드 스위칭 상태 (localStorage에서 초기값 로드)
+  const [viewMode, setViewMode] = useState<'OWNER' | 'EMPLOYEE'>('OWNER');
+
+  useEffect(() => {
+    const savedMode = localStorage.getItem('mypage_view_mode');
+    if (savedMode === 'EMPLOYEE') {
+      setViewMode('EMPLOYEE');
+    }
+  }, []);
+
+  const handleModeSwitch = (mode: 'OWNER' | 'EMPLOYEE') => {
+    setViewMode(mode);
+    localStorage.setItem('mypage_view_mode', mode);
+  };
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState('');
@@ -49,6 +65,7 @@ export default function MypageClient() {
         .then(res => res.json())
         .then(data => {
           setIsEmployee(data.isEmployee);
+          setEmpRole(data.empRole);
           setStoreName(data.storeName);
           if (data.role && data.role !== session.user.role) {
             setUserRole(data.role);
@@ -166,12 +183,32 @@ export default function MypageClient() {
                 <p className="text-sm font-semibold text-indigo-600 mt-1">🏠 {storeName}</p>
               )}
               <div className="mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                {isOwner ? t.owner : isAdmin ? t.admin : isEmployee ? t.mypage_employee : t.customer}
+                {isAdmin ? t.admin : isOwner ? t.owner : isEmployee ? t.mypage_employee : t.customer}
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* 모드 전환 토글 (사장님이면서 알바생인 경우에만 표시) */}
+      {isOwner && isEmployee && !isAdmin && (
+        <div className="bg-white p-1 rounded-xl shadow-sm border border-gray-200 flex text-sm font-bold animate-in fade-in slide-in-from-top-4">
+          <button 
+            onClick={() => handleModeSwitch('OWNER')}
+            className={`flex-1 py-2.5 rounded-lg transition-all flex items-center justify-center ${viewMode === 'OWNER' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+            <Store className="w-4 h-4 mr-2" />
+            사장님 모드
+          </button>
+          <button 
+            onClick={() => handleModeSwitch('EMPLOYEE')}
+            className={`flex-1 py-2.5 rounded-lg transition-all flex items-center justify-center ${viewMode === 'EMPLOYEE' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+            <User className="w-4 h-4 mr-2" />
+            알바생 모드
+          </button>
+        </div>
+      )}
 
       {/* 메뉴 리스트 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
@@ -231,7 +268,7 @@ export default function MypageClient() {
         )}
 
         {/* 사장님 전용 메뉴 */}
-        {isOwner && !isAdmin && (
+        {isOwner && !isAdmin && (viewMode === 'OWNER' || !isEmployee) && (
           <>
             <Link href="/store/monitor" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
               <div className="flex items-center space-x-3 text-gray-700">
@@ -283,7 +320,7 @@ export default function MypageClient() {
         )}
 
         {/* 직원 전용 메뉴 */}
-        {isEmployee && !isAdmin && (
+        {isEmployee && !isAdmin && (viewMode === 'EMPLOYEE' || !isOwner) && (
           <>
             <div className="bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-500 uppercase tracking-wider">
               {t.mypage_emp_menu}
@@ -295,6 +332,16 @@ export default function MypageClient() {
               </div>
               <ChevronRight className="w-5 h-5 text-indigo-400" />
             </Link>
+            {/* 매니저 권한인 경우 직원 관리 표시 */}
+            {empRole === 'MANAGER' && (
+              <Link href="/store/employees" className="flex items-center justify-between p-4 hover:bg-indigo-50 transition-colors">
+                <div className="flex items-center space-x-3 text-indigo-700">
+                  <User className="w-5 h-5 text-indigo-400" />
+                  <span className="font-bold">{t.employee_management}</span>
+                </div>
+                <ChevronRight className="w-5 h-5 text-indigo-400" />
+              </Link>
+            )}
           </>
         )}
 

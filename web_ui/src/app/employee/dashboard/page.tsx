@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useI18n, useLocale } from '@/i18n/I18nProvider';
 import { MapPin, Clock, LogIn, LogOut, AlertCircle, CheckCircle2, ChevronLeft } from 'lucide-react';
 

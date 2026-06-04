@@ -17,7 +17,10 @@ export async function GET(req: Request) {
 
   try {
     const store = await prisma.store.findUnique({ where: { id: storeId } });
-    if (!store || (store.ownerId !== session.user.id && session.user.role !== 'ADMIN')) {
+    const isManager = await prisma.employee.findFirst({
+      where: { storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
+    });
+    if (!store || (store.ownerId !== session.user.id && session.user.role !== 'ADMIN' && !isManager)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -54,7 +57,10 @@ export async function POST(req: Request) {
     const { storeId, phoneNumber, role, wageType, wageAmount, workStartTime, workEndTime } = body;
 
     const store = await prisma.store.findUnique({ where: { id: storeId } });
-    if (!store || store.ownerId !== session.user.id) {
+    const isManager = await prisma.employee.findFirst({
+      where: { storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
+    });
+    if (!store || (store.ownerId !== session.user.id && session.user.role !== 'ADMIN' && !isManager)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -131,7 +137,11 @@ export async function PUT(req: Request) {
       include: { store: true }
     });
 
-    if (!employee || employee.store.ownerId !== session.user.id) {
+    const isManager = employee ? await prisma.employee.findFirst({
+      where: { storeId: employee.storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
+    }) : null;
+
+    if (!employee || (employee.store.ownerId !== session.user.id && session.user.role !== 'ADMIN' && !isManager)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -172,7 +182,11 @@ export async function DELETE(req: Request) {
       include: { store: true }
     });
 
-    if (!employee || employee.store.ownerId !== session.user.id) {
+    const isManager = employee ? await prisma.employee.findFirst({
+      where: { storeId: employee.storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
+    }) : null;
+
+    if (!employee || (employee.store.ownerId !== session.user.id && session.user.role !== 'ADMIN' && !isManager)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

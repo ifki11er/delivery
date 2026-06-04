@@ -15,13 +15,17 @@ export async function GET() {
     });
     
     const emp = await prisma.employee.findFirst({
-      where: { userId: session.user.id },
+      where: { 
+        userId: session.user.id,
+        status: 'ACTIVE'
+      },
       include: { store: true }
     });
     
     return NextResponse.json({ 
       isEmployee: !!emp,
       role: user?.role || session.user.role,
+      empRole: emp?.role || null,
       storeName: emp?.store?.name || null
     });
   } catch (error) {

@@ -33,7 +33,10 @@ export async function POST(req: Request) {
 
     if (employee.store.ownerId !== session.user.id) {
       const user = await prisma.user.findUnique({ where: { id: session.user.id } });
-      if (user?.role !== 'ADMIN') {
+      const isManager = await prisma.employee.findFirst({
+        where: { storeId: employee.storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
+      });
+      if (user?.role !== 'ADMIN' && !isManager) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }

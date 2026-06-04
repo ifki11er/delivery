@@ -10,7 +10,20 @@ export async function GET() {
 
   try {
     const stores = await prisma.store.findMany({
-      where: { ownerId: session.user.id },
+      where: {
+        OR: [
+          { ownerId: session.user.id },
+          {
+            employees: {
+              some: {
+                userId: session.user.id,
+                role: 'MANAGER',
+                status: 'ACTIVE'
+              }
+            }
+          }
+        ]
+      },
       include: {
         _count: {
           select: { employees: true }

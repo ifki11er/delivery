@@ -15,12 +15,16 @@ export async function GET(req: Request) {
   try {
     const cleanedPhone = phone.replace(/[^0-9]/g, '');
     
-    const entry = await prisma.blacklist.findUnique({
+    const entries = await prisma.blacklist.findMany({
       where: { phoneNumber: cleanedPhone }
     });
 
-    if (entry) {
-      return NextResponse.json({ isBlacklisted: true, reason: entry.reason });
+    if (entries.length > 0) {
+      return NextResponse.json({ 
+        isBlacklisted: true, 
+        count: entries.length,
+        reasons: entries.map(e => e.reason)
+      });
     } else {
       return NextResponse.json({ isBlacklisted: false });
     }

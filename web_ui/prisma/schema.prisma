@@ -162,12 +162,14 @@ model VerificationToken {
 
 model Blacklist {
   id          String   @id @default(cuid())
-  phoneNumber String   @unique
+  phoneNumber String
   reason      String   @db.Text
   reporterId  String
   reporter    User     @relation(fields: [reporterId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@unique([phoneNumber, reporterId])
 }
 
 model EmploymentHistory {

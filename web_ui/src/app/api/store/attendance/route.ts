@@ -169,7 +169,10 @@ export async function GET(req: Request) {
     if (storeId) {
       // Check if user is owner
       const store = await prisma.store.findUnique({ where: { id: storeId } });
-      if (store?.ownerId !== session.user.id && session.user.role !== 'ADMIN') {
+      const isManager = await prisma.employee.findFirst({
+        where: { storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
+      });
+      if (store?.ownerId !== session.user.id && session.user.role !== 'ADMIN' && !isManager) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       whereClause.employee = { storeId };
