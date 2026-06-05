@@ -261,6 +261,8 @@ const ko: Dictionary = {
   login_processing: "로그인 처리 중...",
   login_social_divider: "또는 소셜 로그인",
   login_google_webview_notice: "Google 로그인은 보안 정책상 앱 안에서는 사용할 수 없습니다. 웹 브라우저에서는 사용할 수 있습니다.",
+  login_google_native_failed: "Google 로그인에 실패했습니다. 다시 시도해주세요.",
+  login_google_native_config_error: "Google 로그인 설정을 확인해야 합니다. 앱 패키지명과 SHA-1 인증서가 Google Cloud OAuth 설정과 일치하지 않습니다.",
 };
 
 const en: Dictionary = {
@@ -353,6 +355,8 @@ const en: Dictionary = {
   login_processing: "Signing in...",
   login_social_divider: "Or sign in with",
   login_google_webview_notice: "Google sign-in is not available inside the app due to Google's security policy. It is available in a web browser.",
+  login_google_native_failed: "Google sign-in failed. Please try again.",
+  login_google_native_config_error: "Google sign-in setup needs attention. The app package name and SHA-1 certificate must match the Google Cloud OAuth settings.",
 };
 
 const vi: Dictionary = {
@@ -428,6 +432,8 @@ const vi: Dictionary = {
   login_processing: "Đang đăng nhập...",
   login_social_divider: "Hoặc đăng nhập bằng",
   login_google_webview_notice: "Không thể đăng nhập Google bên trong ứng dụng do chính sách bảo mật của Google. Bạn có thể dùng trong trình duyệt web.",
+  login_google_native_failed: "Đăng nhập Google thất bại. Vui lòng thử lại.",
+  login_google_native_config_error: "Cần kiểm tra cài đặt đăng nhập Google. Tên gói ứng dụng và chứng chỉ SHA-1 phải khớp với cấu hình OAuth trên Google Cloud.",
 };
 
 Object.assign(ko, {
@@ -1108,6 +1114,8 @@ Object.assign(ko, {
   mypage_withdraw_desc: "정말 탈퇴하시겠습니까? 모든 정보는 삭제됩니다.",
   mypage_withdraw_success: "성공적으로 탈퇴 처리되었습니다.",
   printer_settings: "블루투스 프린터 설정",
+  login_google_native_failed: "Google 로그인에 실패했습니다. 다시 시도해주세요.",
+  login_google_native_config_error: "Google 로그인 설정을 확인해야 합니다. 앱 패키지명과 SHA-1 인증서가 Google Cloud OAuth 설정과 일치하지 않습니다.",
   search_btn: "검색",
   currency_krw: "원 (KRW)",
   currency_usd: "달러 (USD)",
@@ -1354,6 +1362,8 @@ Object.assign(en, {
   mypage_withdraw_success: "Your account has been deleted.",
   printer_settings: "Bluetooth Printer Settings",
   login_google_webview_notice: "Google sign-in is not available inside the app due to Google's security policy. It is available in a web browser.",
+  login_google_native_failed: "Google sign-in failed. Please try again.",
+  login_google_native_config_error: "Google sign-in setup needs attention. The app package name and SHA-1 certificate must match the Google Cloud OAuth settings.",
   search_btn: "Search",
   currency_krw: "Won (KRW)",
   currency_usd: "Dollar (USD)",
@@ -1618,6 +1628,8 @@ Object.assign(vi, {
   mypage_withdraw_success: "Tài khoản đã được rút thành công.",
   printer_settings: "Cài đặt máy in Bluetooth",
   login_google_webview_notice: "Không thể đăng nhập Google bên trong ứng dụng do chính sách bảo mật của Google. Bạn có thể dùng trong trình duyệt web.",
+  login_google_native_failed: "Đăng nhập Google thất bại. Vui lòng thử lại.",
+  login_google_native_config_error: "Cần kiểm tra cài đặt đăng nhập Google. Tên gói ứng dụng và chứng chỉ SHA-1 phải khớp với cấu hình OAuth trên Google Cloud.",
   currency_krw: "Won (KRW)",
   currency_usd: "Đô la (USD)",
   currency_vnd: "Đồng (VND)",

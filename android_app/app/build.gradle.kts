@@ -12,6 +12,7 @@ if (localPropertiesFile.exists()) {
     localProperties.load(FileInputStream(localPropertiesFile))
 }
 val webUrl = localProperties.getProperty("DEV_WEB_URL", "http://192.168.1.5.nip.io:3000")
+val googleWebClientId = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", "")
 
 android {
     namespace = "com.baedalk.printapp"
@@ -24,6 +25,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         buildConfigField("String", "WEB_URL", "\"${webUrl}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${googleWebClientId}\"")
     }
 
     buildFeatures {
@@ -51,4 +53,5 @@ dependencies {
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.webkit:webkit:1.10.0")
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 }

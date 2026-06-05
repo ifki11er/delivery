@@ -22,6 +22,7 @@ interface AndroidBridge {
   isAutoPrintEnabled(): boolean;
   saveDefaultPrinter(mac: string): void;
   getDefaultPrinter(): string;
+  signInWithGoogle(): void;
 }
 
 interface Window {

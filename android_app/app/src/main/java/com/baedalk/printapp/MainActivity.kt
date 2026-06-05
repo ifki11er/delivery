@@ -20,10 +20,18 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import androidx.webkit.WebViewAssetLoader
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+
+    companion object {
+        private const val RC_GOOGLE_SIGN_IN = 9001
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,6 +100,44 @@ class MainActivity : AppCompatActivity() {
     }
 
     // 웹에서 안드로이드 코드를 호출할 수 있게 해주는 인터페이스
+    @Deprecated("startActivityForResult is sufficient for this WebView bridge flow.")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode != RC_GOOGLE_SIGN_IN) return
+
+        try {
+            val account = GoogleSignIn.getSignedInAccountFromIntent(data).getResult(ApiException::class.java)
+            val idToken = account.idToken
+            if (idToken.isNullOrBlank()) {
+                dispatchGoogleSignInResult(null, "Google ID token is empty.")
+                return
+            }
+
+            dispatchGoogleSignInResult(idToken, null)
+        } catch (error: ApiException) {
+            dispatchGoogleSignInResult(
+                null,
+                "Google sign-in configuration needs attention.",
+                error.statusCode.toString()
+            )
+        } catch (error: Exception) {
+            dispatchGoogleSignInResult(null, error.message ?: "Google sign-in failed.")
+        }
+    }
+
+    private fun dispatchGoogleSignInResult(idToken: String?, error: String?, errorCode: String? = null) {
+        val detail = JSONObject()
+        if (!idToken.isNullOrBlank()) detail.put("idToken", idToken)
+        if (!error.isNullOrBlank()) detail.put("error", error)
+        if (!errorCode.isNullOrBlank()) detail.put("errorCode", errorCode)
+
+        val script = "window.dispatchEvent(new CustomEvent('android-google-sign-in', { detail: $detail }));"
+        runOnUiThread {
+            webView.evaluateJavascript(script, null)
+        }
+    }
+
     inner class WebAppInterface(private val dbHelper: OrderDbHelper, private val printerManager: BluetoothPrinterManager) {
         @android.webkit.JavascriptInterface
         fun getOrders(): String {
@@ -121,6 +167,25 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun signInWithGoogle() {
+            if (BuildConfig.GOOGLE_WEB_CLIENT_ID.isBlank()) {
+                dispatchGoogleSignInResult(null, "GOOGLE_WEB_CLIENT_ID is not configured.")
+                return
+            }
+
+            val googleSignInOptions = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+                .requestEmail()
+                .requestProfile()
+                .build()
+
+            val client = GoogleSignIn.getClient(this@MainActivity, googleSignInOptions)
+            client.signOut().addOnCompleteListener {
+                startActivityForResult(client.signInIntent, RC_GOOGLE_SIGN_IN)
+            }
         }
 
         @android.webkit.JavascriptInterface
