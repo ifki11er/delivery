@@ -103,6 +103,15 @@ function formatDate(value?: string | null) {
   });
 }
 
+function getTodayInputDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
 function printStyledText(text: string, fontSize: number, bold: boolean) {
   if (window.AndroidBridge?.printTextWithStyle) {
     return window.AndroidBridge.printTextWithStyle(text, fontSize, bold);
@@ -165,10 +174,13 @@ export default function MiniReceiptPage() {
   const [paymentMethod, setPaymentMethod] = useState('현금');
   const [showReceiptConfirm, setShowReceiptConfirm] = useState(false);
   const [draftOrders, setDraftOrders] = useState<DraftOrders>({});
+  const [expandedHistoryId, setExpandedHistoryId] = useState('');
+  const [historyDate, setHistoryDate] = useState(getTodayInputDate);
 
-  const loadData = async () => {
+  const loadData = async (nextHistoryDate = historyDate) => {
     try {
-      const res = await fetch('/api/store/mini-receipt');
+      const params = new URLSearchParams({ historyDate: nextHistoryDate });
+      const res = await fetch(`/api/store/mini-receipt?${params.toString()}`);
       if (!res.ok) {
         setPayload(null);
         return;
@@ -214,7 +226,7 @@ export default function MiniReceiptPage() {
       const res = await fetch('/api/store/mini-receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeId: payload.store.id, ...body }),
+        body: JSON.stringify({ storeId: payload.store.id, historyDate, ...body }),
       });
       if (!res.ok) {
         const error = await res.json();
@@ -434,11 +446,12 @@ export default function MiniReceiptPage() {
   const buildPaymentReceiptText = (order: PosOrder) => {
     const table = payload?.tables.find((item) => item.id === order.table_id);
     const goodsTotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const taxableTotal = Math.max(0, goodsTotal);
+    const taxableTotal = goodsTotal;
     const vat = Math.round(taxableTotal * 0.08);
     const receiptTotal = taxableTotal + vat;
-    const received = paymentMethod === '현금' ? receiptTotal : 0;
-    const change = paymentMethod === '현금' ? 0 : 0;
+    const method = order.payment_method || paymentMethod;
+    const received = method === '현금' ? receiptTotal : 0;
+    const change = method === '현금' ? 0 : 0;
     const storeName = payload?.store.name || 'RESTAURANT';
     const lines = [
       '',
@@ -470,7 +483,7 @@ export default function MiniReceiptPage() {
       `받은금액:${String(received.toLocaleString()).padStart(28, ' ')}`,
       `거스름돈:${String(change.toLocaleString()).padStart(28, ' ')}`,
       '--------------------------------',
-      `${paymentMethod.padEnd(6, ' ')}:${String(receiptTotal.toLocaleString()).padStart(28, ' ')}`,
+      `${method.padEnd(6, ' ')}:${String(receiptTotal.toLocaleString()).padStart(28, ' ')}`,
       '--------------------------------',
       '정성을 다하겠습니다.',
       '계산자 : 관리자',
@@ -483,7 +496,7 @@ export default function MiniReceiptPage() {
   const printPaymentReceipt = (order: PosOrder) => {
     const table = payload?.tables.find((item) => item.id === order.table_id);
     const goodsTotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const taxableTotal = Math.max(0, goodsTotal);
+    const taxableTotal = goodsTotal;
     const vat = Math.round(taxableTotal * 0.08);
     const receiptTotal = taxableTotal + vat;
     const method = order.payment_method || paymentMethod;
@@ -512,6 +525,58 @@ export default function MiniReceiptPage() {
     }
 
     return printStyledText(buildPaymentReceiptText({ ...order, payment_method: method }), 30, false);
+  };
+
+  const buildReturnOrder = (order: PosOrder): PosOrder => ({
+    ...order,
+    id: `return_${order.id}_${Date.now()}`,
+    status: 'RETURNED',
+    total: -Math.abs(order.total),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    closed_at: new Date().toISOString(),
+    items: order.items.map((item) => ({
+      ...item,
+      id: `return_${item.id}`,
+      quantity: -Math.abs(item.quantity),
+      price: Math.abs(item.price),
+    })),
+  });
+
+  const returnOrder = async (order: PosOrder) => {
+    if (order.status === 'RETURNED') {
+      alert('이미 반품 처리된 이력입니다.');
+      return;
+    }
+
+    if (!confirm('이 주문을 반품 처리할까요?\n\n수량과 금액이 마이너스로 표시된 반품 영수증이 출력됩니다.')) {
+      return;
+    }
+
+    const returnSnapshot = buildReturnOrder(order);
+    const success = printPaymentReceipt(returnSnapshot);
+    if (!success && !confirm('반품 영수증 출력에 실패했습니다. 그래도 반품 이력을 저장할까요?')) {
+      return;
+    }
+
+    const returnHistoryDate = getTodayInputDate();
+    setHistoryDate(returnHistoryDate);
+
+    await postAction({
+      action: 'order.returnSnapshot',
+      historyDate: returnHistoryDate,
+      tableId: order.table_id,
+      paymentMethod: order.payment_method || paymentMethod,
+      note: `반품: ${order.id}`,
+      items: order.items.map((item) => ({
+        menuId: item.menu_id,
+        menuCode: item.menu_code,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        itemType: item.item_type,
+      })),
+    });
   };
 
   const printOrder = async () => {
@@ -1097,33 +1162,99 @@ export default function MiniReceiptPage() {
 
         {activeTab === 'history' && (
           <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-            <h2 className="font-bold text-gray-900 mb-3">결제완료 이력</h2>
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="font-bold text-gray-900">결제완료 이력</h2>
+              <input
+                type="date"
+                value={historyDate}
+                onChange={(event) => {
+                  const nextDate = event.target.value || getTodayInputDate();
+                  setHistoryDate(nextDate);
+                  setExpandedHistoryId('');
+                  void loadData(nextDate);
+                }}
+                className="h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-bold text-gray-700"
+              />
+            </div>
             <div className="space-y-2">
               {payload.history.length === 0 ? (
                 <div className="py-12 text-center text-sm font-semibold text-gray-400">아직 이력이 없습니다.</div>
               ) : (
                 payload.history.map((order) => {
                   const table = payload.tables.find((item) => item.id === order.table_id);
+                  const isExpanded = expandedHistoryId === order.id;
+                  const isReturned = order.status === 'RETURNED';
+                  const hasReturnRecord = payload.history.some((item) => (
+                    item.status === 'RETURNED' && item.note === `반품: ${order.id}`
+                  ));
                   return (
-                    <div key={order.id} className="rounded-xl bg-gray-50 p-3 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-bold text-gray-900">{table?.name || '테이블'}</p>
-                        <p className="text-xs text-gray-500">
-                          {formatDate(order.closed_at)} {order.payment_method ? `· ${order.payment_method}` : ''}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-black text-indigo-600">{formatMoney(order.total)}</p>
-                        <button
-                          onClick={() => {
-                            const success = printPaymentReceipt(order);
-                            if (!success) alert('재출력에 실패했습니다. 프린터를 확인해주세요.');
-                          }}
-                          className="mt-1 text-xs font-bold text-gray-500"
-                        >
-                          재출력
-                        </button>
-                      </div>
+                    <div key={order.id} className="rounded-xl bg-gray-50 p-3">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedHistoryId(isExpanded ? '' : order.id)}
+                        className="w-full flex items-center justify-between gap-3 text-left"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-gray-900">{table?.name || '테이블'}</p>
+                            {isReturned ? (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-600">반품</span>
+                            ) : null}
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            {formatDate(order.closed_at)} {order.payment_method ? `· ${order.payment_method}` : ''}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`font-black ${isReturned ? 'text-red-600' : 'text-indigo-600'}`}>{formatMoney(order.total)}</p>
+                          <p className="mt-1 text-xs font-bold text-gray-400">{isExpanded ? '접기' : '상세보기'}</p>
+                        </div>
+                      </button>
+
+                      {isExpanded ? (
+                        <div className="mt-3 border-t border-gray-200 pt-3">
+                          <div className="space-y-2">
+                            {order.items.map((item) => (
+                              <div key={item.id} className="flex items-start justify-between gap-3 rounded-lg bg-white px-3 py-2">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-bold text-gray-900">
+                                    {item.menu_code ? `${item.menu_code}.` : ''}{item.name}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {formatMoney(item.price)} x {item.quantity}
+                                  </p>
+                                </div>
+                                <p className={`shrink-0 text-sm font-black ${item.price * item.quantity < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                                  {formatMoney(item.price * item.quantity)}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => {
+                                const success = printPaymentReceipt(order);
+                                if (!success) alert('재출력에 실패했습니다. 프린터를 확인해주세요.');
+                              }}
+                            >
+                              재출력
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              disabled={isReturned || hasReturnRecord || saving}
+                              onClick={() => returnOrder(order)}
+                            >
+                              {hasReturnRecord ? '반품완료' : '반품'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })

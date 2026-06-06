@@ -108,7 +108,18 @@ async function getAccessibleStore(userId: string, role: string | undefined, stor
   return stores[0] ?? null;
 }
 
-async function buildPayload(storeId: string) {
+function getHistoryDateRange(historyDate?: string | null) {
+  if (!historyDate || !/^\d{4}-\d{2}-\d{2}$/.test(historyDate)) return null;
+
+  const start = new Date(`${historyDate}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  return { start, end };
+}
+
+async function buildPayload(storeId: string, historyDate?: string | null) {
+  const historyRange = getHistoryDateRange(historyDate);
   const [tables, categories, openOrders, closedOrders] = await Promise.all([
     prisma.posTable.findMany({
       where: { storeId },
@@ -133,14 +144,23 @@ async function buildPayload(storeId: string) {
       orderBy: { updatedAt: 'desc' },
     }),
     prisma.posOrder.findMany({
-      where: { storeId, status: 'CLOSED' },
+      where: {
+        storeId,
+        status: { in: ['CLOSED', 'RETURNED'] },
+        ...(historyRange ? {
+          closedAt: {
+            gte: historyRange.start,
+            lt: historyRange.end,
+          },
+        } : {}),
+      },
       include: {
         items: {
           orderBy: { createdAt: 'asc' },
         },
       },
       orderBy: [{ closedAt: 'desc' }, { updatedAt: 'desc' }],
-      take: 30,
+      take: 200,
     }),
   ]);
 
@@ -174,7 +194,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'No store found' }, { status: 404 });
   }
 
-  const payload = await buildPayload(store.id);
+  const payload = await buildPayload(store.id, searchParams.get('historyDate'));
   return NextResponse.json({
     store: {
       id: store.id,
@@ -339,11 +359,12 @@ export async function POST(req: Request) {
       });
     }
 
-    if (action === 'order.checkoutSnapshot') {
+    if (action === 'order.checkoutSnapshot' || action === 'order.returnSnapshot') {
       const tableId = String(body.tableId || '');
       const items: CheckoutSnapshotItem[] = Array.isArray(body.items) ? body.items : [];
       const paymentMethod = String(body.paymentMethod || '미기록');
       const note = String(body.note || '').trim();
+      const isReturn = action === 'order.returnSnapshot';
       const table = await prisma.posTable.findFirst({
         where: { id: tableId, storeId: store.id },
       });
@@ -357,8 +378,10 @@ export async function POST(req: Request) {
         menuId: typeof item.menuId === 'string' && item.menuId ? item.menuId : null,
         name: String(item.name || '').trim() || '항목',
         menuCode: String(item.menuCode || '').replace(/[^0-9]/g, '').trim(),
-        price: Number(item.price || 0),
-        quantity: Math.max(1, Number(item.quantity || 1)),
+        price: Math.abs(Number(item.price || 0)),
+        quantity: isReturn
+          ? -Math.max(1, Math.abs(Number(item.quantity || 1)))
+          : Math.max(1, Number(item.quantity || 1)),
         itemType: String(item.itemType || 'MENU'),
       }));
       const total = sanitizedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -368,7 +391,7 @@ export async function POST(req: Request) {
           id: orderId,
           storeId: store.id,
           tableId,
-          status: 'CLOSED',
+          status: isReturn ? 'RETURNED' : 'CLOSED',
           note,
           paymentMethod,
           total,
@@ -381,7 +404,7 @@ export async function POST(req: Request) {
 
     }
 
-    const payload = await buildPayload(store.id);
+    const payload = await buildPayload(store.id, String(body.historyDate || ''));
     return NextResponse.json({
       store: {
         id: store.id,
