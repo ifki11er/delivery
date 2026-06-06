@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useSession, signOut } from 'next-auth/react';
-import { LogOut, User, Store, Settings, ChevronRight, ClipboardList, Shield, Clock, AlertTriangle, Mail, Phone } from 'lucide-react';
+import { LogOut, User, Store, Settings, ChevronRight, Printer, Shield, Clock, AlertTriangle, Mail, Phone, ReceiptText } from 'lucide-react';
 import Link from 'next/link';
 
 import { useI18n } from '@/i18n/I18nProvider';
@@ -222,27 +222,6 @@ export default function MypageClient() {
       {/* 메뉴 목록 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
         
-        {/* 일반 고객 메뉴 */}
-        {!isAdmin && (
-          <>
-            <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              {t.mypage_general_menu}
-            </div>
-            <Link href="/orders" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center space-x-3 text-gray-700">
-                <span className="font-medium">{t.orders}</span>
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
-            </Link>
-            <Link href="/favorites" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center space-x-3 text-gray-700">
-                <span className="font-medium">{t.favorites}</span>
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
-            </Link>
-          </>
-        )}
-
         {/* 사장님 메뉴 */}
         {!isAdmin && (
           <>
@@ -281,7 +260,7 @@ export default function MypageClient() {
           <>
             <Link href="/store/monitor" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
               <div className="flex items-center space-x-3 text-gray-700">
-                <ClipboardList className="w-5 h-5 text-gray-400" />
+                <Printer className="w-5 h-5 text-gray-400" />
                 <span className="font-medium">{t.order_monitor}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -307,6 +286,13 @@ export default function MypageClient() {
               </div>
               <ChevronRight className="w-5 h-5 text-red-400" />
             </Link>
+            <Link href="/store/mini-receipt" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center space-x-3 text-gray-700">
+                <ReceiptText className="w-5 h-5 text-gray-400" />
+                <span className="font-medium">{t.nav_mini_receipt}</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </Link>
           </>
         )}
 
@@ -323,7 +309,7 @@ export default function MypageClient() {
               </div>
               <ChevronRight className="w-5 h-5 text-indigo-400" />
             </Link>
-            {/* 매니저 권한이면 직원 관리 메뉴를 표시한다. */}
+            {/* 매니저 권한이면 근태 관리 메뉴를 표시한다. */}
             {empRole === 'MANAGER' && (
               <Link href="/store/employees" className="flex items-center justify-between p-4 hover:bg-indigo-50 transition-colors">
                 <div className="flex items-center space-x-3 text-indigo-700">

@@ -83,7 +83,7 @@ class BluetoothPrinterManager(private val context: Context) {
             outputStream?.write(text.toByteArray(Charsets.US_ASCII))
             
             // 용지 컷팅 (Cut Paper)
-            outputStream?.write(byteArrayOf(0x1D, 0x56, 0x41, 0x00))
+            feedAndCut()
             
             outputStream?.flush()
             true
@@ -170,6 +170,18 @@ class BluetoothPrinterManager(private val context: Context) {
         return command
     }
 
+    private fun feedAndCut() {
+        val stream = outputStream ?: return
+
+        stream.write(byteArrayOf(0x1B, 0x64, 0x05))
+        stream.flush()
+        Thread.sleep(200)
+
+        stream.write(byteArrayOf(0x1D, 0x56, 0x00))
+        stream.flush()
+        Thread.sleep(200)
+    }
+
     fun printOrderReceipt(receiptText: String): Boolean {
         if (outputStream == null) return false
         return try {
@@ -184,8 +196,7 @@ class BluetoothPrinterManager(private val context: Context) {
             outputStream?.write(imageCommand)
             
             // 여백 및 용지 컷팅
-            outputStream?.write("\n\n\n\n".toByteArray(Charsets.US_ASCII))
-            outputStream?.write(byteArrayOf(0x1D, 0x56, 0x41, 0x00))
+            feedAndCut()
             
             outputStream?.flush()
             true

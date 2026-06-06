@@ -2,62 +2,40 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bluetooth, ChevronLeft, Printer, RefreshCw, Wifi } from "lucide-react";
-import { useI18n, useLocale } from "@/i18n/I18nProvider";
+import { Bluetooth, ChevronLeft, Printer, RefreshCw } from "lucide-react";
+import { useI18n } from "@/i18n/I18nProvider";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
+import { StoreRequiredNotice } from "@/components/store/StoreRequiredNotice";
 
-type ConnectionStatus = "idle" | "connecting" | "success" | "failed" | "error";
+type ConnectionStatus = "idle" | "ready" | "connecting" | "success" | "failed" | "error";
 
 export default function MonitorPage() {
   const router = useRouter();
   const t = useI18n();
-  const locale = useLocale();
-  const [orders, setOrders] = useState<AndroidOrder[]>([]);
+  const [printJobs, setPrintJobs] = useState<AndroidOrder[]>([]);
   const [printers, setPrinters] = useState<AndroidPrinter[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle");
   const [showToast, setShowToast] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [autoPrint, setAutoPrint] = useState(false);
-  const [wifiIp, setWifiIp] = useState("");
-  const [ipLastUpdated, setIpLastUpdated] = useState("");
+  const [isStoreLoading, setIsStoreLoading] = useState(true);
+  const [hasStore, setHasStore] = useState(false);
 
   const connectionStatusText = {
     idle: t.monitor_printer_idle,
+    ready: t.monitor_printer_ready,
     connecting: t.monitor_printer_connecting,
     success: t.monitor_printer_connected,
     failed: t.monitor_printer_failed,
     error: t.monitor_printer_error,
   }[connectionStatus];
 
-  const updateWifiIp = async (manual = false) => {
-    try {
-      const res = await fetch("/api/store/wifi-ip", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update IP");
-
-      const currentIp = data.wifiIpAddress;
-      setWifiIp(currentIp);
-      setIpLastUpdated(new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }));
-
-      if (manual) {
-        alert(t.monitor_ip_updated.replace("{ip}", currentIp));
-      }
-    } catch {
-      if (manual) alert(t.monitor_ip_update_failed);
-    }
-  };
-
-  const fetchOrders = () => {
+  const fetchPrintJobs = () => {
     if (typeof window !== "undefined" && window.AndroidBridge) {
       try {
         const data = window.AndroidBridge.getOrders();
-        setOrders(JSON.parse(data) as AndroidOrder[]);
+        setPrintJobs(JSON.parse(data) as AndroidOrder[]);
       } catch (error) {
         console.error(error);
       }
@@ -67,11 +45,10 @@ export default function MonitorPage() {
   const loadPrinters = () => {
     if (typeof window !== "undefined" && window.AndroidBridge) {
       try {
-        setAutoPrint(window.AndroidBridge.isAutoPrintEnabled());
-
         if (!window.AndroidBridge.isBluetoothEnabled()) {
           alert(t.monitor_bluetooth_disabled);
           setPrinters([]);
+          setConnectionStatus("idle");
           return;
         }
 
@@ -81,8 +58,12 @@ export default function MonitorPage() {
         const defaultMac = window.AndroidBridge.getDefaultPrinter();
         if (defaultMac && parsed.some((printer) => printer.mac === defaultMac)) {
           setSelectedPrinter(defaultMac);
+          setConnectionStatus("ready");
         } else if (parsed.length > 0 && !selectedPrinter) {
           setSelectedPrinter(parsed[0].mac);
+          setConnectionStatus("ready");
+        } else if (parsed.length === 0) {
+          setConnectionStatus("idle");
         }
       } catch (error) {
         console.error(error);
@@ -92,6 +73,7 @@ export default function MonitorPage() {
 
   const handleManualRefresh = () => {
     loadPrinters();
+    fetchPrintJobs();
     setShowToast(true);
     setTimeout(() => setShowToast(false), 2000);
   };
@@ -118,30 +100,38 @@ export default function MonitorPage() {
   };
 
   const testPrint = () => {
+    if (!ensurePrinterConnected()) return;
     const success = window.AndroidBridge?.printTest() ?? false;
     if (!success) alert(t.monitor_test_print_failed);
   };
 
-  const toggleAutoPrint = () => {
-    const newState = !autoPrint;
-
-    if (newState && connectionStatus !== "success") {
-      alert(t.monitor_connect_first);
-      return;
+  const ensurePrinterConnected = () => {
+    if (!selectedPrinter) {
+      alert(t.monitor_connect_first_short);
+      return false;
     }
 
-    window.AndroidBridge?.setAutoPrintEnabled(newState);
-    if (newState) {
-      alert(t.monitor_auto_print_enabled);
+    if (connectionStatus === "success") return true;
+
+    setConnectionStatus("connecting");
+    try {
+      const success = window.AndroidBridge?.connectPrinter(selectedPrinter) ?? false;
+      setConnectionStatus(success ? "success" : "failed");
+      if (success) {
+        window.AndroidBridge?.saveDefaultPrinter(selectedPrinter);
+      } else {
+        alert(t.monitor_connect_first_short);
+      }
+      return success;
+    } catch {
+      setConnectionStatus("error");
+      alert(t.monitor_connect_first_short);
+      return false;
     }
-    setAutoPrint(newState);
   };
 
   const printOrder = (text: string) => {
-    if (!selectedPrinter || connectionStatus !== "success") {
-      alert(t.monitor_connect_first_short);
-      return;
-    }
+    if (!ensurePrinterConnected()) return;
 
     const receiptText = `\n================================\n           ${t.monitor_receipt_title}\n================================\n\n${text}\n\n`;
     const success = window.AndroidBridge?.printText(receiptText) ?? false;
@@ -151,22 +141,53 @@ export default function MonitorPage() {
   };
 
   useEffect(() => {
-    fetchOrders();
-    loadPrinters();
-    void updateWifiIp();
-
-    const interval = setInterval(fetchOrders, 2000);
-    const ipInterval = setInterval(() => void updateWifiIp(), 60 * 60 * 1000);
+    let isMounted = true;
+    let interval: ReturnType<typeof setInterval> | undefined;
     const handleFocus = () => loadPrinters();
 
-    window.addEventListener("focus", handleFocus);
+    const initialize = async () => {
+      try {
+        const res = await fetch("/api/store");
+        if (!res.ok) {
+          if (isMounted) setHasStore(false);
+          return;
+        }
+
+        const stores = (await res.json()) as unknown[];
+        if (!isMounted) return;
+
+        const nextHasStore = stores.length > 0;
+        setHasStore(nextHasStore);
+        if (nextHasStore) {
+          fetchPrintJobs();
+          loadPrinters();
+          interval = setInterval(fetchPrintJobs, 2000);
+          window.addEventListener("focus", handleFocus);
+        }
+      } catch (error) {
+        console.error(error);
+        if (isMounted) setHasStore(false);
+      } finally {
+        if (isMounted) setIsStoreLoading(false);
+      }
+    };
+
+    void initialize();
 
     return () => {
-      clearInterval(interval);
-      clearInterval(ipInterval);
+      isMounted = false;
+      if (interval) clearInterval(interval);
       window.removeEventListener("focus", handleFocus);
     };
   }, []);
+
+  if (isStoreLoading) {
+    return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
+  }
+
+  if (!hasStore) {
+    return <StoreRequiredNotice />;
+  }
 
   return (
     <main className="p-5 bg-gray-50 min-h-screen">
@@ -176,24 +197,6 @@ export default function MonitorPage() {
         </button>
         <h1 className="text-2xl font-extrabold text-blue-600 tracking-tight">{t.mypage_monitor}</h1>
       </div>
-
-      <Panel className="mb-6 p-4 bg-indigo-50 flex items-center justify-between border-indigo-100">
-        <div className="flex items-center text-indigo-700">
-          <Wifi className="w-6 h-6 mr-3" />
-          <div>
-            <span className="font-bold text-sm block">{t.monitor_bot_active}</span>
-            <span className="text-xs opacity-80 mt-0.5 block">
-              {t.monitor_ip_label}: {wifiIp || t.mypage_loading} ({t.monitor_bot_last} {ipLastUpdated || "-"})
-            </span>
-          </div>
-        </div>
-        <Button
-          onClick={() => void updateWifiIp(true)}
-          size="sm"
-        >
-          {t.monitor_bot_manual}
-        </Button>
-      </Panel>
 
       <Panel className="mb-6 p-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
@@ -234,7 +237,10 @@ export default function MonitorPage() {
           <select
             className="p-2 border rounded text-sm text-black disabled:bg-gray-100 disabled:text-gray-400"
             value={selectedPrinter}
-            onChange={(event) => setSelectedPrinter(event.target.value)}
+            onChange={(event) => {
+              setSelectedPrinter(event.target.value);
+              setConnectionStatus(event.target.value ? "ready" : "idle");
+            }}
             disabled={isConnecting}
           >
             {printers.length === 0 ? <option>{t.monitor_no_bluetooth_devices}</option> : null}
@@ -263,43 +269,36 @@ export default function MonitorPage() {
             </Button>
           </div>
 
-          <div className="mt-2 flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200">
-            <p className="text-sm font-bold text-gray-800">{t.monitor_auto_print}</p>
-            <button
-              onClick={toggleAutoPrint}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoPrint ? "bg-blue-600" : "bg-gray-300"}`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoPrint ? "translate-x-6" : "translate-x-1"}`} />
-            </button>
-          </div>
-
           <p className="text-xs text-center text-gray-500 mt-1">
             {t.monitor_status_label}: <span className="font-medium text-gray-700">{connectionStatusText}</span>
           </p>
         </div>
       </Panel>
 
-      <h2 className="text-lg font-bold mb-3 text-gray-800">{t.monitor_orders_title}</h2>
+      <h2 className="text-lg font-bold mb-3 text-gray-800">출력 이력</h2>
       <div className="space-y-4">
-        {orders.length === 0 ? (
+        {printJobs.length === 0 ? (
           <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 text-center">
-            <p className="text-gray-500 mb-2">{t.monitor_orders_empty}</p>
+            <p className="text-gray-500 mb-2">아직 출력한 주문이 없습니다.</p>
           </div>
         ) : (
-          orders.map((order, index) => (
-            <div key={index} className="p-4 bg-white shadow-md rounded-xl border-l-4 border-blue-500">
+          printJobs.map((order, index) => (
+            <div key={index} className={`p-4 bg-white shadow-md rounded-xl border-l-4 ${order.status === "PRINTED" ? "border-green-500" : "border-red-500"}`}>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs font-medium text-gray-400">{order.timestamp}</span>
                 <div className="flex gap-2">
-                  <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded-full">{order.status}</span>
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${order.status === "PRINTED" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                    {order.status === "PRINTED" ? "출력 완료" : "출력 실패"}
+                  </span>
                   <button
                     onClick={() => printOrder(order.raw_text)}
                     className="text-xs font-bold px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 shadow-sm transition"
                   >
-                    {t.monitor_print}
+                    재출력
                   </button>
                 </div>
               </div>
+              {order.parsed_data ? <p className="text-sm font-semibold text-gray-700 mb-2">{order.parsed_data}</p> : null}
               <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800 bg-gray-50 p-3 rounded-lg">{order.raw_text}</pre>
             </div>
           ))

@@ -19,6 +19,10 @@ const TIME_ZONE_OPTIONS = [
   'UTC',
 ];
 
+const DEFAULT_CURRENCY = '₫';
+// 화폐 단위 선택 UI를 다시 사용하려면 true로 바꾸고, fetchStores의 setCurrency에서 저장된 값을 복원하면 된다.
+const SHOW_CURRENCY_SELECTOR = false;
+
 function resolveStoreTimeZone(timeZone?: string | null) {
   return timeZone && timeZone !== 'UTC' ? timeZone : DEFAULT_TIME_ZONE;
 }
@@ -37,7 +41,7 @@ export default function StoreManagePage() {
   const [representativeName, setRepresentativeName] = useState('');
   const [businessRegNo, setBusinessRegNo] = useState('');
   const [wifiIp, setWifiIp] = useState('');
-  const [currency, setCurrency] = useState('원');
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
   const [searchPhone, setSearchPhone] = useState('');
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
@@ -59,7 +63,7 @@ export default function StoreManagePage() {
           setRepresentativeName(primary.representativeName || '');
           setBusinessRegNo(primary.businessRegNo || '');
           setWifiIp(primary.wifiIpAddress || '');
-          setCurrency(primary.currency || '원');
+          setCurrency(DEFAULT_CURRENCY);
           setTimeZone(resolveStoreTimeZone(primary.timeZone));
         }
       }
@@ -88,7 +92,7 @@ export default function StoreManagePage() {
           contact, 
           representativeName, 
           businessRegNo, 
-          currency,
+          currency: DEFAULT_CURRENCY,
           timeZone
         })
       });
@@ -187,7 +191,7 @@ export default function StoreManagePage() {
         const data = await res.json();
         alert(t.manage_close_success);
         if (data.remainingStores === 0) {
-          router.push('/');
+          router.push('/mypage');
         } else {
           fetchStores(); // Reload
         }
@@ -235,7 +239,7 @@ export default function StoreManagePage() {
                     setRepresentativeName(store.representativeName || '');
                     setBusinessRegNo(store.businessRegNo || '');
                     setWifiIp(store.wifiIpAddress || '');
-                    setCurrency(store.currency || '원');
+                    setCurrency(DEFAULT_CURRENCY);
                     setTimeZone(resolveStoreTimeZone(store.timeZone));
                   }}
                   className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors flex items-center ${
@@ -308,21 +312,23 @@ export default function StoreManagePage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_currency_setting}</label>
-                  <select 
-                    value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium"
-                  >
-                    <option value="원">{t.currency_krw}</option>
-                    <option value="$">{t.currency_usd}</option>
-                    <option value="₫">{t.currency_vnd}</option>
-                    <option value="¥">{t.currency_jpy}</option>
-                    <option value="€">{t.currency_eur}</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-2">{t.manage_currency_desc}</p>
-                </div>
+                {SHOW_CURRENCY_SELECTOR && (
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_currency_setting}</label>
+                    <select 
+                      value={currency}
+                      onChange={(e) => setCurrency(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium"
+                    >
+                      <option value="원">{t.currency_krw}</option>
+                      <option value="$">{t.currency_usd}</option>
+                      <option value="₫">{t.currency_vnd}</option>
+                      <option value="¥">{t.currency_jpy}</option>
+                      <option value="€">{t.currency_eur}</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-2">{t.manage_currency_desc}</p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_timezone_setting}</label>
@@ -342,7 +348,7 @@ export default function StoreManagePage() {
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_wifi_auth}</label>
                   <p className="text-xs text-gray-500 mb-2">{t.manage_wifi_desc}</p>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <input 
                       type="text" 
                       value={wifiIp}
@@ -352,7 +358,7 @@ export default function StoreManagePage() {
                     />
                     <button 
                       onClick={handleRegisterWifi}
-                      className="px-4 py-3 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl font-bold flex items-center hover:bg-indigo-100 transition-colors"
+                      className="w-full sm:w-auto px-4 py-3 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl font-bold flex items-center justify-center whitespace-nowrap hover:bg-indigo-100 transition-colors"
                     >
                       <Wifi className="w-4 h-4 mr-2" />
                       {t.manage_wifi_btn}

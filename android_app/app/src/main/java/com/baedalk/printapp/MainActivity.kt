@@ -5,8 +5,6 @@ import android.os.Bundle
 import android.content.Intent
 import android.content.Context
 import android.provider.Settings
-import android.content.ComponentName
-import android.text.TextUtils
 import android.os.Build
 import android.Manifest
 import android.content.pm.PackageManager
@@ -92,11 +90,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
         
-        // 알림 접근 권한이 없으면 설정 화면으로 이동시킴
-        if (!isNotificationServiceEnabled()) {
-            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-            startActivity(intent)
-        }
     }
 
     // 웹에서 안드로이드 코드를 호출할 수 있게 해주는 인터페이스
@@ -149,6 +142,7 @@ class MainActivity : AppCompatActivity() {
                 val jsonObj = org.json.JSONObject()
                 jsonObj.put("id", cursor.getInt(cursor.getColumnIndexOrThrow(OrderDbHelper.COLUMN_ID)))
                 jsonObj.put("raw_text", cursor.getString(cursor.getColumnIndexOrThrow(OrderDbHelper.COLUMN_RAW_TEXT)))
+                jsonObj.put("parsed_data", cursor.getString(cursor.getColumnIndexOrThrow(OrderDbHelper.COLUMN_PARSED_DATA)))
                 jsonObj.put("timestamp", cursor.getString(cursor.getColumnIndexOrThrow(OrderDbHelper.COLUMN_TIMESTAMP)))
                 jsonObj.put("status", cursor.getString(cursor.getColumnIndexOrThrow(OrderDbHelper.COLUMN_STATUS)))
                 jsonArray.put(jsonObj)
@@ -217,18 +211,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         @android.webkit.JavascriptInterface
-        fun setAutoPrintEnabled(enabled: Boolean) {
-            val prefs = this@MainActivity.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
-            prefs.edit().putBoolean("auto_print", enabled).apply()
-        }
-
-        @android.webkit.JavascriptInterface
-        fun isAutoPrintEnabled(): Boolean {
-            val prefs = this@MainActivity.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
-            return prefs.getBoolean("auto_print", false)
-        }
-
-        @android.webkit.JavascriptInterface
         fun saveDefaultPrinter(mac: String) {
             val prefs = this@MainActivity.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
             prefs.edit().putString("default_printer", mac).apply()
@@ -241,18 +223,4 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun isNotificationServiceEnabled(): Boolean {
-        val pkgName = packageName
-        val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
-        if (!TextUtils.isEmpty(flat)) {
-            val names = flat.split(":")
-            for (name in names) {
-                val cn = ComponentName.unflattenFromString(name)
-                if (cn != null && TextUtils.equals(pkgName, cn.packageName)) {
-                    return true
-                }
-            }
-        }
-        return false
-    }
 }

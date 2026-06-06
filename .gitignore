@@ -23,3 +23,4 @@ android_app/.cxx/
 android_app/.externalNativeBuild/
 android_app/captures/
 web_ui/public/uploads/
+decompile/

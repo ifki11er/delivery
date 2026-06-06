@@ -9,14 +9,14 @@ import android.util.Log
 class OrderDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2
         const val DATABASE_NAME = "BaedalkOrders.db"
         const val TABLE_NAME = "orders"
         
         const val COLUMN_ID = "id"
         const val COLUMN_RAW_TEXT = "raw_text"
         const val COLUMN_PARSED_DATA = "parsed_data"
-        const val COLUMN_STATUS = "status" // "PENDING", "PRINTED", "FAILED"
+        const val COLUMN_STATUS = "status" // "PRINTED", "FAILED"
         const val COLUMN_TIMESTAMP = "timestamp"
     }
 
@@ -39,6 +39,10 @@ class OrderDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME,
     }
 
     fun insertOrder(rawText: String, parsedData: String, status: String = "PENDING"): Long {
+        return insertPrintHistory(rawText, parsedData, status)
+    }
+
+    fun insertPrintHistory(rawText: String, parsedData: String, status: String = "PRINTED"): Long {
         val db = this.writableDatabase
         val values = ContentValues().apply {
             put(COLUMN_RAW_TEXT, rawText)
@@ -46,7 +50,7 @@ class OrderDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME,
             put(COLUMN_STATUS, status)
         }
         val id = db.insert(TABLE_NAME, null, values)
-        Log.d("OrderDbHelper", "Inserted order ID: $id")
+        Log.d("OrderDbHelper", "Inserted print history ID: $id")
         return id
     }
 }

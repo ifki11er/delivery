@@ -11,7 +11,7 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(FileInputStream(localPropertiesFile))
 }
-val webUrl = localProperties.getProperty("DEV_WEB_URL", "http://192.168.1.5.nip.io:3000")
+val webUrl = localProperties.getProperty("DEV_WEB_URL", "http://192.168.2.94.nip.io:3000")
 val googleWebClientId = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", "")
 
 android {

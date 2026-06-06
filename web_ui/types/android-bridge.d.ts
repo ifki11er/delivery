@@ -1,6 +1,7 @@
 type AndroidOrder = {
   id: number;
   raw_text: string;
+  parsed_data?: string;
   timestamp: string;
   status: string;
 };
@@ -18,8 +19,6 @@ interface AndroidBridge {
   connectPrinter(macAddress: string): boolean;
   printTest(): boolean;
   printText(text: string): boolean;
-  setAutoPrintEnabled(enabled: boolean): void;
-  isAutoPrintEnabled(): boolean;
   saveDefaultPrinter(mac: string): void;
   getDefaultPrinter(): string;
   signInWithGoogle(): void;

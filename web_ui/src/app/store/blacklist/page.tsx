@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { AlertTriangle, Search, Plus, ChevronLeft, Edit3, Save, X, Phone, FileText } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
+import { StoreRequiredNotice } from '@/components/store/StoreRequiredNotice';
 import type { BlacklistEntry } from '@/types/store-management';
 
 export default function BlacklistPage() {
@@ -20,6 +21,7 @@ export default function BlacklistPage() {
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editingReason, setEditingReason] = useState('');
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
+  const [hasStore, setHasStore] = useState(false);
 
   const fetchBlacklist = async (q = '') => {
     setLoading(true);
@@ -36,7 +38,30 @@ export default function BlacklistPage() {
   };
 
   useEffect(() => {
-    void fetchBlacklist();
+    const initialize = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch('/api/store');
+        if (!res.ok) {
+          setHasStore(false);
+          return;
+        }
+
+        const stores = (await res.json()) as unknown[];
+        const nextHasStore = stores.length > 0;
+        setHasStore(nextHasStore);
+        if (nextHasStore) {
+          await fetchBlacklist();
+        }
+      } catch (error) {
+        console.error(error);
+        setHasStore(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void initialize();
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -128,6 +153,12 @@ export default function BlacklistPage() {
       levelText: t.blacklist_level_caution,
     };
   };
+
+  if (loading) return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
+
+  if (!hasStore) {
+    return <StoreRequiredNotice />;
+  }
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">

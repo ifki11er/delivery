@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { UserPlus, Search, Users, Save, ChevronLeft, Trash2, Edit3, ChevronDown, ChevronRight } from 'lucide-react';
 import { useI18n, useLocale } from '@/i18n/I18nProvider';
 import { EmployeeHistoryList } from '@/components/store/EmployeeHistoryList';
+import { StoreRequiredNotice } from '@/components/store/StoreRequiredNotice';
 import type {
   AttendanceStat,
   EmployeeEditForm,
@@ -252,11 +253,7 @@ export default function StoreEmployeesPage() {
   if (loading) return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
 
   if (stores.length === 0) {
-    return (
-      <div className="p-8 text-center text-gray-500">
-        {t.manage_no_store}
-      </div>
-    );
+    return <StoreRequiredNotice />;
   }
 
   return (
