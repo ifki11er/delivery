@@ -82,10 +82,14 @@ model Store {
   representativeName String?
   businessRegNo      String?
   wifiIpAddress      String?
-  currency           String     @default("원")
+  currency           String     @default("₫")
   timeZone           String     @default("UTC")
   status             StoreStatus @default(ACTIVE)
   employees          Employee[]
+  posTables          PosTable[]
+  posCategories      PosCategory[]
+  posMenus           PosMenu[]
+  posOrders          PosOrder[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 }
@@ -179,6 +183,90 @@ model EmploymentHistory {
   employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   joinedAt    DateTime  @default(now())
   resignedAt  DateTime?
+}
+
+model PosTable {
+  id        String     @id
+  storeId   String     @map("store_id")
+  store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name      String
+  status    String     @default("EMPTY")
+  sortOrder Int        @default(0) @map("sort_order")
+  orders    PosOrder[]
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@index([storeId])
+  @@map("pos_tables")
+}
+
+model PosCategory {
+  id        String    @id
+  storeId   String    @map("store_id")
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int       @default(0) @map("sort_order")
+  menus     PosMenu[]
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([storeId])
+  @@map("pos_categories")
+}
+
+model PosMenu {
+  id         String         @id
+  storeId    String         @map("store_id")
+  store      Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  categoryId String         @map("category_id")
+  category   PosCategory    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  menuCode   String         @default("") @map("menu_code")
+  name       String
+  price      Int            @default(0)
+  isActive   Boolean        @default(true) @map("is_active")
+  orderItems PosOrderItem[]
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  @@index([storeId])
+  @@map("pos_menus")
+}
+
+model PosOrder {
+  id            String         @id
+  storeId       String         @map("store_id")
+  store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  tableId       String         @map("table_id")
+  table         PosTable       @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  status        String         @default("OPEN")
+  note          String?
+  paymentMethod String?        @map("payment_method")
+  total         Int            @default(0)
+  items         PosOrderItem[]
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  closedAt      DateTime?      @map("closed_at")
+
+  @@index([storeId, status])
+  @@map("pos_orders")
+}
+
+model PosOrderItem {
+  id        String    @id
+  orderId   String    @map("order_id")
+  order     PosOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuId    String?   @map("menu_id")
+  menu      PosMenu?  @relation(fields: [menuId], references: [id], onDelete: SetNull)
+  name      String
+  menuCode  String    @default("") @map("menu_code")
+  price     Int       @default(0)
+  quantity  Int       @default(1)
+  itemType  String    @default("MENU") @map("item_type")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@map("pos_order_items")
 }
 
 model AuditLog {

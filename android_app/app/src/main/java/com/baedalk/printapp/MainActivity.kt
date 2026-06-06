@@ -211,6 +211,47 @@ class MainActivity : AppCompatActivity() {
         }
 
         @android.webkit.JavascriptInterface
+        fun printTextWithStyle(text: String, fontSize: Float, bold: Boolean): Boolean {
+            return printerManager.printOrderReceipt(text, fontSize, bold)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun printKitchenOrderSheet(tableName: String, orderSequence: Int, printedAt: String, itemsJson: String): Boolean {
+            return printerManager.printKitchenOrderSheet(tableName, orderSequence, printedAt, itemsJson)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun printPaymentReceipt(
+            storeName: String,
+            tableName: String,
+            businessRegNo: String,
+            address: String,
+            representativeName: String,
+            contact: String,
+            printedAt: String,
+            paymentMethod: String,
+            taxableTotal: Int,
+            vat: Int,
+            receiptTotal: Int,
+            itemsJson: String
+        ): Boolean {
+            return printerManager.printPaymentReceipt(
+                storeName,
+                tableName,
+                businessRegNo,
+                address,
+                representativeName,
+                contact,
+                printedAt,
+                paymentMethod,
+                taxableTotal,
+                vat,
+                receiptTotal,
+                itemsJson
+            )
+        }
+
+        @android.webkit.JavascriptInterface
         fun saveDefaultPrinter(mac: String) {
             val prefs = this@MainActivity.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
             prefs.edit().putString("default_printer", mac).apply()

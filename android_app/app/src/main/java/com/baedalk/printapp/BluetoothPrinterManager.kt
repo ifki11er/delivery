@@ -16,6 +16,7 @@ import android.util.Log
 import java.io.IOException
 import java.io.OutputStream
 import java.util.UUID
+import org.json.JSONArray
 
 @SuppressLint("MissingPermission")
 class BluetoothPrinterManager(private val context: Context) {
@@ -66,11 +67,25 @@ class BluetoothPrinterManager(private val context: Context) {
             bluetoothSocket?.close()
         } catch (e: IOException) {
             Log.e("BluetoothPrinter", "연결 해제 중 오류", e)
+        } finally {
+            outputStream = null
+            bluetoothSocket = null
         }
     }
 
+    private fun ensureConnected(): Boolean {
+        if (outputStream != null) return true
+        if (!isBluetoothEnabled()) return false
+
+        val prefs = context.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
+        val defaultPrinter = prefs.getString("default_printer", "") ?: ""
+        if (defaultPrinter.isBlank()) return false
+
+        return connectPrinter(defaultPrinter)
+    }
+
     fun printTestReceipt(): Boolean {
-        if (outputStream == null) return false
+        if (!ensureConnected()) return false
         return try {
             // ESC/POS 초기화 (Initialize Printer)
             outputStream?.write(byteArrayOf(0x1B, 0x40)) 
@@ -93,12 +108,12 @@ class BluetoothPrinterManager(private val context: Context) {
         }
     }
 
-    private fun textToBitmap(text: String): Bitmap {
+    private fun textToBitmap(text: String, fontSize: Float = 28f, bold: Boolean = false): Bitmap {
         val width = 576 // 80mm 프린터 표준 픽셀 넓이
         val textPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 28f // 폰트 크기
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+            textSize = fontSize
+            typeface = Typeface.create(Typeface.SANS_SERIF, if (bold) Typeface.BOLD else Typeface.NORMAL)
             isAntiAlias = true
         }
 
@@ -121,6 +136,316 @@ class BluetoothPrinterManager(private val context: Context) {
         
         canvas.translate(10f, 20f) // 좌상단 약간의 여백
         staticLayout.draw(canvas)
+
+        return bitmap
+    }
+
+    private data class KitchenOrderItem(
+        val menuCode: String,
+        val name: String,
+        val quantity: Int,
+        val note: String
+    )
+
+    private data class PaymentReceiptItem(
+        val menuCode: String,
+        val name: String,
+        val price: Int,
+        val quantity: Int,
+        val amount: Int
+    )
+
+    private fun makeKitchenPaint(size: Float, bold: Boolean, scaleX: Float = 0.82f): TextPaint {
+        return TextPaint().apply {
+            color = Color.BLACK
+            textSize = size
+            typeface = Typeface.create("sans-serif-condensed", if (bold) Typeface.BOLD else Typeface.NORMAL)
+            textScaleX = scaleX
+            isAntiAlias = true
+        }
+    }
+
+    private fun Canvas.drawCenteredText(text: String, y: Float, paint: TextPaint, width: Int) {
+        val x = (width - paint.measureText(text)) / 2f
+        drawText(text, x, y, paint)
+    }
+
+    private fun Canvas.drawFitText(text: String, x: Float, y: Float, maxWidth: Float, paint: TextPaint) {
+        var displayText = text
+        while (displayText.length > 2 && paint.measureText(displayText) > maxWidth) {
+            displayText = displayText.dropLast(1)
+        }
+        if (displayText != text && displayText.length > 1) {
+            displayText = displayText.dropLast(1)
+        }
+        drawText(displayText, x, y, paint)
+    }
+
+    private fun wrapTextToLines(text: String, maxWidth: Float, paint: TextPaint, maxLines: Int): List<String> {
+        if (text.isBlank()) return listOf("")
+
+        val lines = mutableListOf<String>()
+        var remaining = text
+
+        while (remaining.isNotEmpty() && lines.size < maxLines) {
+            var end = remaining.length
+            while (end > 1 && paint.measureText(remaining.take(end)) > maxWidth) {
+                end--
+            }
+
+            if (lines.size == maxLines - 1 && end < remaining.length) {
+                var shortened = remaining.take(end).trimEnd()
+                while (shortened.length > 1 && paint.measureText("$shortened...") > maxWidth) {
+                    shortened = shortened.dropLast(1).trimEnd()
+                }
+                lines.add("$shortened...")
+                remaining = ""
+            } else {
+                lines.add(remaining.take(end).trimEnd())
+                remaining = remaining.drop(end).trimStart()
+            }
+        }
+
+        return lines
+    }
+
+    private fun Canvas.drawRightText(text: String, right: Float, y: Float, paint: TextPaint) {
+        drawText(text, right - paint.measureText(text), y, paint)
+    }
+
+    private fun Canvas.drawCenteredAt(text: String, centerX: Float, y: Float, paint: TextPaint) {
+        drawText(text, centerX - (paint.measureText(text) / 2f), y, paint)
+    }
+
+    private fun Canvas.drawReceiptAmountRow(
+        y: Float,
+        item: PaymentReceiptItem,
+        priceRight: Float,
+        quantityCenter: Float,
+        amountRight: Float,
+        paint: TextPaint
+    ) {
+        val amountText = formatReceiptMoney(item.amount)
+        val amountPaint = TextPaint(paint)
+        while (amountPaint.textSize > 26f && amountPaint.measureText(amountText) > 96f) {
+            amountPaint.textSize -= 1f
+        }
+
+        drawRightText(formatReceiptMoney(item.price), priceRight, y, paint)
+        drawCenteredAt(item.quantity.toString(), quantityCenter, y, paint)
+        drawRightText(amountText, amountRight, y, amountPaint)
+    }
+
+    private fun drawHorizontalLine(canvas: Canvas, y: Float, width: Int, paint: TextPaint) {
+        canvas.drawLine(42f, y, width - 42f, y, paint)
+    }
+
+    private fun kitchenOrderToBitmap(
+        tableName: String,
+        orderSequence: Int,
+        printedAt: String,
+        items: List<KitchenOrderItem>
+    ): Bitmap {
+        val width = 576
+        val titlePaint = makeKitchenPaint(40f, false, 0.86f)
+        val tablePaint = makeKitchenPaint(64f, false, 0.78f)
+        val headerPaint = makeKitchenPaint(40f, false, 0.82f)
+        val itemPaint = makeKitchenPaint(42f, false, 0.78f)
+        val metaPaint = makeKitchenPaint(34f, false, 0.82f)
+        val sequencePaint = makeKitchenPaint(56f, true, 0.78f)
+        val linePaint = makeKitchenPaint(1f, false).apply {
+            strokeWidth = 3f
+        }
+
+        val kitchenNameMaxWidth = 342f
+        val kitchenItemLineHeight = 54f
+        val kitchenItemGap = 14f
+        val itemAreaHeight = items.mapIndexed { index, item ->
+            val name = "${item.menuCode.takeIf { it.isNotBlank() }?.let { "$it." } ?: ""}${item.name}"
+            val lineCount = wrapTextToLines(name, kitchenNameMaxWidth, itemPaint, 2).size.coerceAtLeast(1)
+            ((lineCount * kitchenItemLineHeight) + kitchenItemGap).toInt()
+        }.sum().coerceAtLeast(66)
+        val height = 540 + itemAreaHeight
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+
+        var y = 72f
+        canvas.drawCenteredText("주문서 (주방)", y, titlePaint, width)
+
+        y += 82f
+        canvas.drawFitText("테이블:$tableName", 42f, y, width - 84f, tablePaint)
+
+        y += 34f
+        drawHorizontalLine(canvas, y, width, linePaint)
+
+        y += 58f
+        canvas.drawText("메   뉴", 42f, y, headerPaint)
+        canvas.drawText("수량", 382f, y, headerPaint)
+        canvas.drawText("비고", 486f, y, headerPaint)
+
+        y += 28f
+        drawHorizontalLine(canvas, y, width, linePaint)
+
+        y += 58f
+        items.forEach { item ->
+            val name = "${item.menuCode.takeIf { it.isNotBlank() }?.let { "$it." } ?: ""}${item.name}"
+            val nameLines = wrapTextToLines(name, kitchenNameMaxWidth, itemPaint, 2)
+            nameLines.forEachIndexed { lineIndex, line ->
+                val prefix = if (lineIndex == 0) "" else "   "
+                canvas.drawText("$prefix$line", 42f, y + (lineIndex.toFloat() * kitchenItemLineHeight), itemPaint)
+            }
+            canvas.drawText(item.quantity.toString(), 400f, y, itemPaint)
+            canvas.drawText(item.note.ifBlank { "신규" }, 488f, y, itemPaint)
+            y += (nameLines.size.coerceAtLeast(1) * kitchenItemLineHeight) + kitchenItemGap
+        }
+
+        y -= 18f
+        drawHorizontalLine(canvas, y, width, linePaint)
+
+        y += 52f
+        canvas.drawFitText("일시 : $printedAt  관리자", 42f, y, width - 84f, metaPaint)
+
+        y += 76f
+        canvas.drawText("주문순서:$orderSequence", 42f, y, sequencePaint)
+
+        return bitmap
+    }
+
+    private fun formatReceiptMoney(amount: Int): String {
+        return "%,d".format(amount)
+    }
+
+    private fun paymentReceiptToBitmap(
+        storeName: String,
+        tableName: String,
+        businessRegNo: String,
+        address: String,
+        representativeName: String,
+        contact: String,
+        printedAt: String,
+        paymentMethod: String,
+        taxableTotal: Int,
+        vat: Int,
+        receiptTotal: Int,
+        items: List<PaymentReceiptItem>
+    ): Bitmap {
+        val width = 576
+        val titlePaint = makeKitchenPaint(40f, true, 0.82f)
+        val infoPaint = makeKitchenPaint(31f, false, 0.82f)
+        val headerPaint = makeKitchenPaint(34f, false, 0.82f)
+        val itemPaint = makeKitchenPaint(29f, false, 0.82f)
+        val amountPaint = makeKitchenPaint(29f, false, 0.82f)
+        val totalLabelPaint = makeKitchenPaint(42f, true, 0.82f)
+        val totalAmountPaint = makeKitchenPaint(48f, true, 0.78f)
+        val linePaint = makeKitchenPaint(1f, false).apply {
+            strokeWidth = 3f
+        }
+
+        val itemNameMaxWidth = 230f
+        val itemRowHeight = 36f
+        val itemBlockGap = 16f
+        val itemAreaHeight = items.sumOf { item ->
+            val name = "${item.menuCode.takeIf { it.isNotBlank() }?.let { "$it." } ?: ""}${item.name}"
+            val lineCount = wrapTextToLines(name, itemNameMaxWidth, itemPaint, 2).size.coerceAtLeast(1)
+            ((lineCount * itemRowHeight) + itemBlockGap).toInt()
+        }.coerceAtLeast(56)
+        val height = 1320 + itemAreaHeight
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+
+        var y = 74f
+        canvas.drawCenteredText(storeName.ifBlank { "RESTAURANT" }.uppercase(), y, titlePaint, width)
+
+        y += 96f
+        canvas.drawFitText(tableName, 42f, y, width - 84f, infoPaint)
+        y += 34f
+        canvas.drawFitText("사업자번호 :$businessRegNo", 42f, y, width - 84f, infoPaint)
+        y += 34f
+        canvas.drawFitText("주소 :$address", 42f, y, width - 84f, infoPaint)
+        y += 34f
+        canvas.drawFitText("성명 :${representativeName.ifBlank { storeName }}", 42f, y, width - 84f, infoPaint)
+        y += 34f
+        canvas.drawFitText("전화 :$contact", 42f, y, width - 84f, infoPaint)
+        y += 34f
+        canvas.drawFitText("일자 : $printedAt", 42f, y, width - 84f, infoPaint)
+
+        y += 28f
+        drawHorizontalLine(canvas, y, width, linePaint)
+
+        y += 50f
+        canvas.drawText("품명", 42f, y, headerPaint)
+        canvas.drawText("단가", 292f, y, headerPaint)
+        canvas.drawText("수량", 398f, y, headerPaint)
+        canvas.drawText("금액", 502f, y, headerPaint)
+
+        y += 24f
+        drawHorizontalLine(canvas, y, width, linePaint)
+
+        y += 48f
+        items.forEach { item ->
+            val name = "${item.menuCode.takeIf { it.isNotBlank() }?.let { "$it." } ?: ""}${item.name}"
+            val nameLines = wrapTextToLines(name, itemNameMaxWidth, itemPaint, 2)
+            nameLines.forEachIndexed { lineIndex, line ->
+                val prefix = if (lineIndex == 0) "" else "   "
+                canvas.drawText("$prefix$line", 42f, y + (lineIndex.toFloat() * itemRowHeight), itemPaint)
+            }
+            canvas.drawReceiptAmountRow(y, item, 356f, 410f, 544f, amountPaint)
+            y += (nameLines.size.coerceAtLeast(1) * itemRowHeight) + itemBlockGap
+        }
+
+        y -= 12f
+        drawHorizontalLine(canvas, y, width, linePaint)
+
+        y += 58f
+        canvas.drawText("소  계:", 42f, y, totalLabelPaint)
+        canvas.drawRightText(formatReceiptMoney(receiptTotal), 534f, y, totalLabelPaint)
+
+        y += 34f
+        drawHorizontalLine(canvas, y, width, linePaint)
+
+        y += 52f
+        canvas.drawText("품명 앞에 * 표시가 되어있는 품목은", 42f, y, infoPaint)
+        y += 38f
+        canvas.drawText("부가세 면세 품목입니다.", 42f, y, infoPaint)
+        y += 42f
+        canvas.drawText("부가세 과세 물품가액:", 42f, y, infoPaint)
+        canvas.drawRightText(formatReceiptMoney(taxableTotal), 534f, y, infoPaint)
+        y += 38f
+        canvas.drawText("부      가      세:", 42f, y, infoPaint)
+        canvas.drawRightText(formatReceiptMoney(vat), 534f, y, infoPaint)
+        y += 38f
+        canvas.drawText("부가세 면세 물품가액:", 42f, y, infoPaint)
+        canvas.drawRightText("0", 534f, y, infoPaint)
+
+        y += 34f
+        drawHorizontalLine(canvas, y, width, linePaint)
+
+        y += 54f
+        canvas.drawText("청구금액:", 42f, y, infoPaint)
+        canvas.drawRightText(formatReceiptMoney(receiptTotal), 534f, y, infoPaint)
+        y += 38f
+        canvas.drawText("받은금액:", 42f, y, infoPaint)
+        canvas.drawRightText(formatReceiptMoney(receiptTotal), 534f, y, infoPaint)
+        y += 38f
+        canvas.drawText("거스름돈:", 42f, y, infoPaint)
+        canvas.drawRightText("0", 534f, y, infoPaint)
+
+        y += 34f
+        drawHorizontalLine(canvas, y, width, linePaint)
+
+        y += 78f
+        canvas.drawText("${paymentMethod.ifBlank { "현금" }}:", 42f, y, totalAmountPaint)
+        canvas.drawRightText(formatReceiptMoney(receiptTotal), 534f, y, totalAmountPaint)
+
+        y += 34f
+        drawHorizontalLine(canvas, y, width, linePaint)
+
+        y += 58f
+        canvas.drawText("정성을 다하겠습니다.", 42f, y, infoPaint)
+        y += 38f
+        canvas.drawText("계산자 : 관리자", 42f, y, infoPaint)
 
         return bitmap
     }
@@ -182,14 +507,14 @@ class BluetoothPrinterManager(private val context: Context) {
         Thread.sleep(200)
     }
 
-    fun printOrderReceipt(receiptText: String): Boolean {
-        if (outputStream == null) return false
+    fun printOrderReceipt(receiptText: String, fontSize: Float = 28f, bold: Boolean = false): Boolean {
+        if (!ensureConnected()) return false
         return try {
             // ESC/POS 초기화
             outputStream?.write(byteArrayOf(0x1B, 0x40)) 
             
             // 텍스트를 안드로이드 캔버스로 그려서 이미지(Bitmap)로 변환
-            val bitmap = textToBitmap(receiptText)
+            val bitmap = textToBitmap(receiptText, fontSize, bold)
             
             // 이미지를 ESC/POS 흑백 픽셀 명령어로 변환하여 전송
             val imageCommand = bitmapToEscPos(bitmap)
@@ -202,6 +527,100 @@ class BluetoothPrinterManager(private val context: Context) {
             true
         } catch (e: Exception) {
             Log.e("BluetoothPrinter", "이미지 영수증 인쇄 실패", e)
+            false
+        }
+    }
+
+    fun printKitchenOrderSheet(
+        tableName: String,
+        orderSequence: Int,
+        printedAt: String,
+        itemsJson: String
+    ): Boolean {
+        if (!ensureConnected()) return false
+        return try {
+            outputStream?.write(byteArrayOf(0x1B, 0x40))
+
+            val itemsArray = JSONArray(itemsJson)
+            val items = (0 until itemsArray.length()).map { index ->
+                val item = itemsArray.getJSONObject(index)
+                KitchenOrderItem(
+                    menuCode = item.optString("menuCode"),
+                    name = item.optString("name"),
+                    quantity = item.optInt("quantity", 1),
+                    note = item.optString("note", "신규")
+                )
+            }
+
+            val imageCommand = bitmapToEscPos(
+                kitchenOrderToBitmap(tableName, orderSequence, printedAt, items)
+            )
+            outputStream?.write(imageCommand)
+
+            feedAndCut()
+
+            outputStream?.flush()
+            true
+        } catch (e: Exception) {
+            Log.e("BluetoothPrinter", "주문서 인쇄 실패", e)
+            false
+        }
+    }
+
+    fun printPaymentReceipt(
+        storeName: String,
+        tableName: String,
+        businessRegNo: String,
+        address: String,
+        representativeName: String,
+        contact: String,
+        printedAt: String,
+        paymentMethod: String,
+        taxableTotal: Int,
+        vat: Int,
+        receiptTotal: Int,
+        itemsJson: String
+    ): Boolean {
+        if (!ensureConnected()) return false
+        return try {
+            outputStream?.write(byteArrayOf(0x1B, 0x40))
+
+            val itemsArray = JSONArray(itemsJson)
+            val items = (0 until itemsArray.length()).map { index ->
+                val item = itemsArray.getJSONObject(index)
+                PaymentReceiptItem(
+                    menuCode = item.optString("menuCode"),
+                    name = item.optString("name"),
+                    price = item.optInt("price", 0),
+                    quantity = item.optInt("quantity", 1),
+                    amount = item.optInt("amount", 0)
+                )
+            }
+
+            val imageCommand = bitmapToEscPos(
+                paymentReceiptToBitmap(
+                    storeName,
+                    tableName,
+                    businessRegNo,
+                    address,
+                    representativeName,
+                    contact,
+                    printedAt,
+                    paymentMethod,
+                    taxableTotal,
+                    vat,
+                    receiptTotal,
+                    items
+                )
+            )
+            outputStream?.write(imageCommand)
+
+            feedAndCut()
+
+            outputStream?.flush()
+            true
+        } catch (e: Exception) {
+            Log.e("BluetoothPrinter", "결제 영수증 인쇄 실패", e)
             false
         }
     }

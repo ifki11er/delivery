@@ -1,0 +1,65 @@
+ALTER TABLE "Store" ALTER COLUMN "currency" SET DEFAULT '₫';
+
+CREATE TABLE IF NOT EXISTS pos_tables (
+  id TEXT PRIMARY KEY,
+  store_id TEXT NOT NULL REFERENCES "Store"(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'EMPTY',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS pos_categories (
+  id TEXT PRIMARY KEY,
+  store_id TEXT NOT NULL REFERENCES "Store"(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS pos_menus (
+  id TEXT PRIMARY KEY,
+  store_id TEXT NOT NULL REFERENCES "Store"(id) ON DELETE CASCADE,
+  category_id TEXT NOT NULL REFERENCES pos_categories(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  price INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS pos_orders (
+  id TEXT PRIMARY KEY,
+  store_id TEXT NOT NULL REFERENCES "Store"(id) ON DELETE CASCADE,
+  table_id TEXT NOT NULL REFERENCES pos_tables(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'OPEN',
+  note TEXT,
+  payment_method TEXT,
+  total INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  closed_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS pos_order_items (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES pos_orders(id) ON DELETE CASCADE,
+  menu_id TEXT REFERENCES pos_menus(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  price INTEGER NOT NULL DEFAULT 0,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  item_type TEXT NOT NULL DEFAULT 'MENU',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE pos_orders ADD COLUMN IF NOT EXISTS payment_method TEXT;
+ALTER TABLE pos_order_items ADD COLUMN IF NOT EXISTS item_type TEXT NOT NULL DEFAULT 'MENU';
+
+CREATE INDEX IF NOT EXISTS pos_tables_store_idx ON pos_tables(store_id);
+CREATE INDEX IF NOT EXISTS pos_categories_store_idx ON pos_categories(store_id);
+CREATE INDEX IF NOT EXISTS pos_menus_store_idx ON pos_menus(store_id);
+CREATE INDEX IF NOT EXISTS pos_orders_store_status_idx ON pos_orders(store_id, status);
+CREATE INDEX IF NOT EXISTS pos_order_items_order_idx ON pos_order_items(order_id);
