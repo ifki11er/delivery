@@ -9,6 +9,12 @@ import { StoreRequiredNotice } from "@/components/store/StoreRequiredNotice";
 import { useStores } from "@/components/providers/StoreProvider";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import PageHeader from "@/components/layout/PageHeader";
+import { getPrintHistory } from "@/lib/print-history";
+import {
+  parseDeliveryShareOrder,
+  renderDeliveryKitchenOrder,
+  renderDeliveryShareReceipt,
+} from "@/lib/delivery-share";
 
 type ConnectionStatus = "idle" | "ready" | "connecting" | "success" | "failed" | "error";
 
@@ -31,15 +37,8 @@ export default function MonitorPage() {
     error: t.monitor_printer_error,
   }[connectionStatus];
 
-  const fetchPrintJobs = () => {
-    if (typeof window !== "undefined" && window.AndroidBridge) {
-      try {
-        const data = window.AndroidBridge.getOrders();
-        setPrintJobs(JSON.parse(data) as AndroidOrder[]);
-      } catch (error) {
-        console.error(error);
-      }
-    }
+  const fetchPrintJobs = async () => {
+    setPrintJobs(await getPrintHistory());
   };
 
   const loadPrinters = () => {
@@ -132,9 +131,19 @@ export default function MonitorPage() {
   const reprintDeliveryOrder = (text: string) => {
     if (!ensurePrinterConnected()) return;
 
-    const success = window.AndroidBridge?.printDeliveryShareOrder?.(text)
-      ?? window.AndroidBridge?.printText(text)
-      ?? false;
+    const order = parseDeliveryShareOrder(text);
+    if (!order) {
+      alert(t.monitor_print_failed);
+      return;
+    }
+
+    if (!window.AndroidBridge?.printBitmapDataUrl) {
+      alert("현재 앱이 웹 양식 재출력을 지원하지 않습니다. 앱 업데이트가 필요합니다.");
+      return;
+    }
+
+    const success = window.AndroidBridge.printBitmapDataUrl(renderDeliveryShareReceipt(order))
+      && window.AndroidBridge.printBitmapDataUrl(renderDeliveryKitchenOrder(order));
     if (!success) {
       alert(t.monitor_print_failed);
     }
@@ -145,7 +154,7 @@ export default function MonitorPage() {
 
     if (isStoreLoading || !hasStore) return undefined;
 
-    fetchPrintJobs();
+    void fetchPrintJobs();
     loadPrinters();
     window.addEventListener("focus", handleFocus);
 
@@ -157,7 +166,7 @@ export default function MonitorPage() {
   const { refreshing } = usePullToRefresh({
     disabled: isStoreLoading || !hasStore,
     onRefresh: () => {
-      fetchPrintJobs();
+      void fetchPrintJobs();
     },
   });
 

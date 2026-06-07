@@ -67,6 +67,7 @@ model User {
   stores        Store[]
   employments   Employee[]
   blacklists    Blacklist[]
+  printJobs     PrintJob[]
   deletedAt     DateTime? // 소프트 삭제용 필드
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -90,6 +91,7 @@ model Store {
   posCategories      PosCategory[]
   posMenus           PosMenu[]
   posOrders          PosOrder[]
+  printJobs          PrintJob[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 }
@@ -267,6 +269,24 @@ model PosOrderItem {
 
   @@index([orderId])
   @@map("pos_order_items")
+}
+
+model PrintJob {
+  id         String   @id @default(cuid())
+  storeId    String   @map("store_id")
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  userId     String?  @map("user_id")
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  source     String   @default("DELIVERY_SHARE")
+  status     String   @default("PRINTED")
+  rawText    String   @map("raw_text") @db.Text
+  parsedData String?  @map("parsed_data") @db.Text
+  phone      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([storeId, createdAt])
+  @@index([userId, createdAt])
+  @@map("print_jobs")
 }
 
 model AuditLog {

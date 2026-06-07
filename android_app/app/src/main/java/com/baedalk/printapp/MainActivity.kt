@@ -29,6 +29,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val RC_GOOGLE_SIGN_IN = 9001
+        const val EXTRA_START_PATH = "com.baedalk.printapp.START_PATH"
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -71,14 +72,14 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = WebViewClient()
         webView.webChromeClient = WebChromeClient()
 
+        // Javascript Interface 등록 (웹뷰에서 DB 데이터 요청 가능하도록 브릿지 연결)
+        val printerManager = BluetoothPrinterManager(this)
+        webView.addJavascriptInterface(WebAppInterface(printerManager), "AndroidBridge")
+
         // [옵션 B: 개발 모드] 사용자 컴퓨터의 Next.js 로컬 서버 로드
         // 안드로이드 에뮬레이터에서는 10.0.2.2 가 컴퓨터의 localhost를 의미합니다.
         // 현재는 local.properties 파일의 DEV_WEB_URL 값을 읽어옵니다. (기본값 세팅됨)
-        webView.loadUrl(BuildConfig.WEB_URL)
-
-        // Javascript Interface 등록 (웹뷰에서 DB 데이터 요청 가능하도록 브릿지 연결)
-        val printerManager = BluetoothPrinterManager(this)
-        webView.addJavascriptInterface(WebAppInterface(OrderDbHelper(this), printerManager), "AndroidBridge")
+        webView.loadUrl(resolveStartUrl(intent))
         
         // 블루투스 권한 요청 (Android 12 이상)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -90,6 +91,26 @@ class MainActivity : AppCompatActivity() {
             }
         }
         
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (::webView.isInitialized) {
+            webView.loadUrl(resolveStartUrl(intent))
+        }
+    }
+
+    private fun resolveStartUrl(intent: Intent?): String {
+        val path = intent?.getStringExtra(EXTRA_START_PATH)?.trim()
+        if (path.isNullOrBlank()) return BuildConfig.WEB_URL
+
+        val baseUrl = BuildConfig.WEB_URL.trimEnd('/')
+        return if (path.startsWith("http://") || path.startsWith("https://")) {
+            path
+        } else {
+            "$baseUrl/${path.trimStart('/')}"
+        }
     }
 
     // 웹에서 안드로이드 코드를 호출할 수 있게 해주는 인터페이스
@@ -131,26 +152,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    inner class WebAppInterface(private val dbHelper: OrderDbHelper, private val printerManager: BluetoothPrinterManager) {
-        @android.webkit.JavascriptInterface
-        fun getOrders(): String {
-            val db = dbHelper.readableDatabase
-            val cursor = db.rawQuery("SELECT * FROM ${OrderDbHelper.TABLE_NAME} ORDER BY id DESC LIMIT 20", null)
-            val jsonArray = org.json.JSONArray()
-            
-            while (cursor.moveToNext()) {
-                val jsonObj = org.json.JSONObject()
-                jsonObj.put("id", cursor.getInt(cursor.getColumnIndexOrThrow(OrderDbHelper.COLUMN_ID)))
-                jsonObj.put("raw_text", cursor.getString(cursor.getColumnIndexOrThrow(OrderDbHelper.COLUMN_RAW_TEXT)))
-                jsonObj.put("parsed_data", cursor.getString(cursor.getColumnIndexOrThrow(OrderDbHelper.COLUMN_PARSED_DATA)))
-                jsonObj.put("timestamp", cursor.getString(cursor.getColumnIndexOrThrow(OrderDbHelper.COLUMN_TIMESTAMP)))
-                jsonObj.put("status", cursor.getString(cursor.getColumnIndexOrThrow(OrderDbHelper.COLUMN_STATUS)))
-                jsonArray.put(jsonObj)
-            }
-            cursor.close()
-            return jsonArray.toString()
-        }
-
+    inner class WebAppInterface(private val printerManager: BluetoothPrinterManager) {
         @android.webkit.JavascriptInterface
         fun isBluetoothEnabled(): Boolean {
             return printerManager.isBluetoothEnabled()
@@ -206,67 +208,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         @android.webkit.JavascriptInterface
-        fun printText(text: String): Boolean {
-            return printerManager.printOrderReceipt(text)
-        }
-
-        @android.webkit.JavascriptInterface
-        fun printTextWithStyle(text: String, fontSize: Float, bold: Boolean): Boolean {
-            return printerManager.printOrderReceipt(text, fontSize, bold)
-        }
-
-        @android.webkit.JavascriptInterface
-        fun printDeliveryShareOrder(text: String): Boolean {
-            return printerManager.printDeliveryShareOrder(text)
-        }
-
-        @android.webkit.JavascriptInterface
-        fun printDeliveryShareKitchenOrder(text: String): Boolean {
-            return printerManager.printDeliveryShareKitchenOrder(text)
-        }
-
-        @android.webkit.JavascriptInterface
-        fun printKitchenOrderSheet(tableName: String, orderSequence: Int, printedAt: String, itemsJson: String): Boolean {
-            return printerManager.printKitchenOrderSheet(tableName, orderSequence, printedAt, itemsJson)
-        }
-
-        @android.webkit.JavascriptInterface
-        fun printPaymentReceipt(
-            storeName: String,
-            tableName: String,
-            businessRegNo: String,
-            address: String,
-            representativeName: String,
-            contact: String,
-            printedAt: String,
-            paymentMethod: String,
-            taxableTotal: Int,
-            vat: Int,
-            receiptTotal: Int,
-            showBusinessRegNo: Boolean,
-            showAddress: Boolean,
-            showRepresentativeName: Boolean,
-            showContact: Boolean,
-            itemsJson: String
-        ): Boolean {
-            return printerManager.printPaymentReceipt(
-                storeName,
-                tableName,
-                businessRegNo,
-                address,
-                representativeName,
-                contact,
-                printedAt,
-                paymentMethod,
-                taxableTotal,
-                vat,
-                receiptTotal,
-                showBusinessRegNo,
-                showAddress,
-                showRepresentativeName,
-                showContact,
-                itemsJson
-            )
+        fun printBitmapDataUrl(dataUrl: String): Boolean {
+            return printerManager.printBitmapDataUrl(dataUrl)
         }
 
         @android.webkit.JavascriptInterface

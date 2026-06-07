@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -21,6 +21,7 @@ import { StoreRequiredNotice } from '@/components/store/StoreRequiredNotice';
 import { useStores } from '@/components/providers/StoreProvider';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/layout/PageHeader';
+import { renderMiniKitchenOrder, renderMiniPaymentReceipt } from '@/lib/mini-receipt-print';
 
 type PosTable = {
   id: string;
@@ -143,14 +144,6 @@ function getTodayInputDate() {
   const day = String(now.getDate()).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
-}
-
-function printStyledText(text: string, fontSize: number, bold: boolean) {
-  if (window.AndroidBridge?.printTextWithStyle) {
-    return window.AndroidBridge.printTextWithStyle(text, fontSize, bold);
-  }
-
-  return window.AndroidBridge?.printText(text) ?? false;
 }
 
 function formatKitchenPrintedAt() {
@@ -518,128 +511,37 @@ export default function MiniReceiptPage() {
 
     return nextOrder;
   };
-
-  const buildOrderSheetText = (order: PosOrder) => {
-    const table = payload?.tables.find((item) => item.id === order.table_id);
-    const orderNo = order.order_sequence || 1;
-    const lines = [
-      '',
-      '              주문서 (주방)',
-      '',
-      `테이블:${table?.name || '테이블'}`,
-      '--------------------------------',
-      '메   뉴                         수량  비고',
-      '--------------------------------',
-      ...order.items.map((item) => {
-        const name = `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}`;
-        const qty = String(item.quantity).padStart(3, ' ');
-        return `${name.padEnd(30, ' ')}${qty}   신규`;
-      }),
-      '--------------------------------',
-      formatKitchenPrintedAt(),
-      `주문순서:${orderNo}`,
-      order.note ? `메모:${order.note}` : '',
-      '',
-    ].filter(Boolean);
-
-    return lines.join('\n');
-  };
-
   const printKitchenOrderSheet = (order: PosOrder) => {
     const table = payload?.tables.find((item) => item.id === order.table_id);
 
-    if (window.AndroidBridge?.printKitchenOrderSheet) {
-      return window.AndroidBridge.printKitchenOrderSheet(
-        table?.name || '테이블',
-        order.order_sequence || 1,
-        formatKitchenPrintedAt(),
-        JSON.stringify(order.items.map((item) => ({
-          name: item.name,
-          menuCode: item.menu_code,
-          quantity: item.quantity,
-          note: '신규',
-        })))
-      );
+    if (!window.AndroidBridge?.printBitmapDataUrl) {
+      return false;
     }
 
-    return printStyledText(buildOrderSheetText(order), 34, false);
+    return window.AndroidBridge.printBitmapDataUrl(renderMiniKitchenOrder({
+      tableName: table?.name || '테이블',
+      orderSequence: order.order_sequence || 1,
+      printedAt: formatKitchenPrintedAt(),
+      note: order.note,
+      items: order.items,
+    }));
   };
-
-  const buildPaymentReceiptText = (order: PosOrder) => {
-    const table = payload?.tables.find((item) => item.id === order.table_id);
-    const goodsTotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const taxableTotal = goodsTotal;
-    const vat = Math.round(taxableTotal * 0.08);
-    const receiptTotal = taxableTotal + vat;
-    const method = order.payment_method || paymentMethod;
-    const storeName = payload?.store.name || 'RESTAURANT';
-    const lines = [
-      '',
-      `              ${storeName.toUpperCase()} (${table?.name || '테이블'})`,
-      '',
-      receiptSettings.businessRegNo ? `사업자번호 :${payload?.store.businessRegNo || ''}` : '',
-      receiptSettings.address ? `주소 :${payload?.store.address || ''}` : '',
-      receiptSettings.representativeName ? `성명 :${payload?.store.representativeName || storeName}` : '',
-      receiptSettings.contact ? `전화 :${payload?.store.contact || ''}` : '',
-      '--------------------------------',
-      '품명                    단가    수량      금액',
-      '--------------------------------',
-      ...order.items.map((item) => {
-        const amount = item.price * item.quantity;
-        return `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}\n${String(item.price.toLocaleString()).padStart(27, ' ')} ${String(item.quantity).padStart(4, ' ')} ${String(amount.toLocaleString()).padStart(10, ' ')}`;
-      }),
-      '--------------------------------',
-      `소  계:${String(taxableTotal.toLocaleString()).padStart(32, ' ')}`,
-      '--------------------------------',
-      `부가세 과세 물품가액:${String(taxableTotal.toLocaleString()).padStart(16, ' ')}`,
-      `부      가      세:${String(vat.toLocaleString()).padStart(16, ' ')}`,
-      `부가세 면세 물품가액:${String(0).padStart(16, ' ')}`,
-      '--------------------------------',
-      `${method.padEnd(6, ' ')}:${String(receiptTotal.toLocaleString()).padStart(28, ' ')}`,
-      '--------------------------------',
-      formatReceiptPrintedAt().padStart(42, ' '),
-      '',
-    ].filter(Boolean);
-
-    return lines.join('\n');
-  };
-
   const printPaymentReceipt = (order: PosOrder) => {
     const table = payload?.tables.find((item) => item.id === order.table_id);
-    const goodsTotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const taxableTotal = goodsTotal;
-    const vat = Math.round(taxableTotal * 0.08);
-    const receiptTotal = taxableTotal + vat;
     const method = order.payment_method || paymentMethod;
 
-    if (window.AndroidBridge?.printPaymentReceipt) {
-      return window.AndroidBridge.printPaymentReceipt(
-        payload?.store.name || 'RESTAURANT',
-        table?.name || '테이블',
-        payload?.store.businessRegNo || '',
-        payload?.store.address || '',
-        payload?.store.representativeName || payload?.store.name || 'RESTAURANT',
-        payload?.store.contact || '',
-        formatReceiptPrintedAt(),
-        method,
-        taxableTotal,
-        vat,
-        receiptTotal,
-        receiptSettings.businessRegNo,
-        receiptSettings.address,
-        receiptSettings.representativeName,
-        receiptSettings.contact,
-        JSON.stringify(order.items.map((item) => ({
-          name: item.name,
-          menuCode: item.menu_code,
-          price: item.price,
-          quantity: item.quantity,
-          amount: item.price * item.quantity,
-        })))
-      );
+    if (!window.AndroidBridge?.printBitmapDataUrl || !payload?.store) {
+      return false;
     }
 
-    return printStyledText(buildPaymentReceiptText({ ...order, payment_method: method }), 30, false);
+    return window.AndroidBridge.printBitmapDataUrl(renderMiniPaymentReceipt({
+      store: payload.store,
+      tableName: table?.name || '테이블',
+      printedAt: formatReceiptPrintedAt(),
+      paymentMethod: method,
+      settings: receiptSettings,
+      items: order.items,
+    }));
   };
 
   const buildReturnOrder = (order: PosOrder): PosOrder => ({

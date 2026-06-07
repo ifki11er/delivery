@@ -1,5 +1,5 @@
 type AndroidOrder = {
-  id: number;
+  id: string;
   raw_text: string;
   parsed_data?: string;
   timestamp: string;
@@ -12,34 +12,12 @@ type AndroidPrinter = {
 };
 
 interface AndroidBridge {
-  getOrders(): string;
   isBluetoothEnabled(): boolean;
   openBluetoothSettings(): void;
   getPairedPrinters(): string;
   connectPrinter(macAddress: string): boolean;
   printTest(): boolean;
-  printText(text: string): boolean;
-  printTextWithStyle?(text: string, fontSize: number, bold: boolean): boolean;
-  printDeliveryShareOrder?(text: string): boolean;
-  printKitchenOrderSheet?(tableName: string, orderSequence: number, printedAt: string, itemsJson: string): boolean;
-  printPaymentReceipt?(
-    storeName: string,
-    tableName: string,
-    businessRegNo: string,
-    address: string,
-    representativeName: string,
-    contact: string,
-    printedAt: string,
-    paymentMethod: string,
-    taxableTotal: number,
-    vat: number,
-    receiptTotal: number,
-    showBusinessRegNo: boolean,
-    showAddress: boolean,
-    showRepresentativeName: boolean,
-    showContact: boolean,
-    itemsJson: string
-  ): boolean;
+  printBitmapDataUrl?(dataUrl: string): boolean;
   saveDefaultPrinter(mac: string): void;
   getDefaultPrinter(): string;
   signInWithGoogle(): void;
