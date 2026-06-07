@@ -287,7 +287,6 @@ class BluetoothPrinterManager(private val context: Context) {
         val tablePaint = makeKitchenPaint(64f, false, 0.78f)
         val headerPaint = makeKitchenPaint(40f, false, 0.82f)
         val itemPaint = makeKitchenPaint(42f, false, 0.78f)
-        val metaPaint = makeKitchenPaint(34f, false, 0.82f)
         val sequencePaint = makeKitchenPaint(56f, true, 0.78f)
         val linePaint = makeKitchenPaint(1f, false).apply {
             strokeWidth = 3f
@@ -340,7 +339,7 @@ class BluetoothPrinterManager(private val context: Context) {
         drawHorizontalLine(canvas, y, width, linePaint)
 
         y += 52f
-        canvas.drawFitText("일시 : $printedAt  관리자", 42f, y, width - 84f, metaPaint)
+        canvas.drawRightText(printedAt, width - 42f, y, sequencePaint)
 
         y += 76f
         canvas.drawText("주문순서:$orderSequence", 42f, y, sequencePaint)
@@ -633,8 +632,8 @@ class BluetoothPrinterManager(private val context: Context) {
         val left = 24f
         val right = width - 24f
         val nicknamePaint = makeKitchenPaint(42f, true, 0.82f)
-        val infoPaint = makeKitchenPaint(37f, false, 0.82f)
-        val phonePaint = makeKitchenPaint(38f, true, 0.82f)
+        val infoPaint = makeKitchenPaint(42f, false, 0.82f)
+        val phonePaint = makeKitchenPaint(62f, true, 0.78f)
         val headerPaint = makeKitchenPaint(29f, false, 0.82f)
         val itemPaint = makeKitchenPaint(31f, false, 0.82f)
         val itemAmountPaint = makeKitchenPaint(31f, false, 0.82f)
@@ -651,17 +650,17 @@ class BluetoothPrinterManager(private val context: Context) {
             isAntiAlias = true
         }
 
-        val addressLines = wrapTextFully("📍 ${order.selectedAddress}", right - left, infoPaint)
-        val inputLines = wrapTextFully("🏠 ${order.inputAddress}", right - left, infoPaint)
+        val addressLines = wrapTextFully("⦁ ${order.selectedAddress}", right - left, infoPaint)
+        val inputLines = wrapTextFully("⦁ ${order.inputAddress}", right - left, infoPaint)
         val itemNameWidth = 350f
         val itemLineHeight = 38f
         val itemLineCount = order.items.sumOf { item ->
-            wrapTextToLines("🍲 ${item.name}", itemNameWidth, itemPaint, 2).size
+            wrapTextToLines("⦁ ${item.name}", itemNameWidth, itemPaint, 2).size
         }
         val height = (
-            500 +
-                (addressLines.size * 44) +
-                (inputLines.size * 44) +
+            570 +
+                (addressLines.size * 58) +
+                (inputLines.size * 58) +
                 (itemLineCount * itemLineHeight).toInt() +
                 150
             ).coerceAtLeast(900)
@@ -678,15 +677,20 @@ class BluetoothPrinterManager(private val context: Context) {
         y += 44f
         addressLines.forEach { line ->
             canvas.drawText(line, left, y, infoPaint)
-            y += 44f
+            y += 58f
         }
+        y += 10f
         inputLines.forEach { line ->
             canvas.drawText(line, left, y, infoPaint)
-            y += 44f
+            y += 58f
         }
-        canvas.drawText("☎ ${order.phone}", left, y, phonePaint)
+        y += 10f
+        canvas.drawText("⦁ ${order.phone}", left, y, phonePaint)
 
-        y += 58f
+        y += 28f
+        canvas.drawLine(left, y, right, y, linePaint)
+
+        y += 48f
         canvas.drawText("메뉴", 104f, y, headerPaint)
         canvas.drawText("수량", 410f, y, headerPaint)
         canvas.drawText("금액", 500f, y, headerPaint)
@@ -695,7 +699,7 @@ class BluetoothPrinterManager(private val context: Context) {
 
         y += 34f
         order.items.forEach { item ->
-            val lines = wrapTextToLines("🍲 ${item.name}", itemNameWidth, itemPaint, 2)
+            val lines = wrapTextToLines("⦁ ${item.name}", itemNameWidth, itemPaint, 2)
             lines.forEachIndexed { index, line ->
                 canvas.drawText(if (index == 0) line else "   $line", left + 10f, y, itemPaint)
                 if (index == 0) {
@@ -717,10 +721,73 @@ class BluetoothPrinterManager(private val context: Context) {
         val change = calculateChange(order.totalAmount)
         canvas.drawRightText("${formatK(order.totalAmount)}  ( ${formatK(change)} )", right - 8f, y, totalPaint)
 
-        y += 48f
+        y += 34f
+        canvas.drawLine(left, y, right, y, linePaint)
+        y += 42f
         canvas.drawText("MEMO", left + 28f, y, memoPaint)
         y += 18f
         canvas.drawRect(left, y, right, y + 160f, memoBorderPaint)
+
+        return bitmap
+    }
+
+    private fun deliveryShareKitchenToBitmap(order: DeliveryShareOrder): Bitmap {
+        val width = 576
+        val left = 32f
+        val right = width - 32f
+        val titlePaint = makeKitchenPaint(40f, false, 0.86f)
+        val tablePaint = makeKitchenPaint(58f, false, 0.78f)
+        val headerPaint = makeKitchenPaint(38f, false, 0.82f)
+        val itemPaint = makeKitchenPaint(42f, false, 0.78f)
+        val metaPaint = makeKitchenPaint(34f, false, 0.82f)
+        val linePaint = makeKitchenPaint(1f, false).apply {
+            strokeWidth = 3f
+        }
+        val itemNameWidth = 342f
+        val itemLineHeight = 54f
+        val itemGap = 14f
+        val itemAreaHeight = order.items.sumOf { item ->
+            val lineCount = wrapTextToLines(item.name, itemNameWidth, itemPaint, 2).size.coerceAtLeast(1)
+            ((lineCount * itemLineHeight) + itemGap).toInt()
+        }.coerceAtLeast(66)
+        val height = 520 + itemAreaHeight
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+
+        var y = 72f
+        canvas.drawCenteredText("주문서 (주방)", y, titlePaint, width)
+
+        y += 78f
+        canvas.drawFitText("배달K 공유주문", left, y, right - left, tablePaint)
+
+        y += 34f
+        drawHorizontalLine(canvas, y, width, linePaint)
+
+        y += 58f
+        canvas.drawText("메   뉴", left, y, headerPaint)
+        canvas.drawText("수량", 392f, y, headerPaint)
+        canvas.drawText("비고", 496f, y, headerPaint)
+
+        y += 28f
+        drawHorizontalLine(canvas, y, width, linePaint)
+
+        y += 58f
+        order.items.forEach { item ->
+            val nameLines = wrapTextToLines(item.name, itemNameWidth, itemPaint, 2)
+            nameLines.forEachIndexed { lineIndex, line ->
+                val prefix = if (lineIndex == 0) "" else "   "
+                canvas.drawText("$prefix$line", left, y + (lineIndex.toFloat() * itemLineHeight), itemPaint)
+            }
+            canvas.drawText(item.quantity.toString(), 410f, y, itemPaint)
+            canvas.drawText("신규", 494f, y, itemPaint)
+            y += (nameLines.size.coerceAtLeast(1) * itemLineHeight) + itemGap
+        }
+
+        y -= 18f
+        drawHorizontalLine(canvas, y, width, linePaint)
+        y += 52f
+        canvas.drawFitText("입력주소 : ${order.inputAddress}", left, y, right - left, metaPaint)
 
         return bitmap
     }
@@ -817,9 +884,10 @@ class BluetoothPrinterManager(private val context: Context) {
         return try {
             outputStream?.write(byteArrayOf(0x1B, 0x40))
 
-            val imageCommand = bitmapToEscPos(deliveryShareOrderToBitmap(order))
-            outputStream?.write(imageCommand)
-
+            outputStream?.write(bitmapToEscPos(deliveryShareOrderToBitmap(order)))
+            feedAndCut()
+            outputStream?.write(byteArrayOf(0x1B, 0x40))
+            outputStream?.write(bitmapToEscPos(deliveryShareKitchenToBitmap(order)))
             feedAndCut()
 
             outputStream?.flush()

@@ -126,9 +126,8 @@ function formatKitchenPrintedAt() {
   const day = String(now.getDate()).padStart(2, '0');
   const hour = String(now.getHours()).padStart(2, '0');
   const minute = String(now.getMinutes()).padStart(2, '0');
-  const second = String(now.getSeconds()).padStart(2, '0');
 
-  return `${month}-${day} ${hour}:${minute}:${second}`;
+  return `${month}-${day} ${hour}:${minute}`;
 }
 
 function formatReceiptPrintedAt() {
@@ -398,7 +397,6 @@ export default function MiniReceiptPage() {
 
   const buildOrderSheetText = (order: PosOrder) => {
     const table = payload?.tables.find((item) => item.id === order.table_id);
-    const now = new Date();
     const orderNo = order.order_sequence || 1;
     const lines = [
       '',
@@ -414,7 +412,7 @@ export default function MiniReceiptPage() {
         return `${name.padEnd(30, ' ')}${qty}   신규`;
       }),
       '--------------------------------',
-      `일시 : ${now.toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })} ${now.toLocaleTimeString('ko-KR', { hour12: false })}  관리자`,
+      formatKitchenPrintedAt(),
       `주문순서:${orderNo}`,
       order.note ? `메모:${order.note}` : '',
       '',
