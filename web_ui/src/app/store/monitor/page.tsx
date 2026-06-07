@@ -126,7 +126,7 @@ export default function MonitorPage() {
   const testPrint = () => {
     if (!ensurePrinterConnected()) return;
     if (!window.AndroidBridge?.printBitmapDataUrl) {
-      alert("현재 앱이 웹 테스트 출력을 지원하지 않습니다. 앱 업데이트가 필요합니다.");
+      alert(t.monitor_web_test_update_required);
       return;
     }
 
@@ -169,7 +169,7 @@ export default function MonitorPage() {
     }
 
     if (!window.AndroidBridge?.printBitmapDataUrl) {
-      alert("현재 앱이 웹 양식 재출력을 지원하지 않습니다. 앱 업데이트가 필요합니다.");
+      alert(t.monitor_web_reprint_update_required);
       return;
     }
 
@@ -217,7 +217,7 @@ export default function MonitorPage() {
 
       {refreshing && (
         <div className="mb-4 rounded-xl bg-blue-50 px-4 py-2 text-center text-xs font-bold text-blue-600">
-          출력 이력 새로고침 중...
+          {t.monitor_print_history_refreshing}
         </div>
       )}
 
@@ -298,11 +298,11 @@ export default function MonitorPage() {
         </div>
       </Panel>
 
-      <h2 className="text-lg font-bold mb-3 text-gray-800">출력 이력</h2>
+      <h2 className="text-lg font-bold mb-3 text-gray-800">{t.monitor_print_history_title}</h2>
       <div className="space-y-4">
         {printJobs.length === 0 ? (
           <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 text-center">
-            <p className="text-gray-500 mb-2">아직 출력한 주문이 없습니다.</p>
+            <p className="text-gray-500 mb-2">{t.monitor_print_history_empty}</p>
           </div>
         ) : (
           printJobs.map((order, index) => (
@@ -311,13 +311,13 @@ export default function MonitorPage() {
                 <span className="text-xs font-medium text-gray-400">{order.timestamp}</span>
                 <div className="flex gap-2">
                   <span className={`text-xs font-bold px-2 py-1 rounded-full ${order.status === "PRINTED" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                    {order.status === "PRINTED" ? "출력 완료" : "출력 실패"}
+                    {order.status === "PRINTED" ? t.monitor_print_status_printed : t.monitor_print_status_failed}
                   </span>
                   <button
                     onClick={() => reprintDeliveryOrder(order.raw_text)}
                     className="text-xs font-bold px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 shadow-sm transition"
                   >
-                    재출력
+                    {t.monitor_reprint}
                   </button>
                 </div>
               </div>

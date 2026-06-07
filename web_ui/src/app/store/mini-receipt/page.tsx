@@ -113,6 +113,13 @@ function formatMoney(amount: number) {
   return `${amount.toLocaleString()} ${currency}`;
 }
 
+function textTemplate(template: string, values: Record<string, string | number>) {
+  return Object.entries(values).reduce(
+    (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
+    template
+  );
+}
+
 function createEmptyPayload(store: StoreSeed): PosPayload {
   return {
     store,
@@ -327,7 +334,7 @@ export default function MiniReceiptPage() {
       });
       if (!res.ok) {
         const error = await res.json();
-        alert(error.error || '처리에 실패했습니다.');
+        alert(error.error || t.mini_process_failed);
         return;
       }
 
@@ -345,7 +352,7 @@ export default function MiniReceiptPage() {
       ));
     } catch (error) {
       console.error(error);
-      alert('처리 중 오류가 발생했습니다.');
+      alert(t.mini_process_error);
     } finally {
       setSaving(false);
     }
@@ -519,7 +526,7 @@ export default function MiniReceiptPage() {
     }
 
     return window.AndroidBridge.printBitmapDataUrl(renderMiniKitchenOrder({
-      tableName: table?.name || '테이블',
+      tableName: table?.name || t.mini_table_fallback,
       orderSequence: order.order_sequence || 1,
       printedAt: formatKitchenPrintedAt(),
       note: order.note,
@@ -536,7 +543,7 @@ export default function MiniReceiptPage() {
 
     return window.AndroidBridge.printBitmapDataUrl(renderMiniPaymentReceipt({
       store: payload.store,
-      tableName: table?.name || '테이블',
+      tableName: table?.name || t.mini_table_fallback,
       printedAt: formatReceiptPrintedAt(),
       paymentMethod: method,
       settings: receiptSettings,
@@ -562,17 +569,17 @@ export default function MiniReceiptPage() {
 
   const returnOrder = async (order: PosOrder) => {
     if (order.status === 'RETURNED') {
-      alert('이미 반품 처리된 이력입니다.');
+      alert(t.mini_already_returned);
       return;
     }
 
-    if (!confirm('이 주문을 반품 처리할까요?\n\n수량과 금액이 마이너스로 표시된 반품 영수증이 출력됩니다.')) {
+    if (!confirm(t.mini_return_confirm)) {
       return;
     }
 
     const returnSnapshot = buildReturnOrder(order);
     const success = printPaymentReceipt(returnSnapshot);
-    if (!success && !confirm('반품 영수증 출력에 실패했습니다. 그래도 반품 이력을 저장할까요?')) {
+    if (!success && !confirm(t.mini_return_print_failed_confirm)) {
       return;
     }
 
@@ -598,14 +605,14 @@ export default function MiniReceiptPage() {
 
   const printOrder = async () => {
     if (!currentOrder || currentOrder.items.length === 0) {
-      alert('출력할 주문이 없습니다.');
+      alert(t.mini_no_order_to_print);
       return;
     }
 
     const printableOrder = assignDailyOrderSequence({ ...currentOrder, total });
     const success = printKitchenOrderSheet(printableOrder);
     if (!success) {
-      alert('프린터 출력에 실패했습니다. 프린트 관리에서 기본 프린터를 확인해주세요.');
+      alert(t.mini_printer_failed);
       return;
     }
   };
@@ -616,7 +623,7 @@ export default function MiniReceiptPage() {
 
     if (shouldPrintReceipt) {
       const success = printPaymentReceipt(orderForCheckout);
-      if (!success && !confirm('출력에 실패했습니다. 그래도 결제완료 처리할까요?')) {
+      if (!success && !confirm(t.mini_checkout_print_failed_confirm)) {
         return;
       }
     }
@@ -640,23 +647,23 @@ export default function MiniReceiptPage() {
   };
 
   const renameTable = async (table: PosTable) => {
-    const name = prompt('테이블 이름을 입력해주세요.', table.name)?.trim();
+    const name = prompt(t.mini_table_name_prompt, table.name)?.trim();
     if (!name || name === table.name) return;
     await postAction({ action: 'table.update', tableId: table.id, name });
   };
 
   const renameCategory = async (category: PosCategory) => {
-    const name = prompt('카테고리 이름을 입력해주세요.', category.name)?.trim();
+    const name = prompt(t.mini_category_name_prompt, category.name)?.trim();
     if (!name || name === category.name) return;
     await postAction({ action: 'category.update', categoryId: category.id, name });
   };
 
   const editMenu = async (menu: PosMenu) => {
-    const nextMenuCode = prompt('메뉴 고유 번호를 입력해주세요.', menu.menu_code)?.replace(/[^0-9]/g, '').trim();
+    const nextMenuCode = prompt(t.mini_menu_code_prompt, menu.menu_code)?.replace(/[^0-9]/g, '').trim();
     if (!nextMenuCode) return;
-    const name = prompt('메뉴 이름을 입력해주세요.', menu.name)?.trim();
+    const name = prompt(t.mini_menu_name_prompt, menu.name)?.trim();
     if (!name) return;
-    const priceText = prompt('가격을 입력해주세요.', String(menu.price))?.replace(/[^0-9]/g, '');
+    const priceText = prompt(t.mini_price_prompt, String(menu.price))?.replace(/[^0-9]/g, '');
     if (priceText === undefined) return;
     await postAction({
       action: 'menu.update',
@@ -678,7 +685,7 @@ export default function MiniReceiptPage() {
     <div className="bg-gray-50 min-h-screen pb-24 md:pb-6">
       <PageHeader
         title={t.nav_mini_receipt}
-        subtitle={`${payload.store.name}${loading ? ' · 동기화 중...' : ''}`}
+        subtitle={`${payload.store.name}${loading ? ` · ${t.mini_syncing}` : ''}`}
         icon={<ReceiptText className="w-5 h-5" />}
         maxWidth="max-w-6xl"
         actions={(
@@ -689,7 +696,7 @@ export default function MiniReceiptPage() {
                 onClick={() => setActiveTab('order')}
                 className="h-9 px-3 rounded-lg bg-gray-900 text-xs font-bold text-white"
               >
-                주문 화면
+                {t.mini_order_screen}
               </button>
             )}
             <div className="relative">
@@ -697,7 +704,7 @@ export default function MiniReceiptPage() {
                 type="button"
                 onClick={() => setShowManageMenu((current) => !current)}
                 className="h-10 w-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-700 transition-colors"
-                title="관리 메뉴"
+                title={t.mini_manage_menu}
               >
                 <MoreVertical className="w-5 h-5" />
               </button>
@@ -709,7 +716,7 @@ export default function MiniReceiptPage() {
                     className="w-full h-10 px-3 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
                     <Table2 className="w-4 h-4" />
-                    테이블설정
+                    {t.mini_table_settings}
                   </button>
                   <button
                     type="button"
@@ -717,7 +724,7 @@ export default function MiniReceiptPage() {
                     className="w-full h-10 px-3 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
                     <UtensilsCrossed className="w-4 h-4" />
-                    메뉴설정
+                    {t.mini_menu_settings}
                   </button>
                   <button
                     type="button"
@@ -725,7 +732,7 @@ export default function MiniReceiptPage() {
                     className="w-full h-10 px-3 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
                     <Settings className="w-4 h-4" />
-                    이력관리
+                    {t.mini_history_management}
                   </button>
                   <button
                     type="button"
@@ -733,7 +740,7 @@ export default function MiniReceiptPage() {
                     className="w-full h-10 px-3 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
                     <ReceiptText className="w-4 h-4" />
-                    영수증 양식관리
+                    {t.mini_receipt_form_settings}
                   </button>
                 </div>
               )}
@@ -747,8 +754,8 @@ export default function MiniReceiptPage() {
           <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr_340px] gap-4">
             <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-bold text-gray-900">테이블</h2>
-                <span className="text-xs text-gray-400">{payload.tables.length}개</span>
+                <h2 className="font-bold text-gray-900">{t.mini_tables}</h2>
+                <span className="text-xs text-gray-400">{payload.tables.length}{t.mini_count_suffix}</span>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
                 {payload.tables.length === 0 ? (
@@ -756,7 +763,7 @@ export default function MiniReceiptPage() {
                     onClick={() => setActiveTab('tables')}
                     className="col-span-2 lg:col-span-1 h-20 rounded-xl border border-dashed border-gray-300 text-sm font-bold text-gray-400"
                   >
-                    테이블 추가
+                    {t.mini_add_table}
                   </button>
                 ) : (
                   payload.tables.map((table) => {
@@ -774,7 +781,7 @@ export default function MiniReceiptPage() {
                         <span className={`mt-2 inline-flex text-[11px] font-bold px-2 py-0.5 rounded-full ${
                           order ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'
                         }`}>
-                          {order ? formatMoney(order.total) : '비어있음'}
+                          {order ? formatMoney(order.total) : t.mini_empty}
                         </span>
                       </button>
                     );
@@ -785,14 +792,14 @@ export default function MiniReceiptPage() {
 
             <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
               <div className="flex items-center justify-between mb-3 gap-2">
-                <h2 className="font-bold text-gray-900">메뉴</h2>
-                <button onClick={() => setActiveTab('menus')} className="text-xs font-bold text-indigo-600">메뉴 관리</button>
+                <h2 className="font-bold text-gray-900">{t.mini_menu}</h2>
+                <button onClick={() => setActiveTab('menus')} className="text-xs font-bold text-indigo-600">{t.mini_menu_manage}</button>
               </div>
 
               <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
                 {payload.categories.length === 0 ? (
                   <button onClick={() => setActiveTab('menus')} className="h-10 px-4 rounded-lg bg-gray-100 text-sm font-bold text-gray-500">
-                    카테고리 추가
+                    {t.mini_add_category}
                   </button>
                 ) : (
                   payload.categories.map((category) => (
@@ -812,7 +819,7 @@ export default function MiniReceiptPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
                 {(selectedCategory?.menus ?? []).filter((menu) => menu.is_active).length === 0 ? (
                   <div className="col-span-full py-14 text-center text-sm font-semibold text-gray-400">
-                    등록된 메뉴가 없습니다.
+                    {t.mini_no_registered_menu}
                   </div>
                 ) : (
                   selectedCategory?.menus.filter((menu) => menu.is_active).map((menu) => {
@@ -847,11 +854,11 @@ export default function MiniReceiptPage() {
             <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 lg:sticky lg:top-32 h-fit">
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
-                  <h2 className="font-bold text-gray-900">{selectedTable?.name || '테이블 선택'}</h2>
-                  <p className="text-xs text-gray-500 mt-1">현재 주문</p>
+                  <h2 className="font-bold text-gray-900">{selectedTable?.name || t.mini_select_table}</h2>
+                  <p className="text-xs text-gray-500 mt-1">{t.mini_current_order}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-gray-400">합계</p>
+                  <p className="text-xs text-gray-400">{t.mini_total}</p>
                   <p className="text-xl font-black text-indigo-600">{formatMoney(total)}</p>
                 </div>
               </div>
@@ -859,7 +866,7 @@ export default function MiniReceiptPage() {
               <div className="space-y-2 min-h-48">
                 {!currentOrder || currentOrder.items.length === 0 ? (
                   <div className="h-48 rounded-xl bg-gray-50 flex items-center justify-center text-sm font-semibold text-gray-400">
-                    메뉴를 선택해주세요.
+                    {t.mini_select_menu}
                   </div>
                 ) : (
                   currentOrder.items.map((item) => (
@@ -896,14 +903,14 @@ export default function MiniReceiptPage() {
                   <input
                     value={customItemName}
                     onChange={(event) => setCustomItemName(event.target.value)}
-                    placeholder="직접 항목"
+                    placeholder={t.mini_custom_item}
                     minLength={0}
                     className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm"
                   />
                   <input
                     value={customItemPrice}
                     onChange={(event) => setCustomItemPrice(event.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="금액"
+                    placeholder={t.mini_amount}
                     inputMode="numeric"
                     className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm"
                   />
@@ -918,14 +925,14 @@ export default function MiniReceiptPage() {
                       setCustomItemPrice('');
                     }}
                   >
-                    항목 추가
+                    {t.mini_add_item}
                   </Button>
                 </div>
                 <div className="grid grid-cols-[minmax(0,1fr)_92px] gap-2">
                   <input
                     value={discountAmount}
                     onChange={(event) => setDiscountAmount(event.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="할인 금액"
+                    placeholder={t.mini_discount_amount}
                     inputMode="numeric"
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm"
                   />
@@ -935,11 +942,11 @@ export default function MiniReceiptPage() {
                     variant="secondary"
                     disabled={!selectedTableId || !discountAmount || saving}
                     onClick={async () => {
-                      addCustomItemToDraft('할인', -Math.abs(Number(discountAmount || 0)), 'DISCOUNT');
+                      addCustomItemToDraft(t.mini_discount, -Math.abs(Number(discountAmount || 0)), 'DISCOUNT');
                       setDiscountAmount('');
                     }}
                   >
-                    할인 추가
+                    {t.mini_add_discount}
                   </Button>
                 </div>
                 <textarea
@@ -948,14 +955,14 @@ export default function MiniReceiptPage() {
                     setOrderNote(event.target.value);
                     updateDraftNote(event.target.value);
                   }}
-                  placeholder="주문 메모"
+                  placeholder={t.mini_order_note}
                   rows={2}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm resize-none"
                 />
               </div>
 
               <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 flex items-center justify-between">
-                <span className="text-sm font-black text-indigo-900">최종 금액</span>
+                <span className="text-sm font-black text-indigo-900">{t.mini_final_amount}</span>
                 <span className="text-2xl font-black text-indigo-700">{formatMoney(total)}</span>
               </div>
 
@@ -968,13 +975,13 @@ export default function MiniReceiptPage() {
                     onClick={printOrder}
                     icon={<Printer className="w-5 h-5" />}
                   >
-                    주문서 출력
+                    {t.mini_print_order_sheet}
                   </Button>
                   <button
                     type="button"
                     disabled={!currentOrder || saving}
                     onClick={clearDraftOrder}
-                    title="비우기"
+                    title={t.mini_clear}
                     className="h-16 rounded-lg border border-red-100 bg-red-50 text-red-600 flex items-center justify-center transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Trash2 className="w-5 h-5" />
@@ -985,10 +992,10 @@ export default function MiniReceiptPage() {
                   onChange={(event) => setPaymentMethod(event.target.value)}
                   className="w-full h-12 px-3 rounded-lg border border-gray-200 bg-white text-sm font-bold"
                 >
-                  <option value="현금">현금</option>
-                  <option value="카드">카드</option>
-                  <option value="계좌이체">계좌이체</option>
-                  <option value="기타">기타</option>
+                  <option value="현금">{t.mini_cash}</option>
+                  <option value="카드">{t.mini_card}</option>
+                  <option value="계좌이체">{t.mini_bank_transfer}</option>
+                  <option value="기타">{t.mini_other}</option>
                 </select>
                 <Button
                   type="button"
@@ -997,7 +1004,7 @@ export default function MiniReceiptPage() {
                   disabled={!currentOrder || currentOrder.items.length === 0 || saving}
                   onClick={() => setShowReceiptConfirm(true)}
                 >
-                  결제하기
+                  {t.mini_checkout}
                 </Button>
               </div>
             </section>
@@ -1007,12 +1014,12 @@ export default function MiniReceiptPage() {
         {activeTab === 'tables' && (
           <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4">
             <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-              <h2 className="font-bold text-gray-900 mb-3">테이블 추가</h2>
+              <h2 className="font-bold text-gray-900 mb-3">{t.mini_add_table}</h2>
               <div className="flex gap-2">
                 <input
                   value={tableName}
                   onChange={(event) => setTableName(event.target.value)}
-                  placeholder="예: 1번 테이블"
+                  placeholder={t.mini_add_table}
                   className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
                 />
                 <Button
@@ -1023,18 +1030,18 @@ export default function MiniReceiptPage() {
                     setTableName('');
                   }}
                 >
-                  추가
+                  {t.mini_add_item}
                 </Button>
               </div>
             </section>
             <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-              <h2 className="font-bold text-gray-900 mb-3">테이블 목록</h2>
+              <h2 className="font-bold text-gray-900 mb-3">{t.mini_table_list}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {payload.tables.map((table) => (
                   <div key={table.id} className="rounded-xl bg-gray-50 p-3 flex items-center justify-between gap-2">
                     <div>
                       <p className="font-bold text-gray-900">{table.name}</p>
-                      <p className="text-xs text-gray-500">{table.status === 'OCCUPIED' ? '주문중' : '비어있음'}</p>
+                      <p className="text-xs text-gray-500">{table.status === 'OCCUPIED' ? t.mini_ordering : t.mini_empty}</p>
                     </div>
                     <div className="flex gap-1">
                       <button
@@ -1045,7 +1052,7 @@ export default function MiniReceiptPage() {
                       </button>
                       <button
                         onClick={() => {
-                          if (confirm(`${table.name} 테이블을 삭제할까요?`)) {
+                          if (confirm(textTemplate(t.mini_table_delete_confirm, { name: table.name }))) {
                             postAction({ action: 'table.delete', tableId: table.id });
                           }
                         }}
@@ -1065,12 +1072,12 @@ export default function MiniReceiptPage() {
           <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
             <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-5">
               <div>
-                <h2 className="font-bold text-gray-900 mb-3">카테고리 추가</h2>
+                <h2 className="font-bold text-gray-900 mb-3">{t.mini_add_category}</h2>
                 <div className="flex gap-2">
                   <input
                     value={categoryName}
                     onChange={(event) => setCategoryName(event.target.value)}
-                    placeholder="예: 식사"
+                    placeholder={t.mini_category_name_placeholder}
                     className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
                   />
                   <Button
@@ -1081,13 +1088,13 @@ export default function MiniReceiptPage() {
                       setCategoryName('');
                     }}
                   >
-                    추가
+                    {t.mini_add_item}
                   </Button>
                 </div>
               </div>
 
               <div>
-                <h2 className="font-bold text-gray-900 mb-3">메뉴 추가</h2>
+                <h2 className="font-bold text-gray-900 mb-3">{t.mini_add_menu}</h2>
                 <div className="space-y-2">
                   <select
                     value={menuCategoryId}
@@ -1101,19 +1108,19 @@ export default function MiniReceiptPage() {
                   <input
                     value={menuCode}
                     onChange={(event) => setMenuCode(event.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="고유 번호 예: 01"
+                    placeholder={t.mini_menu_code_placeholder}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
                   />
                   <input
                     value={menuName}
                     onChange={(event) => setMenuName(event.target.value)}
-                    placeholder="메뉴명"
+                    placeholder={t.mini_menu_name_placeholder}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
                   />
                   <input
                     value={menuPrice}
                     onChange={(event) => setMenuPrice(event.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="가격"
+                    placeholder={t.mini_price_placeholder}
                     inputMode="numeric"
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
                   />
@@ -1134,7 +1141,7 @@ export default function MiniReceiptPage() {
                       setMenuPrice('');
                     }}
                   >
-                    메뉴 추가
+                    {t.mini_add_menu}
                   </Button>
                 </div>
               </div>
@@ -1143,7 +1150,7 @@ export default function MiniReceiptPage() {
             <section className="space-y-4">
               {payload.categories.length === 0 ? (
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center text-sm font-semibold text-gray-400">
-                  카테고리를 먼저 추가해주세요.
+                  {t.mini_add_category_first}
                 </div>
               ) : (
                 payload.categories.map((category) => (
@@ -1155,27 +1162,27 @@ export default function MiniReceiptPage() {
                           onClick={() => renameCategory(category)}
                           className="text-xs font-bold text-gray-500"
                         >
-                          수정
+                          {t.mini_edit}
                         </button>
                         <button
                           onClick={() => {
                             const menuCount = category.menus.length;
                             const message = menuCount > 0
-                              ? `${category.name} 카테고리를 삭제할까요?\n\n이 카테고리 안의 메뉴 ${menuCount}개도 모두 삭제됩니다.`
-                              : `${category.name} 카테고리를 삭제할까요?`;
+                              ? textTemplate(t.mini_category_delete_with_menus_confirm, { name: category.name, count: menuCount })
+                              : textTemplate(t.mini_category_delete_confirm, { name: category.name });
                             if (confirm(message)) {
                               postAction({ action: 'category.delete', categoryId: category.id });
                             }
                           }}
                           className="text-xs font-bold text-red-500"
                         >
-                          삭제
+                          {t.mini_delete}
                         </button>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {category.menus.length === 0 ? (
-                        <div className="text-sm text-gray-400 py-4">메뉴 없음</div>
+                        <div className="text-sm text-gray-400 py-4">{t.mini_no_menu}</div>
                       ) : (
                         category.menus.map((menu) => (
                           <div key={menu.id} className={`rounded-xl p-3 flex items-center justify-between gap-2 ${menu.is_active ? 'bg-gray-50' : 'bg-gray-100 opacity-60'}`}>
@@ -1184,7 +1191,7 @@ export default function MiniReceiptPage() {
                                 <span className="text-indigo-600">{menu.menu_code}</span> {menu.name}
                               </p>
                               <p className="text-xs text-gray-500">
-                                {formatMoney(menu.price)} {menu.is_active ? '' : '· 숨김'}
+                                {formatMoney(menu.price)} {menu.is_active ? '' : `· ${t.mini_hidden}`}
                               </p>
                             </div>
                             <div className="flex gap-1">
@@ -1209,7 +1216,7 @@ export default function MiniReceiptPage() {
                               </button>
                               <button
                                 onClick={() => {
-                                  if (confirm(`${menu.name} 메뉴를 삭제할까요?`)) {
+                                  if (confirm(textTemplate(t.mini_menu_delete_confirm, { name: menu.name }))) {
                                     postAction({ action: 'menu.delete', menuId: menu.id });
                                   }
                                 }}
@@ -1233,11 +1240,11 @@ export default function MiniReceiptPage() {
           <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             {refreshing && (
               <div className="mb-3 rounded-xl bg-indigo-50 px-4 py-2 text-center text-xs font-bold text-indigo-600">
-                이력 새로고침 중...
+                {t.mini_history_refreshing}
               </div>
             )}
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="font-bold text-gray-900">결제완료 이력</h2>
+              <h2 className="font-bold text-gray-900">{t.mini_paid_history}</h2>
               <input
                 type="date"
                 value={historyDate}
@@ -1252,7 +1259,7 @@ export default function MiniReceiptPage() {
             </div>
             <div className="space-y-2">
               {payload.history.length === 0 ? (
-                <div className="py-12 text-center text-sm font-semibold text-gray-400">아직 이력이 없습니다.</div>
+                <div className="py-12 text-center text-sm font-semibold text-gray-400">{t.mini_no_history}</div>
               ) : (
                 payload.history.map((order) => {
                   const table = payload.tables.find((item) => item.id === order.table_id);
@@ -1270,9 +1277,9 @@ export default function MiniReceiptPage() {
                       >
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-bold text-gray-900">{table?.name || '테이블'}</p>
+                            <p className="font-bold text-gray-900">{table?.name || t.mini_tables}</p>
                             {isReturned ? (
-                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-600">반품</span>
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-600">{t.mini_return}</span>
                             ) : null}
                           </div>
                           <p className="text-xs text-gray-500">
@@ -1281,7 +1288,7 @@ export default function MiniReceiptPage() {
                         </div>
                         <div className="text-right">
                           <p className={`font-black ${isReturned ? 'text-red-600' : 'text-indigo-600'}`}>{formatMoney(order.total)}</p>
-                          <p className="mt-1 text-xs font-bold text-gray-400">{isExpanded ? '접기' : '상세보기'}</p>
+                          <p className="mt-1 text-xs font-bold text-gray-400">{isExpanded ? t.mini_collapse : t.mini_detail}</p>
                         </div>
                       </button>
 
@@ -1312,10 +1319,10 @@ export default function MiniReceiptPage() {
                               variant="secondary"
                               onClick={() => {
                                 const success = printPaymentReceipt(order);
-                                if (!success) alert('재출력에 실패했습니다. 프린터를 확인해주세요.');
+                                if (!success) alert(t.mini_reprint_failed);
                               }}
                             >
-                              재출력
+                              {t.monitor_reprint}
                             </Button>
                             <Button
                               type="button"
@@ -1324,7 +1331,7 @@ export default function MiniReceiptPage() {
                               disabled={isReturned || hasReturnRecord || saving}
                               onClick={() => returnOrder(order)}
                             >
-                              {hasReturnRecord ? '반품완료' : '반품'}
+                              {hasReturnRecord ? t.mini_return_done : t.mini_return}
                             </Button>
                           </div>
                         </div>
@@ -1340,15 +1347,15 @@ export default function MiniReceiptPage() {
         {activeTab === 'receiptSettings' && (
           <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="mb-4">
-              <h2 className="font-bold text-gray-900">영수증 양식관리</h2>
-              <p className="mt-1 text-xs text-gray-500">체크한 항목만 영수증 상단 정보에 출력됩니다.</p>
+              <h2 className="font-bold text-gray-900">{t.mini_receipt_form_settings}</h2>
+              <p className="mt-1 text-xs text-gray-500">{t.mini_receipt_settings_desc}</p>
             </div>
             <div className="space-y-2">
               {([
-                ['businessRegNo', '사업자번호'],
-                ['address', '주소'],
-                ['representativeName', '성명'],
-                ['contact', '전화'],
+                ['businessRegNo', t.mini_business_no],
+                ['address', t.mini_address],
+                ['representativeName', t.mini_representative_name],
+                ['contact', t.mini_contact],
               ] as Array<[keyof ReceiptPrintSettings, string]>).map(([key, label]) => (
                 <label key={key} className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                   <span className="text-sm font-bold text-gray-800">{label}</span>
@@ -1367,22 +1374,22 @@ export default function MiniReceiptPage() {
       {showReceiptConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl">
-            <h2 className="text-lg font-bold text-gray-900">영수증을 출력하시겠습니까?</h2>
-            <p className="mt-2 text-sm text-gray-500">예를 누르면 영수증을 출력한 뒤 결제완료 처리합니다.</p>
+            <h2 className="text-lg font-bold text-gray-900">{t.mini_receipt_confirm_title}</h2>
+            <p className="mt-2 text-sm text-gray-500">{t.mini_receipt_confirm_desc}</p>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <Button
                 type="button"
                 variant="secondary"
                 onClick={() => closeOrder(false)}
               >
-                아니요
+                {t.mini_no}
               </Button>
               <Button
                 type="button"
                 variant="success"
                 onClick={() => closeOrder(true)}
               >
-                예
+                {t.mini_yes}
               </Button>
             </div>
           </div>
