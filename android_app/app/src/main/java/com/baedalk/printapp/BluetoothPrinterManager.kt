@@ -8,6 +8,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.text.Layout
 import android.text.StaticLayout
@@ -155,6 +156,23 @@ class BluetoothPrinterManager(private val context: Context) {
         val amount: Int
     )
 
+    private data class DeliveryShareItem(
+        val name: String,
+        val quantity: Int,
+        val amount: Int
+    )
+
+    private data class DeliveryShareOrder(
+        val nickname: String,
+        val selectedAddress: String,
+        val inputAddress: String,
+        val phone: String,
+        val items: List<DeliveryShareItem>,
+        val deliveryFee: Int,
+        val totalAmount: Int,
+        val paymentMethod: String
+    )
+
     private fun makeKitchenPaint(size: Float, bold: Boolean, scaleX: Float = 0.82f): TextPaint {
         return TextPaint().apply {
             color = Color.BLACK
@@ -204,6 +222,24 @@ class BluetoothPrinterManager(private val context: Context) {
                 lines.add(remaining.take(end).trimEnd())
                 remaining = remaining.drop(end).trimStart()
             }
+        }
+
+        return lines
+    }
+
+    private fun wrapTextFully(text: String, maxWidth: Float, paint: TextPaint): List<String> {
+        if (text.isBlank()) return listOf("")
+
+        val lines = mutableListOf<String>()
+        var remaining = text
+
+        while (remaining.isNotEmpty()) {
+            var end = remaining.length
+            while (end > 1 && paint.measureText(remaining.take(end)) > maxWidth) {
+                end--
+            }
+            lines.add(remaining.take(end).trimEnd())
+            remaining = remaining.drop(end).trimStart()
         }
 
         return lines
@@ -450,6 +486,245 @@ class BluetoothPrinterManager(private val context: Context) {
         return bitmap
     }
 
+    private fun parseMoneyToInt(value: String): Int {
+        return value.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 0
+    }
+
+    private fun formatK(amount: Int): String {
+        return "${amount / 1000}k"
+    }
+
+    private fun normalizePhone(rawPhone: String): String {
+        val digits = rawPhone.replace(Regex("[^0-9]"), "")
+        val local = when {
+            digits.startsWith("84") -> "0${digits.drop(2)}"
+            digits.startsWith("0") -> digits
+            else -> "0$digits"
+        }
+
+        return if (local.length >= 10) {
+            "${local.take(3)} ${local.drop(3).take(3)} ${local.drop(6)}"
+        } else {
+            local
+        }
+    }
+
+    private fun compactSelectedAddress(rawAddress: String): String {
+        fun stripCityCountry(value: String): String {
+            return value
+                .replace(Regex("(?i)\\b(vietnam|viet nam)\\b"), "")
+                .replace(Regex("(?i)\\b(ho chi minh city|ho chi minh|hcm)\\b"), "")
+                .replace("베트남", "")
+                .replace("호찌민시", "")
+                .replace("호치민시", "")
+                .replace("호찌민", "")
+                .replace("호치민", "")
+                .replace(Regex("\\s{2,}"), " ")
+                .trim()
+        }
+
+        val parts = stripCityCountry(rawAddress).split(",")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .toMutableList()
+
+        while (parts.isNotEmpty()) {
+            val last = parts.last().lowercase()
+            val shouldDrop = last.contains("vietnam") ||
+                last.contains("ho chi minh") ||
+                last.contains("hồ chí minh") ||
+                last.contains("hcm") ||
+                last.contains("베트남") ||
+                last.contains("호찌민") ||
+                last.contains("호치민")
+            if (!shouldDrop) break
+            parts.removeAt(parts.lastIndex)
+        }
+
+        return parts.joinToString(", ")
+    }
+
+    private fun normalizePaymentMethod(rawMethod: String): String {
+        return when {
+            rawMethod.contains("계좌") || rawMethod.contains("이체") || rawMethod.contains("bank", ignoreCase = true) -> "Banking"
+            rawMethod.contains("현금") || rawMethod.contains("cash", ignoreCase = true) -> "Cash"
+            rawMethod.contains("카드") || rawMethod.contains("card", ignoreCase = true) -> "Card"
+            else -> rawMethod.trim().ifBlank { "Unknown" }
+        }
+    }
+
+    private fun calculateChange(totalAmount: Int): Int {
+        if (totalAmount <= 0) return 0
+        val billUnit = 500_000
+        val paid = ((totalAmount + billUnit - 1) / billUnit) * billUnit
+        return paid - totalAmount
+    }
+
+    private fun parseDeliveryShareOrder(rawText: String): DeliveryShareOrder? {
+        val lines = rawText.lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList()
+        val selectedAddress = lines.firstOrNull { it.contains("선택주소") }
+            ?.substringAfter(":")
+            ?.trim()
+        val inputAddress = lines.firstOrNull { it.contains("입력주소") }
+            ?.substringAfter(":")
+            ?.trim()
+        val phone = lines.firstOrNull { it.contains("📞") || it.startsWith("+") }
+            ?.replace("📞", "")
+            ?.trim()
+        val deliveryFee = lines.firstOrNull { it.startsWith("배달비") }
+            ?.substringAfter(":")
+            ?.let { parseMoneyToInt(it) }
+        val totalAmount = lines.firstOrNull { it.startsWith("최종결제금액") }
+            ?.substringAfter(":")
+            ?.let { parseMoneyToInt(it) }
+        val rawPayment = lines.firstOrNull { it.startsWith("결제방법") }
+            ?.substringAfter(":")
+            ?.substringBefore("(")
+            ?.trim()
+
+        if (
+            selectedAddress.isNullOrBlank() ||
+            inputAddress.isNullOrBlank() ||
+            phone.isNullOrBlank() ||
+            deliveryFee == null ||
+            totalAmount == null ||
+            rawPayment.isNullOrBlank()
+        ) {
+            return null
+        }
+
+        val itemRegex = Regex("""^🍲\s*(.+?)\s+([\d,]+)\s*₫(?:\s*\((.+)\))?\s*x\s*(\d+)\s*$""")
+        val optionRegex = Regex("""([^+()]+?)\s*\+([\d,]+)\s*₫""")
+        val items = mutableListOf<DeliveryShareItem>()
+
+        lines.filter { it.startsWith("🍲") }.forEach { line ->
+            val match = itemRegex.find(line) ?: return@forEach
+            val name = match.groupValues[1].trim()
+            val price = parseMoneyToInt(match.groupValues[2])
+            val optionText = match.groupValues.getOrNull(3)?.trim() ?: ""
+            val quantity = match.groupValues[4].toIntOrNull() ?: 1
+            items.add(DeliveryShareItem(name, quantity, price * quantity))
+
+            optionRegex.findAll(optionText).forEach { optionMatch ->
+                val optionName = optionMatch.groupValues[1].trim()
+                val optionPrice = parseMoneyToInt(optionMatch.groupValues[2])
+                if (optionName.isNotBlank() && optionPrice > 0) {
+                    items.add(DeliveryShareItem("($optionName)", quantity, optionPrice * quantity))
+                }
+            }
+        }
+
+        if (items.isEmpty()) return null
+
+        return DeliveryShareOrder(
+            nickname = "닉네임 정보 없음",
+            selectedAddress = compactSelectedAddress(selectedAddress),
+            inputAddress = inputAddress,
+            phone = normalizePhone(phone),
+            items = items,
+            deliveryFee = deliveryFee,
+            totalAmount = totalAmount,
+            paymentMethod = normalizePaymentMethod(rawPayment)
+        )
+    }
+
+    private fun deliveryShareOrderToBitmap(order: DeliveryShareOrder): Bitmap {
+        val width = 576
+        val left = 24f
+        val right = width - 24f
+        val nicknamePaint = makeKitchenPaint(42f, true, 0.82f)
+        val infoPaint = makeKitchenPaint(37f, false, 0.82f)
+        val phonePaint = makeKitchenPaint(38f, true, 0.82f)
+        val headerPaint = makeKitchenPaint(29f, false, 0.82f)
+        val itemPaint = makeKitchenPaint(31f, false, 0.82f)
+        val itemAmountPaint = makeKitchenPaint(31f, false, 0.82f)
+        val totalLabelPaint = makeKitchenPaint(35f, true, 0.82f)
+        val totalPaint = makeKitchenPaint(43f, true, 0.78f)
+        val memoPaint = makeKitchenPaint(29f, false, 0.82f)
+        val linePaint = makeKitchenPaint(1f, false).apply {
+            strokeWidth = 2f
+        }
+        val memoBorderPaint = TextPaint().apply {
+            color = Color.BLACK
+            strokeWidth = 1f
+            style = Paint.Style.STROKE
+            isAntiAlias = true
+        }
+
+        val addressLines = wrapTextFully("📍 ${order.selectedAddress}", right - left, infoPaint)
+        val inputLines = wrapTextFully("🏠 ${order.inputAddress}", right - left, infoPaint)
+        val itemNameWidth = 350f
+        val itemLineHeight = 38f
+        val itemLineCount = order.items.sumOf { item ->
+            wrapTextToLines("🍲 ${item.name}", itemNameWidth, itemPaint, 2).size
+        }
+        val height = (
+            500 +
+                (addressLines.size * 44) +
+                (inputLines.size * 44) +
+                (itemLineCount * itemLineHeight).toInt() +
+                150
+            ).coerceAtLeast(900)
+
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+
+        var y = 76f
+        canvas.drawText(order.nickname, left, y, nicknamePaint)
+        y += 32f
+        canvas.drawLine(left, y, right, y, linePaint)
+
+        y += 44f
+        addressLines.forEach { line ->
+            canvas.drawText(line, left, y, infoPaint)
+            y += 44f
+        }
+        inputLines.forEach { line ->
+            canvas.drawText(line, left, y, infoPaint)
+            y += 44f
+        }
+        canvas.drawText("☎ ${order.phone}", left, y, phonePaint)
+
+        y += 58f
+        canvas.drawText("메뉴", 104f, y, headerPaint)
+        canvas.drawText("수량", 410f, y, headerPaint)
+        canvas.drawText("금액", 500f, y, headerPaint)
+        y += 18f
+        canvas.drawLine(left, y, right, y, linePaint)
+
+        y += 34f
+        order.items.forEach { item ->
+            val lines = wrapTextToLines("🍲 ${item.name}", itemNameWidth, itemPaint, 2)
+            lines.forEachIndexed { index, line ->
+                canvas.drawText(if (index == 0) line else "   $line", left + 10f, y, itemPaint)
+                if (index == 0) {
+                    canvas.drawCenteredAt(item.quantity.toString(), 430f, y, itemAmountPaint)
+                    canvas.drawRightText(formatK(item.amount), right, y, itemAmountPaint)
+                }
+                y += itemLineHeight
+            }
+        }
+
+        y += 12f
+        canvas.drawText("배달비", left + 28f, y, itemPaint)
+        canvas.drawRightText(formatK(order.deliveryFee), right, y, itemAmountPaint)
+
+        y += 42f
+        canvas.drawLine(left, y, right, y, linePaint)
+        y += 52f
+        canvas.drawText(order.paymentMethod, left + 20f, y, totalLabelPaint)
+        val change = calculateChange(order.totalAmount)
+        canvas.drawRightText("${formatK(order.totalAmount)}  ( ${formatK(change)} )", right - 8f, y, totalPaint)
+
+        y += 48f
+        canvas.drawText("MEMO", left + 28f, y, memoPaint)
+        y += 18f
+        canvas.drawRect(left, y, right, y + 160f, memoBorderPaint)
+
+        return bitmap
+    }
+
     private fun bitmapToEscPos(bitmap: Bitmap): ByteArray {
         val width = bitmap.width
         val height = bitmap.height
@@ -527,6 +802,30 @@ class BluetoothPrinterManager(private val context: Context) {
             true
         } catch (e: Exception) {
             Log.e("BluetoothPrinter", "이미지 영수증 인쇄 실패", e)
+            false
+        }
+    }
+
+    fun isDeliveryShareOrder(rawText: String): Boolean {
+        return parseDeliveryShareOrder(rawText) != null
+    }
+
+    fun printDeliveryShareOrder(rawText: String): Boolean {
+        if (!ensureConnected()) return false
+        val order = parseDeliveryShareOrder(rawText) ?: return false
+
+        return try {
+            outputStream?.write(byteArrayOf(0x1B, 0x40))
+
+            val imageCommand = bitmapToEscPos(deliveryShareOrderToBitmap(order))
+            outputStream?.write(imageCommand)
+
+            feedAndCut()
+
+            outputStream?.flush()
+            true
+        } catch (e: Exception) {
+            Log.e("BluetoothPrinter", "배달K 공유 주문 인쇄 실패", e)
             false
         }
     }

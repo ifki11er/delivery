@@ -16,9 +16,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.concurrent.Executors
 
 class SharePrintActivity : AppCompatActivity() {
@@ -128,9 +125,14 @@ class SharePrintActivity : AppCompatActivity() {
                 return@submit
             }
 
-            val receiptText = buildReceiptText(text)
+            if (!printerManager.isDeliveryShareOrder(text)) {
+                dbHelper.insertPrintHistory(text, "지원하지 않는 공유 텍스트 형식입니다.", "FAILED")
+                runOnUiThread { showFailure("배달K 주문 공유 형식이 아닙니다.\n주문 텍스트를 확인해 주세요.") }
+                return@submit
+            }
+
             val success = try {
-                printerManager.connectPrinter(defaultPrinter) && printerManager.printOrderReceipt(receiptText)
+                printerManager.connectPrinter(defaultPrinter) && printerManager.printDeliveryShareOrder(text)
             } finally {
                 Thread.sleep(2500)
                 printerManager.disconnect()
@@ -157,20 +159,6 @@ class SharePrintActivity : AppCompatActivity() {
     private fun extractSharedText(intent: Intent?): String {
         if (intent?.action != Intent.ACTION_SEND) return ""
         return intent.extras?.get(Intent.EXTRA_TEXT)?.toString() ?: ""
-    }
-
-    private fun buildReceiptText(text: String): String {
-        val now = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
-        return """
-
-            ================================
-                       배달K 주문서
-            ================================
-            출력시간: $now
-
-            ${text.trim()}
-
-        """.trimIndent()
     }
 
     private fun summarizeOrderText(text: String): String {
