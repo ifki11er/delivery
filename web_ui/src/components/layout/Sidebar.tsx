@@ -33,7 +33,6 @@ export default function Sidebar({ session }: { session: Session | null }) {
             <Link
               key={item.href}
               href={item.href}
-              prefetch={false}
               className={`flex items-center px-4 py-3 rounded-xl transition-colors ${
                 isActive
                   ? 'bg-indigo-50 text-indigo-600 font-semibold'

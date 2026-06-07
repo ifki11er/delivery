@@ -1,9 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
-  ChevronLeft,
   Edit3,
   Eye,
   EyeOff,
@@ -20,6 +18,9 @@ import {
 import { useI18n } from '@/i18n/I18nProvider';
 import { Button } from '@/components/ui/button';
 import { StoreRequiredNotice } from '@/components/store/StoreRequiredNotice';
+import { useStores } from '@/components/providers/StoreProvider';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/layout/PageHeader';
 
 type PosTable = {
   id: string;
@@ -92,10 +93,14 @@ type ReceiptPrintSettings = {
   contact: boolean;
 };
 
+type StoreSeed = PosPayload['store'];
+
 const currency = '₫';
 const draftStoragePrefix = 'mini_receipt_drafts_v1';
 const sequenceStoragePrefix = 'mini_receipt_daily_sequence_v1';
 const receiptSettingsStoragePrefix = 'mini_receipt_receipt_settings_v1';
+const payloadCachePrefix = 'mini_receipt_payload_v1';
+const miniReceiptMemoryCache = new Map<string, PosPayload>();
 const defaultReceiptPrintSettings: ReceiptPrintSettings = {
   businessRegNo: true,
   address: true,
@@ -105,6 +110,20 @@ const defaultReceiptPrintSettings: ReceiptPrintSettings = {
 
 function formatMoney(amount: number) {
   return `${amount.toLocaleString()} ${currency}`;
+}
+
+function createEmptyPayload(store: StoreSeed): PosPayload {
+  return {
+    store,
+    tables: [],
+    categories: [],
+    orders: [],
+    history: [],
+  };
+}
+
+function getPayloadCacheKey(storeId: string, historyDate: string) {
+  return `${storeId}_${historyDate}`;
 }
 
 function formatDate(value?: string | null) {
@@ -166,8 +185,8 @@ function getTodayKey() {
 }
 
 export default function MiniReceiptPage() {
-  const router = useRouter();
   const t = useI18n();
+  const { stores, loading: storesLoading } = useStores();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [payload, setPayload] = useState<PosPayload | null>(null);
@@ -191,10 +210,47 @@ export default function MiniReceiptPage() {
   const [receiptSettings, setReceiptSettings] = useState<ReceiptPrintSettings>(defaultReceiptPrintSettings);
   const [expandedHistoryId, setExpandedHistoryId] = useState('');
   const [historyDate, setHistoryDate] = useState(getTodayInputDate);
+  const preferredStore = stores[0] || null;
+  const preferredStoreId = preferredStore?.id || '';
+
+  const applyPayload = (data: PosPayload) => {
+    setPayload(data);
+
+    const nextTableId = data.tables.some((table) => table.id === selectedTableId)
+      ? selectedTableId
+      : data.tables[0]?.id || '';
+    const nextCategoryId = data.categories.some((category) => category.id === selectedCategoryId)
+      ? selectedCategoryId
+      : data.categories[0]?.id || '';
+    setSelectedTableId(nextTableId);
+    setSelectedCategoryId(nextCategoryId);
+    setMenuCategoryId((current) => (
+      data.categories.some((category) => category.id === current) ? current : nextCategoryId
+    ));
+
+    const stored = localStorage.getItem(`${draftStoragePrefix}_${data.store.id}`);
+    setDraftOrders(stored ? JSON.parse(stored) as DraftOrders : {});
+    const storedReceiptSettings = localStorage.getItem(`${receiptSettingsStoragePrefix}_${data.store.id}`);
+    setReceiptSettings(storedReceiptSettings
+      ? { ...defaultReceiptPrintSettings, ...JSON.parse(storedReceiptSettings) as Partial<ReceiptPrintSettings> }
+      : defaultReceiptPrintSettings);
+  };
+
+  const cachePayload = (data: PosPayload, nextHistoryDate = historyDate) => {
+    const cacheKey = getPayloadCacheKey(data.store.id, nextHistoryDate);
+    miniReceiptMemoryCache.set(cacheKey, data);
+    localStorage.setItem(`${payloadCachePrefix}_${cacheKey}`, JSON.stringify(data));
+  };
 
   const loadData = async (nextHistoryDate = historyDate) => {
+    if (!preferredStoreId) {
+      setPayload(null);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const params = new URLSearchParams({ historyDate: nextHistoryDate });
+      const params = new URLSearchParams({ storeId: preferredStoreId, historyDate: nextHistoryDate });
       const res = await fetch(`/api/store/mini-receipt?${params.toString()}`);
       if (!res.ok) {
         setPayload(null);
@@ -202,25 +258,8 @@ export default function MiniReceiptPage() {
       }
 
       const data = (await res.json()) as PosPayload;
-      setPayload(data);
-
-      const nextTableId = data.tables.some((table) => table.id === selectedTableId)
-        ? selectedTableId
-        : data.tables[0]?.id || '';
-      const nextCategoryId = data.categories.some((category) => category.id === selectedCategoryId)
-        ? selectedCategoryId
-        : data.categories[0]?.id || '';
-      setSelectedTableId(nextTableId);
-      setSelectedCategoryId(nextCategoryId);
-      setMenuCategoryId((current) => (
-        data.categories.some((category) => category.id === current) ? current : nextCategoryId
-      ));
-      const stored = localStorage.getItem(`${draftStoragePrefix}_${data.store.id}`);
-      setDraftOrders(stored ? JSON.parse(stored) as DraftOrders : {});
-      const storedReceiptSettings = localStorage.getItem(`${receiptSettingsStoragePrefix}_${data.store.id}`);
-      setReceiptSettings(storedReceiptSettings
-        ? { ...defaultReceiptPrintSettings, ...JSON.parse(storedReceiptSettings) as Partial<ReceiptPrintSettings> }
-        : defaultReceiptPrintSettings);
+      applyPayload(data);
+      cachePayload(data, nextHistoryDate);
     } catch (error) {
       console.error(error);
       setPayload(null);
@@ -230,8 +269,49 @@ export default function MiniReceiptPage() {
   };
 
   useEffect(() => {
+    if (storesLoading) return;
+    if (!preferredStoreId) {
+      setPayload(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const cacheKey = getPayloadCacheKey(preferredStoreId, historyDate);
+      const memoryCached = miniReceiptMemoryCache.get(cacheKey);
+      const localCached = !memoryCached ? localStorage.getItem(`${payloadCachePrefix}_${cacheKey}`) : null;
+      if (memoryCached || localCached) {
+        const cachedPayload = memoryCached ?? JSON.parse(localCached || '') as PosPayload;
+        if (!memoryCached) miniReceiptMemoryCache.set(cacheKey, cachedPayload);
+        applyPayload(cachedPayload);
+        setLoading(false);
+        return;
+      } else if (preferredStore && !payload) {
+        applyPayload(createEmptyPayload({
+          id: preferredStore.id,
+          name: preferredStore.name,
+          currency: preferredStore.currency || currency,
+          businessRegNo: preferredStore.businessRegNo,
+          address: preferredStore.address,
+          representativeName: preferredStore.representativeName,
+          contact: preferredStore.contact,
+        }));
+        setLoading(false);
+      }
+    } catch {
+      localStorage.removeItem(`${payloadCachePrefix}_${getPayloadCacheKey(preferredStoreId, historyDate)}`);
+    }
+
+    setLoading((current) => current && !payload);
     void loadData();
-  }, []);
+  }, [historyDate, preferredStoreId, storesLoading]);
+
+  const { refreshing } = usePullToRefresh({
+    disabled: storesLoading || !preferredStoreId || activeTab !== 'history',
+    onRefresh: async () => {
+      await loadData(historyDate);
+    },
+  });
 
   useEffect(() => {
     if (!payload?.store.id) return;
@@ -259,7 +339,8 @@ export default function MiniReceiptPage() {
       }
 
       const data = (await res.json()) as PosPayload;
-      setPayload(data);
+      applyPayload(data);
+      cachePayload(data);
       setSelectedTableId((current) => (
         data.tables.some((table) => table.id === current) ? current : data.tables[0]?.id || ''
       ));
@@ -685,26 +766,21 @@ export default function MiniReceiptPage() {
     });
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
-
-  if (!payload) {
+  if (!storesLoading && !payload) {
     return <StoreRequiredNotice />;
   }
 
+  if (!payload) return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
+
   return (
     <div className="bg-gray-50 min-h-screen pb-24 md:pb-6">
-      <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
-          <div className="flex items-center space-x-2 min-w-0">
-            <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
-              <ChevronLeft className="w-6 h-6 text-gray-600" />
-            </button>
-            <div className="min-w-0">
-              <h1 className="font-bold text-lg text-gray-900">{t.nav_mini_receipt}</h1>
-              <p className="text-xs text-gray-500 truncate">{payload.store.name}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
+      <PageHeader
+        title={t.nav_mini_receipt}
+        subtitle={`${payload.store.name}${loading ? ' · 동기화 중...' : ''}`}
+        icon={<ReceiptText className="w-5 h-5" />}
+        maxWidth="max-w-6xl"
+        actions={(
+          <>
             {activeTab !== 'order' && (
               <button
                 type="button"
@@ -760,9 +836,9 @@ export default function MiniReceiptPage() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      </div>
+          </>
+        )}
+      />
 
       <div className="max-w-6xl mx-auto px-4 mt-4">
         {activeTab === 'order' && (
@@ -1253,6 +1329,11 @@ export default function MiniReceiptPage() {
 
         {activeTab === 'history' && (
           <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+            {refreshing && (
+              <div className="mb-3 rounded-xl bg-indigo-50 px-4 py-2 text-center text-xs font-bold text-indigo-600">
+                이력 새로고침 중...
+              </div>
+            )}
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="font-bold text-gray-900">결제완료 이력</h2>
               <input

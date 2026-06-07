@@ -1,26 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Bluetooth, ChevronLeft, Printer, RefreshCw } from "lucide-react";
+import { Bluetooth, Printer, RefreshCw } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { StoreRequiredNotice } from "@/components/store/StoreRequiredNotice";
+import { useStores } from "@/components/providers/StoreProvider";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import PageHeader from "@/components/layout/PageHeader";
 
 type ConnectionStatus = "idle" | "ready" | "connecting" | "success" | "failed" | "error";
 
 export default function MonitorPage() {
-  const router = useRouter();
   const t = useI18n();
+  const { loading: isStoreLoading, hasStore } = useStores();
   const [printJobs, setPrintJobs] = useState<AndroidOrder[]>([]);
   const [printers, setPrinters] = useState<AndroidPrinter[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle");
   const [showToast, setShowToast] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isStoreLoading, setIsStoreLoading] = useState(true);
-  const [hasStore, setHasStore] = useState(false);
 
   const connectionStatusText = {
     idle: t.monitor_printer_idle,
@@ -73,7 +73,6 @@ export default function MonitorPage() {
 
   const handleManualRefresh = () => {
     loadPrinters();
-    fetchPrintJobs();
     setShowToast(true);
     setTimeout(() => setShowToast(false), 2000);
   };
@@ -142,45 +141,25 @@ export default function MonitorPage() {
   };
 
   useEffect(() => {
-    let isMounted = true;
-    let interval: ReturnType<typeof setInterval> | undefined;
     const handleFocus = () => loadPrinters();
 
-    const initialize = async () => {
-      try {
-        const res = await fetch("/api/store");
-        if (!res.ok) {
-          if (isMounted) setHasStore(false);
-          return;
-        }
+    if (isStoreLoading || !hasStore) return undefined;
 
-        const stores = (await res.json()) as unknown[];
-        if (!isMounted) return;
-
-        const nextHasStore = stores.length > 0;
-        setHasStore(nextHasStore);
-        if (nextHasStore) {
-          fetchPrintJobs();
-          loadPrinters();
-          interval = setInterval(fetchPrintJobs, 2000);
-          window.addEventListener("focus", handleFocus);
-        }
-      } catch (error) {
-        console.error(error);
-        if (isMounted) setHasStore(false);
-      } finally {
-        if (isMounted) setIsStoreLoading(false);
-      }
-    };
-
-    void initialize();
+    fetchPrintJobs();
+    loadPrinters();
+    window.addEventListener("focus", handleFocus);
 
     return () => {
-      isMounted = false;
-      if (interval) clearInterval(interval);
       window.removeEventListener("focus", handleFocus);
     };
-  }, []);
+  }, [hasStore, isStoreLoading]);
+
+  const { refreshing } = usePullToRefresh({
+    disabled: isStoreLoading || !hasStore,
+    onRefresh: () => {
+      fetchPrintJobs();
+    },
+  });
 
   if (isStoreLoading) {
     return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
@@ -191,13 +170,16 @@ export default function MonitorPage() {
   }
 
   return (
-    <main className="p-5 bg-gray-50 min-h-screen">
-      <div className="flex items-center space-x-4 mb-6">
-        <button onClick={() => router.back()} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-          <ChevronLeft className="w-6 h-6 text-gray-600" />
-        </button>
-        <h1 className="text-2xl font-extrabold text-blue-600 tracking-tight">{t.mypage_monitor}</h1>
-      </div>
+    <main className="bg-gray-50 min-h-screen">
+      <PageHeader title={t.mypage_monitor} icon={<Printer className="w-5 h-5" />} maxWidth="max-w-6xl" />
+
+      <div className="max-w-6xl mx-auto p-5">
+
+      {refreshing && (
+        <div className="mb-4 rounded-xl bg-blue-50 px-4 py-2 text-center text-xs font-bold text-blue-600">
+          출력 이력 새로고침 중...
+        </div>
+      )}
 
       <Panel className="mb-6 p-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
@@ -304,6 +286,7 @@ export default function MonitorPage() {
             </div>
           ))
         )}
+      </div>
       </div>
     </main>
   );

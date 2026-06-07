@@ -1,17 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { AlertTriangle, Search, Plus, ChevronLeft, Edit3, Save, X, Phone, FileText, Trash2 } from 'lucide-react';
+import { AlertTriangle, Search, Plus, Edit3, Save, X, Phone, FileText, Trash2 } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 import { StoreRequiredNotice } from '@/components/store/StoreRequiredNotice';
+import { useStores } from '@/components/providers/StoreProvider';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/layout/PageHeader';
 import type { BlacklistEntry } from '@/types/store-management';
 
+const blacklistMemoryCache = new Map<string, BlacklistEntry[]>();
+
 export default function BlacklistPage() {
-  const router = useRouter();
   const t = useI18n();
   const { data: session } = useSession();
+  const { loading: storesLoading, hasStore } = useStores();
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,12 +25,18 @@ export default function BlacklistPage() {
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editingReason, setEditingReason] = useState('');
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
-  const [hasStore, setHasStore] = useState(false);
 
-  const fetchBlacklist = async (q = '') => {
-    setLoading(true);
+  const fetchBlacklist = async (q = '', force = false) => {
     try {
       const trimmedQuery = q.trim();
+      const cacheKey = trimmedQuery ? `q:${trimmedQuery}` : 'mine';
+      if (!force && blacklistMemoryCache.has(cacheKey)) {
+        setBlacklist(blacklistMemoryCache.get(cacheKey) ?? []);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
       const params = new URLSearchParams();
       if (trimmedQuery) {
         params.set('q', trimmedQuery);
@@ -35,7 +45,9 @@ export default function BlacklistPage() {
       }
       const res = await fetch(`/api/blacklist?${params.toString()}`);
       if (res.ok) {
-        setBlacklist((await res.json()) as BlacklistEntry[]);
+        const data = (await res.json()) as BlacklistEntry[];
+        blacklistMemoryCache.set(cacheKey, data);
+        setBlacklist(data);
       }
     } catch (error) {
       console.error(error);
@@ -45,31 +57,20 @@ export default function BlacklistPage() {
   };
 
   useEffect(() => {
-    const initialize = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch('/api/store');
-        if (!res.ok) {
-          setHasStore(false);
-          return;
-        }
+    if (storesLoading) return;
+    if (!hasStore) {
+      setLoading(false);
+      return;
+    }
+    void fetchBlacklist();
+  }, [hasStore, storesLoading]);
 
-        const stores = (await res.json()) as unknown[];
-        const nextHasStore = stores.length > 0;
-        setHasStore(nextHasStore);
-        if (nextHasStore) {
-          await fetchBlacklist();
-        }
-      } catch (error) {
-        console.error(error);
-        setHasStore(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void initialize();
-  }, []);
+  const { refreshing } = usePullToRefresh({
+    disabled: storesLoading || !hasStore,
+    onRefresh: async () => {
+      await fetchBlacklist(searchQuery, true);
+    },
+  });
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +96,7 @@ export default function BlacklistPage() {
         setShowAdd(false);
         setNewPhone('');
         setNewReason('');
-        void fetchBlacklist();
+        void fetchBlacklist('', true);
       } else {
         const errData = await res.json();
         alert(errData.error || t.blacklist_fail);
@@ -118,7 +119,7 @@ export default function BlacklistPage() {
       if (res.ok) {
         setEditingReportId(null);
         setEditingReason('');
-        void fetchBlacklist();
+        void fetchBlacklist(searchQuery, true);
       } else {
         alert(t.blacklist_edit_fail);
       }
@@ -138,7 +139,7 @@ export default function BlacklistPage() {
       if (res.ok) {
         setEditingReportId(null);
         setEditingReason('');
-        void fetchBlacklist(searchQuery);
+        void fetchBlacklist(searchQuery, true);
       } else {
         alert(t.delete_failed);
       }
@@ -181,25 +182,16 @@ export default function BlacklistPage() {
     };
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
-
-  if (!hasStore) {
+  if (!storesLoading && !hasStore) {
     return <StoreRequiredNotice />;
   }
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
-      <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
-              <ChevronLeft className="w-6 h-6 text-gray-600" />
-            </button>
-            <h1 className="font-bold text-lg text-gray-900 flex items-center">
-              <AlertTriangle className="w-5 h-5 mr-2 text-red-500" />
-              {t.mypage_blacklist}
-            </h1>
-          </div>
+      <PageHeader
+        title={t.mypage_blacklist}
+        icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
+        actions={(
           <button
             onClick={() => setShowAdd(!showAdd)}
             className="text-red-600 bg-red-50 p-2 rounded-lg font-bold flex items-center text-sm"
@@ -207,10 +199,16 @@ export default function BlacklistPage() {
             <Plus className="w-4 h-4 mr-1" />
             {t.blacklist_add}
           </button>
-        </div>
-      </div>
+        )}
+      />
 
       <div className="max-w-2xl mx-auto px-4 space-y-4 mt-6">
+        {refreshing && (
+          <div className="rounded-xl bg-red-50 px-4 py-2 text-center text-xs font-bold text-red-600">
+            새로고침 중...
+          </div>
+        )}
+
         {showAdd && (
           <form onSubmit={handleAdd} className="bg-white p-5 rounded-2xl shadow-sm border border-red-100 bg-red-50/10">
             <h2 className="font-bold text-gray-900 mb-3 flex items-center">{t.blacklist_add_title}</h2>

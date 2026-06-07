@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Store, Upload, CheckCircle2, ChevronLeft, Clock, XCircle } from 'lucide-react';
+import { Store, Upload, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
+import PageHeader from '@/components/layout/PageHeader';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 type BusinessApplication = {
   id: string;
@@ -16,7 +17,6 @@ type BusinessApplication = {
 };
 
 export default function BusinessApplyPage() {
-  const router = useRouter();
   const t = useI18n();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -51,6 +51,10 @@ export default function BusinessApplyPage() {
   useEffect(() => {
     void fetchApplications();
   }, [fetchApplications]);
+
+  const { refreshing } = usePullToRefresh({
+    onRefresh: fetchApplications,
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -153,16 +157,15 @@ export default function BusinessApplyPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-4 md:p-8 pb-20 space-y-8">
-      <div className="flex items-center space-x-4">
-        <button onClick={() => router.back()} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-          <ChevronLeft className="w-6 h-6 text-gray-600" />
-        </button>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Store className="w-6 h-6 text-indigo-600" />
-          {t.apply_title}
-        </h1>
-      </div>
+    <div className="bg-gray-50 min-h-screen pb-20">
+      <PageHeader title={t.apply_title} icon={<Store className="w-5 h-5 text-indigo-600" />} />
+
+      <div className="max-w-2xl mx-auto p-4 md:p-8 space-y-8">
+      {refreshing && (
+        <div className="rounded-xl bg-indigo-50 px-4 py-2 text-center text-xs font-bold text-indigo-600">
+          신청 내역 새로고침 중...
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <p className="text-gray-600 mb-6 text-sm">{t.apply_desc}</p>
@@ -298,6 +301,7 @@ export default function BusinessApplyPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

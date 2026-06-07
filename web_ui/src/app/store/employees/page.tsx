@@ -1,21 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { UserPlus, Search, Users, Save, ChevronLeft, Trash2, Edit3, ChevronDown, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { UserPlus, Search, Users, Save, Trash2, Edit3, ChevronDown, ChevronRight, ClipboardCheck } from 'lucide-react';
 import { useI18n, useLocale } from '@/i18n/I18nProvider';
 import { EmployeeHistoryList } from '@/components/store/EmployeeHistoryList';
 import { StoreRequiredNotice } from '@/components/store/StoreRequiredNotice';
+import { useStores } from '@/components/providers/StoreProvider';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/layout/PageHeader';
 import type {
   AttendanceStat,
   EmployeeEditForm,
   EmployeeRow,
-  StoreSummary,
   UserSearchResult,
 } from '@/types/store-management';
 
 const DEFAULT_TIME_ZONE =
   typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' : 'UTC';
+const employeesMemoryCache = new Map<string, EmployeeRow[]>();
 
 function getLocalDateKey(date: Date) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -30,13 +32,13 @@ function resolveStoreTimeZone(timeZone?: string | null) {
 }
 
 export default function StoreEmployeesPage() {
-  const router = useRouter();
   const t = useI18n();
   const locale = useLocale();
-  const [stores, setStores] = useState<StoreSummary[]>([]);
+  const { stores, loading: storesLoading } = useStores();
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const lastLoadedStoreId = useRef('');
 
   // Add form
   const [searchPhone, setSearchPhone] = useState('');
@@ -72,30 +74,18 @@ export default function StoreEmployeesPage() {
     stores.find((store) => store.id === selectedStoreId)?.timeZone,
   );
 
-  const fetchStoresAndEmployees = async () => {
-    try {
-      const resStores = await fetch('/api/store');
-      if (resStores.ok) {
-        const storesData = (await resStores.json()) as StoreSummary[];
-        setStores(storesData);
-        if (storesData.length > 0) {
-          const storeId = storesData[0].id;
-          setSelectedStoreId(storeId);
-          await fetchEmployees(storeId);
-        }
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
+  const fetchEmployees = async (storeId: string, force = false) => {
+    if (!force && employeesMemoryCache.has(storeId)) {
+      setEmployees(employeesMemoryCache.get(storeId) ?? []);
+      return;
     }
-  };
 
-  const fetchEmployees = async (storeId: string) => {
     try {
       const res = await fetch(`/api/store/employees?storeId=${storeId}`);
       if (res.ok) {
-        setEmployees((await res.json()) as EmployeeRow[]);
+        const data = (await res.json()) as EmployeeRow[];
+        employeesMemoryCache.set(storeId, data);
+        setEmployees(data);
       }
     } catch (error) {
       console.error(error);
@@ -103,8 +93,30 @@ export default function StoreEmployeesPage() {
   };
 
   useEffect(() => {
-    fetchStoresAndEmployees();
-  }, []);
+    if (storesLoading) return;
+    if (stores.length === 0) {
+      setLoading(false);
+      return;
+    }
+
+    const storeId = stores.some((store) => store.id === selectedStoreId)
+      ? selectedStoreId
+      : stores[0].id;
+    setSelectedStoreId(storeId);
+    if (lastLoadedStoreId.current === storeId) return;
+    lastLoadedStoreId.current = storeId;
+    const hasCachedEmployees = employeesMemoryCache.has(storeId);
+    setLoading(!hasCachedEmployees);
+    void fetchEmployees(storeId).finally(() => setLoading(false));
+  }, [selectedStoreId, stores, storesLoading]);
+
+  const { refreshing } = usePullToRefresh({
+    disabled: storesLoading || stores.length === 0 || !selectedStoreId,
+    onRefresh: async () => {
+      if (!selectedStoreId) return;
+      await fetchEmployees(selectedStoreId, true);
+    },
+  });
 
   const fetchEmployeeStats = async (empId: string, month: string) => {
     setIsStatsLoading(true);
@@ -160,7 +172,7 @@ export default function StoreEmployeesPage() {
         setSearchPhone('');
         setSelectedSearchUser(null);
         setShowAddForm(false);
-        fetchEmployees(selectedStoreId);
+        fetchEmployees(selectedStoreId, true);
       } else {
         const err = await res.json();
         alert(err.error);
@@ -196,7 +208,7 @@ export default function StoreEmployeesPage() {
       });
       if (res.ok) {
         alert(t.emp_resign_success);
-        fetchEmployees(selectedStoreId);
+        fetchEmployees(selectedStoreId, true);
       }
     } catch {
       alert(t.emp_generic_error);
@@ -213,7 +225,7 @@ export default function StoreEmployeesPage() {
       if (res.ok) {
         alert(t.emp_update_success);
         setEditingId(null);
-        fetchEmployees(selectedStoreId);
+        fetchEmployees(selectedStoreId, true);
       }
     } catch {
       alert(t.emp_error_msg);
@@ -250,29 +262,29 @@ export default function StoreEmployeesPage() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
-
-  if (stores.length === 0) {
+  if (!storesLoading && stores.length === 0) {
     return <StoreRequiredNotice />;
   }
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
-      <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
-              <ChevronLeft className="w-6 h-6 text-gray-600" />
-            </button>
-            <h1 className="font-bold text-lg text-gray-900">{t.employee_management}</h1>
-          </div>
-          <button onClick={() => setShowAddForm(!showAddForm)} className="text-indigo-600 p-2">
+      <PageHeader
+        title={t.employee_management}
+        icon={<ClipboardCheck className="w-5 h-5" />}
+        actions={(
+          <button onClick={() => setShowAddForm(!showAddForm)} className="text-indigo-600 p-2 rounded-lg hover:bg-indigo-50 transition-colors">
             <UserPlus className="w-6 h-6" />
           </button>
-        </div>
-      </div>
+        )}
+      />
 
       <div className="max-w-2xl mx-auto px-4 space-y-4 mt-6">
+        {refreshing && (
+          <div className="rounded-xl bg-indigo-50 px-4 py-2 text-center text-xs font-bold text-indigo-600">
+            새로고침 중...
+          </div>
+        )}
+        
         
         {/* Store Selection Tabs */}
         {stores.length > 1 && (
@@ -334,7 +346,11 @@ export default function StoreEmployeesPage() {
             <Users className="w-5 h-5 mr-2 text-indigo-500" /> {t.emp_list_title} ({employees.length})
           </h2>
 
-          {employees.length === 0 ? (
+          {storesLoading || loading ? (
+            <div className="bg-white p-8 rounded-2xl border border-gray-100 text-center text-gray-500">
+              {t.mypage_loading}
+            </div>
+          ) : employees.length === 0 ? (
             <div className="bg-white p-8 rounded-2xl border border-gray-100 text-center text-gray-500">
               {t.emp_empty_list}
             </div>

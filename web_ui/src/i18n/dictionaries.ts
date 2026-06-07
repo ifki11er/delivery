@@ -217,7 +217,7 @@ const ko: Dictionary = {
   monitor_status_prep: "준비중",
   monitor_status_delivering: "배달중",
 
-  apply_title: "가게 입점 신청",
+  apply_title: "상점 입점 신청",
   apply_desc: "사장님의 가게를 배달앱에 입점시켜 더 많은 고객과 만나보세요.",
   apply_form_name: "가게 이름",
   apply_form_phone: "연락처 (전화번호)",
@@ -545,7 +545,7 @@ Object.assign(ko, {
   blacklist_collapse: "▲ 접기",
   blacklist_more_reasons: "▼ 다른 사유 {count}개 더 보기",
 
-  apply_title: "가게 입점 신청",
+  apply_title: "상점 입점 신청",
   apply_desc: "사장님의 가게를 배달앱에 입점시켜 더 많은 고객과 만나보세요.",
   apply_form_name: "가게 이름",
   apply_form_phone: "연락처 (전화번호)",

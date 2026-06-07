@@ -30,7 +30,6 @@ export default function BottomNav({ session }: { session: Session | null }) {
             <Link
               key={item.href}
               href={item.href}
-              prefetch={false}
               className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
                 isActive ? 'text-indigo-600' : 'text-gray-500 hover:text-indigo-500'
               }`}
