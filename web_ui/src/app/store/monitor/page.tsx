@@ -130,11 +130,12 @@ export default function MonitorPage() {
     }
   };
 
-  const printOrder = (text: string) => {
+  const reprintDeliveryOrder = (text: string) => {
     if (!ensurePrinterConnected()) return;
 
-    const receiptText = `\n================================\n           ${t.monitor_receipt_title}\n================================\n\n${text}\n\n`;
-    const success = window.AndroidBridge?.printText(receiptText) ?? false;
+    const success = window.AndroidBridge?.printDeliveryShareOrder?.(text)
+      ?? window.AndroidBridge?.printText(text)
+      ?? false;
     if (!success) {
       alert(t.monitor_print_failed);
     }
@@ -291,7 +292,7 @@ export default function MonitorPage() {
                     {order.status === "PRINTED" ? "출력 완료" : "출력 실패"}
                   </span>
                   <button
-                    onClick={() => printOrder(order.raw_text)}
+                    onClick={() => reprintDeliveryOrder(order.raw_text)}
                     className="text-xs font-bold px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 shadow-sm transition"
                   >
                     재출력

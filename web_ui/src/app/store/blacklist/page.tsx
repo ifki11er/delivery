@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { AlertTriangle, Search, Plus, ChevronLeft, Edit3, Save, X, Phone, FileText } from 'lucide-react';
+import { AlertTriangle, Search, Plus, ChevronLeft, Edit3, Save, X, Phone, FileText, Trash2 } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 import { StoreRequiredNotice } from '@/components/store/StoreRequiredNotice';
 import type { BlacklistEntry } from '@/types/store-management';
@@ -26,7 +26,14 @@ export default function BlacklistPage() {
   const fetchBlacklist = async (q = '') => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/blacklist?q=${encodeURIComponent(q)}`);
+      const trimmedQuery = q.trim();
+      const params = new URLSearchParams();
+      if (trimmedQuery) {
+        params.set('q', trimmedQuery);
+      } else {
+        params.set('mine', '1');
+      }
+      const res = await fetch(`/api/blacklist?${params.toString()}`);
       if (res.ok) {
         setBlacklist((await res.json()) as BlacklistEntry[]);
       }
@@ -114,6 +121,26 @@ export default function BlacklistPage() {
         void fetchBlacklist();
       } else {
         alert(t.blacklist_edit_fail);
+      }
+    } catch {
+      alert(t.blacklist_error);
+    }
+  };
+
+  const handleDelete = async (reportId: string) => {
+    if (!confirm('정말로 이 블랙리스트 제보를 삭제하시겠습니까?')) return;
+
+    try {
+      const res = await fetch(`/api/blacklist?id=${encodeURIComponent(reportId)}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        setEditingReportId(null);
+        setEditingReason('');
+        void fetchBlacklist(searchQuery);
+      } else {
+        alert(t.delete_failed);
       }
     } catch {
       alert(t.blacklist_error);
@@ -288,11 +315,11 @@ export default function BlacklistPage() {
                               className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-indigo-500 text-sm"
                             />
                             <div className="flex justify-end space-x-2">
-                              <button onClick={() => setEditingReportId(null)} className="text-xs text-gray-500 font-bold px-2 py-1 flex items-center hover:bg-gray-200 rounded">
+                              <button type="button" onClick={() => setEditingReportId(null)} className="text-xs text-gray-500 font-bold px-2 py-1 flex items-center hover:bg-gray-200 rounded">
                                 <X className="w-3 h-3 mr-1" />
                                 {t.mypage_cancel}
                               </button>
-                              <button onClick={() => handleEditSave(rep.id)} className="text-xs text-white bg-indigo-600 font-bold px-2 py-1 flex items-center hover:bg-indigo-700 rounded">
+                              <button type="button" onClick={() => handleEditSave(rep.id)} className="text-xs text-white bg-indigo-600 font-bold px-2 py-1 flex items-center hover:bg-indigo-700 rounded">
                                 <Save className="w-3 h-3 mr-1" />
                                 {t.mypage_save}
                               </button>
@@ -314,16 +341,27 @@ export default function BlacklistPage() {
                                 {rep.reporterName || t.blacklist_anon}
                               </div>
                               {session?.user?.id === rep.reporterId && (
-                                <button
-                                  onClick={() => {
-                                    setEditingReportId(rep.id);
-                                    setEditingReason(rep.reason);
-                                  }}
-                                  className="text-xs text-indigo-600 font-bold flex items-center hover:underline"
-                                >
-                                  <Edit3 className="w-3 h-3 mr-1" />
-                                  {t.mypage_edit}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingReportId(rep.id);
+                                      setEditingReason(rep.reason);
+                                    }}
+                                    className="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
+                                    title={t.mypage_edit}
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDelete(rep.id)}
+                                    className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                    title="삭제"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               )}
                             </div>
                           </>

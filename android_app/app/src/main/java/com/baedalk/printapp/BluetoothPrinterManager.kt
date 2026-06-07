@@ -877,6 +877,10 @@ class BluetoothPrinterManager(private val context: Context) {
         return parseDeliveryShareOrder(rawText) != null
     }
 
+    fun getDeliverySharePhone(rawText: String): String {
+        return parseDeliveryShareOrder(rawText)?.phone?.replace(Regex("[^0-9]"), "") ?: ""
+    }
+
     fun printDeliveryShareOrder(rawText: String): Boolean {
         if (!ensureConnected()) return false
         val order = parseDeliveryShareOrder(rawText) ?: return false
@@ -894,6 +898,22 @@ class BluetoothPrinterManager(private val context: Context) {
             true
         } catch (e: Exception) {
             Log.e("BluetoothPrinter", "배달K 공유 주문 인쇄 실패", e)
+            false
+        }
+    }
+
+    fun printDeliveryShareKitchenOrder(rawText: String): Boolean {
+        if (!ensureConnected()) return false
+        val order = parseDeliveryShareOrder(rawText) ?: return false
+
+        return try {
+            outputStream?.write(byteArrayOf(0x1B, 0x40))
+            outputStream?.write(bitmapToEscPos(deliveryShareKitchenToBitmap(order)))
+            feedAndCut()
+            outputStream?.flush()
+            true
+        } catch (e: Exception) {
+            Log.e("BluetoothPrinter", "배달K 공유 주문서 재출력 실패", e)
             false
         }
     }

@@ -216,6 +216,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         @android.webkit.JavascriptInterface
+        fun printDeliveryShareOrder(text: String): Boolean {
+            return printerManager.printDeliveryShareOrder(text)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun printDeliveryShareKitchenOrder(text: String): Boolean {
+            return printerManager.printDeliveryShareKitchenOrder(text)
+        }
+
+        @android.webkit.JavascriptInterface
         fun printKitchenOrderSheet(tableName: String, orderSequence: Int, printedAt: String, itemsJson: String): Boolean {
             return printerManager.printKitchenOrderSheet(tableName, orderSequence, printedAt, itemsJson)
         }

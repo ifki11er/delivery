@@ -31,9 +31,30 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const query = normalizePhone(searchParams.get("q"));
+  const mineOnly = searchParams.get("mine") === "1";
 
   try {
-    const where = query ? { phoneNumber: { contains: query } } : {};
+    const myPhoneRows = mineOnly
+      ? await prisma.blacklist.findMany({
+          where: { reporterId: authResult.session.user.id },
+          select: { phoneNumber: true },
+          distinct: ["phoneNumber"],
+        })
+      : [];
+    const myPhoneList = myPhoneRows.map((entry) => entry.phoneNumber);
+
+    if (mineOnly && myPhoneList.length === 0) return NextResponse.json([]);
+
+    const where = {
+      ...(query || mineOnly
+        ? {
+            phoneNumber: {
+              ...(query ? { contains: query } : {}),
+              ...(mineOnly ? { in: myPhoneList } : {}),
+            },
+          }
+        : {}),
+    };
     const latestPhones = await prisma.blacklist.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -150,5 +171,30 @@ export async function PUT(req: Request) {
   } catch (error) {
     console.error("[Blacklist PUT Error]:", error);
     return jsonError("Failed to update blacklist", 500);
+  }
+}
+
+export async function DELETE(req: Request) {
+  const authResult = await requireOwnerOrAdmin();
+  if (authResult.response) return authResult.response;
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id") || "";
+
+  if (!id) {
+    return jsonError("ID is required", 400);
+  }
+
+  try {
+    const entry = await prisma.blacklist.findUnique({ where: { id } });
+    if (!entry || entry.reporterId !== authResult.session.user.id) {
+      return jsonError("Forbidden", 403);
+    }
+
+    await prisma.blacklist.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[Blacklist DELETE Error]:", error);
+    return jsonError("Failed to delete blacklist", 500);
   }
 }

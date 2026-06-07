@@ -20,6 +20,7 @@ interface AndroidBridge {
   printTest(): boolean;
   printText(text: string): boolean;
   printTextWithStyle?(text: string, fontSize: number, bold: boolean): boolean;
+  printDeliveryShareOrder?(text: string): boolean;
   printKitchenOrderSheet?(tableName: string, orderSequence: number, printedAt: string, itemsJson: string): boolean;
   printPaymentReceipt?(
     storeName: string,
