@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   Minus,
+  MoreVertical,
   Plus,
   Printer,
   ReceiptText,
@@ -82,12 +83,25 @@ type PosPayload = {
   history: PosOrder[];
 };
 
-type TabKey = 'order' | 'tables' | 'menus' | 'history';
+type TabKey = 'order' | 'tables' | 'menus' | 'history' | 'receiptSettings';
 type DraftOrders = Record<string, PosOrder>;
+type ReceiptPrintSettings = {
+  businessRegNo: boolean;
+  address: boolean;
+  representativeName: boolean;
+  contact: boolean;
+};
 
 const currency = '₫';
 const draftStoragePrefix = 'mini_receipt_drafts_v1';
 const sequenceStoragePrefix = 'mini_receipt_daily_sequence_v1';
+const receiptSettingsStoragePrefix = 'mini_receipt_receipt_settings_v1';
+const defaultReceiptPrintSettings: ReceiptPrintSettings = {
+  businessRegNo: true,
+  address: true,
+  representativeName: true,
+  contact: true,
+};
 
 function formatMoney(amount: number) {
   return `${amount.toLocaleString()} ${currency}`;
@@ -158,6 +172,7 @@ export default function MiniReceiptPage() {
   const [saving, setSaving] = useState(false);
   const [payload, setPayload] = useState<PosPayload | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('order');
+  const [showManageMenu, setShowManageMenu] = useState(false);
   const [selectedTableId, setSelectedTableId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [tableName, setTableName] = useState('');
@@ -173,6 +188,7 @@ export default function MiniReceiptPage() {
   const [paymentMethod, setPaymentMethod] = useState('현금');
   const [showReceiptConfirm, setShowReceiptConfirm] = useState(false);
   const [draftOrders, setDraftOrders] = useState<DraftOrders>({});
+  const [receiptSettings, setReceiptSettings] = useState<ReceiptPrintSettings>(defaultReceiptPrintSettings);
   const [expandedHistoryId, setExpandedHistoryId] = useState('');
   const [historyDate, setHistoryDate] = useState(getTodayInputDate);
 
@@ -201,6 +217,10 @@ export default function MiniReceiptPage() {
       ));
       const stored = localStorage.getItem(`${draftStoragePrefix}_${data.store.id}`);
       setDraftOrders(stored ? JSON.parse(stored) as DraftOrders : {});
+      const storedReceiptSettings = localStorage.getItem(`${receiptSettingsStoragePrefix}_${data.store.id}`);
+      setReceiptSettings(storedReceiptSettings
+        ? { ...defaultReceiptPrintSettings, ...JSON.parse(storedReceiptSettings) as Partial<ReceiptPrintSettings> }
+        : defaultReceiptPrintSettings);
     } catch (error) {
       console.error(error);
       setPayload(null);
@@ -217,6 +237,11 @@ export default function MiniReceiptPage() {
     if (!payload?.store.id) return;
     localStorage.setItem(`${draftStoragePrefix}_${payload.store.id}`, JSON.stringify(draftOrders));
   }, [draftOrders, payload?.store.id]);
+
+  useEffect(() => {
+    if (!payload?.store.id) return;
+    localStorage.setItem(`${receiptSettingsStoragePrefix}_${payload.store.id}`, JSON.stringify(receiptSettings));
+  }, [receiptSettings, payload?.store.id]);
 
   const postAction = async (body: Record<string, unknown>) => {
     if (!payload?.store.id || saving) return;
@@ -262,6 +287,15 @@ export default function MiniReceiptPage() {
 
   const total = useMemo(() => {
     return currentOrder?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) ?? 0;
+  }, [currentOrder]);
+
+  const menuQuantityMap = useMemo(() => {
+    const quantities: Record<string, number> = {};
+    currentOrder?.items.forEach((item) => {
+      if (!item.menu_id) return;
+      quantities[item.menu_id] = (quantities[item.menu_id] || 0) + item.quantity;
+    });
+    return quantities;
   }, [currentOrder]);
 
   const createDraftOrder = (tableId: string): PosOrder => ({
@@ -369,6 +403,15 @@ export default function MiniReceiptPage() {
     updateDraftOrder(selectedTableId, (order) => ({ ...order, note }));
   };
 
+  const openManageTab = (tab: Exclude<TabKey, 'order'>) => {
+    setActiveTab(tab);
+    setShowManageMenu(false);
+  };
+
+  const updateReceiptSetting = (key: keyof ReceiptPrintSettings, value: boolean) => {
+    setReceiptSettings((current) => ({ ...current, [key]: value }));
+  };
+
   const clearDraftOrder = () => {
     if (!selectedTableId) return;
     setDraftOrders((current) => {
@@ -448,19 +491,15 @@ export default function MiniReceiptPage() {
     const vat = Math.round(taxableTotal * 0.08);
     const receiptTotal = taxableTotal + vat;
     const method = order.payment_method || paymentMethod;
-    const received = method === '현금' ? receiptTotal : 0;
-    const change = method === '현금' ? 0 : 0;
     const storeName = payload?.store.name || 'RESTAURANT';
     const lines = [
       '',
-      `              ${storeName.toUpperCase()}`,
+      `              ${storeName.toUpperCase()} (${table?.name || '테이블'})`,
       '',
-      `${table?.name || '테이블'}`,
-      `사업자번호 :${payload?.store.businessRegNo || ''}`,
-      `주소 :${payload?.store.address || ''}`,
-      `성명 :${payload?.store.representativeName || storeName}`,
-      `전화 :${payload?.store.contact || ''}`,
-      `일자 : ${formatReceiptPrintedAt()}`,
+      receiptSettings.businessRegNo ? `사업자번호 :${payload?.store.businessRegNo || ''}` : '',
+      receiptSettings.address ? `주소 :${payload?.store.address || ''}` : '',
+      receiptSettings.representativeName ? `성명 :${payload?.store.representativeName || storeName}` : '',
+      receiptSettings.contact ? `전화 :${payload?.store.contact || ''}` : '',
       '--------------------------------',
       '품명                    단가    수량      금액',
       '--------------------------------',
@@ -469,24 +508,17 @@ export default function MiniReceiptPage() {
         return `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}\n${String(item.price.toLocaleString()).padStart(27, ' ')} ${String(item.quantity).padStart(4, ' ')} ${String(amount.toLocaleString()).padStart(10, ' ')}`;
       }),
       '--------------------------------',
-      `소  계:${String(receiptTotal.toLocaleString()).padStart(32, ' ')}`,
+      `소  계:${String(taxableTotal.toLocaleString()).padStart(32, ' ')}`,
       '--------------------------------',
-      '품명 앞에 * 표시가 되어있는 품목은',
-      '부가세 면세 품목입니다.',
       `부가세 과세 물품가액:${String(taxableTotal.toLocaleString()).padStart(16, ' ')}`,
       `부      가      세:${String(vat.toLocaleString()).padStart(16, ' ')}`,
       `부가세 면세 물품가액:${String(0).padStart(16, ' ')}`,
       '--------------------------------',
-      `청구금액:${String(receiptTotal.toLocaleString()).padStart(28, ' ')}`,
-      `받은금액:${String(received.toLocaleString()).padStart(28, ' ')}`,
-      `거스름돈:${String(change.toLocaleString()).padStart(28, ' ')}`,
-      '--------------------------------',
       `${method.padEnd(6, ' ')}:${String(receiptTotal.toLocaleString()).padStart(28, ' ')}`,
       '--------------------------------',
-      '정성을 다하겠습니다.',
-      '계산자 : 관리자',
+      formatReceiptPrintedAt().padStart(42, ' '),
       '',
-    ];
+    ].filter(Boolean);
 
     return lines.join('\n');
   };
@@ -512,6 +544,10 @@ export default function MiniReceiptPage() {
         taxableTotal,
         vat,
         receiptTotal,
+        receiptSettings.businessRegNo,
+        receiptSettings.address,
+        receiptSettings.representativeName,
+        receiptSettings.contact,
         JSON.stringify(order.items.map((item) => ({
           name: item.name,
           menuCode: item.menu_code,
@@ -655,13 +691,6 @@ export default function MiniReceiptPage() {
     return <StoreRequiredNotice />;
   }
 
-  const tabs: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
-    { key: 'order', label: '주문', icon: <ReceiptText className="w-4 h-4" /> },
-    { key: 'tables', label: '테이블', icon: <Table2 className="w-4 h-4" /> },
-    { key: 'menus', label: '메뉴', icon: <UtensilsCrossed className="w-4 h-4" /> },
-    { key: 'history', label: '이력', icon: <Settings className="w-4 h-4" /> },
-  ];
-
   return (
     <div className="bg-gray-50 min-h-screen pb-24 md:pb-6">
       <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
@@ -675,22 +704,62 @@ export default function MiniReceiptPage() {
               <p className="text-xs text-gray-500 truncate">{payload.store.name}</p>
             </div>
           </div>
-        </div>
-
-        <div className="max-w-6xl mx-auto px-4 pb-3">
-          <div className="grid grid-cols-4 gap-1 rounded-xl bg-gray-100 p-1">
-            {tabs.map((tab) => (
+          <div className="flex items-center gap-2 shrink-0">
+            {activeTab !== 'order' && (
               <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`h-10 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${
-                  activeTab === tab.key ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'
-                }`}
+                type="button"
+                onClick={() => setActiveTab('order')}
+                className="h-9 px-3 rounded-lg bg-gray-900 text-xs font-bold text-white"
               >
-                {tab.icon}
-                {tab.label}
+                주문 화면
               </button>
-            ))}
+            )}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowManageMenu((current) => !current)}
+                className="h-10 w-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-700 transition-colors"
+                title="관리 메뉴"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
+              {showManageMenu && (
+                <div className="absolute right-0 top-12 z-50 w-44 rounded-xl border border-gray-100 bg-white shadow-lg p-1">
+                  <button
+                    type="button"
+                    onClick={() => openManageTab('tables')}
+                    className="w-full h-10 px-3 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Table2 className="w-4 h-4" />
+                    테이블설정
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openManageTab('menus')}
+                    className="w-full h-10 px-3 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <UtensilsCrossed className="w-4 h-4" />
+                    메뉴설정
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openManageTab('history')}
+                    className="w-full h-10 px-3 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Settings className="w-4 h-4" />
+                    이력관리
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openManageTab('receiptSettings')}
+                    className="w-full h-10 px-3 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <ReceiptText className="w-4 h-4" />
+                    영수증 양식관리
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -768,17 +837,31 @@ export default function MiniReceiptPage() {
                     등록된 메뉴가 없습니다.
                   </div>
                 ) : (
-                  selectedCategory?.menus.filter((menu) => menu.is_active).map((menu) => (
-                    <button
-                      key={menu.id}
-                      disabled={!selectedTableId || saving}
-                      onClick={() => addMenuToDraft(menu)}
-                      className="min-h-24 rounded-xl border border-gray-100 bg-gray-50 p-3 text-left hover:bg-indigo-50 hover:border-indigo-100 disabled:opacity-40"
-                    >
-                      <span className="block text-sm font-bold text-gray-900 leading-snug">{menu.name}</span>
-                      <span className="block text-xs font-bold text-indigo-600 mt-2">{formatMoney(menu.price)}</span>
-                    </button>
-                  ))
+                  selectedCategory?.menus.filter((menu) => menu.is_active).map((menu) => {
+                    const selectedQuantity = menuQuantityMap[menu.id] || 0;
+                    return (
+                      <button
+                        key={menu.id}
+                        disabled={!selectedTableId || saving}
+                        onClick={() => addMenuToDraft(menu)}
+                        className={`relative min-h-24 rounded-xl border p-3 text-left disabled:opacity-40 ${
+                          selectedQuantity > 0
+                            ? 'border-indigo-300 bg-indigo-50'
+                            : 'border-gray-100 bg-gray-50 hover:bg-indigo-50 hover:border-indigo-100'
+                        }`}
+                      >
+                        {selectedQuantity > 0 && (
+                          <span className="absolute right-2 top-2 rounded-full bg-indigo-600 px-2 py-0.5 text-[11px] font-black text-white shadow-sm">
+                            x{selectedQuantity}
+                          </span>
+                        )}
+                        <span className={`block text-sm font-bold text-gray-900 leading-snug ${selectedQuantity > 0 ? 'pr-10' : ''}`}>
+                          {menu.name}
+                        </span>
+                        <span className="block text-xs font-bold text-indigo-600 mt-2">{formatMoney(menu.price)}</span>
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </section>
@@ -883,46 +966,56 @@ export default function MiniReceiptPage() {
                 </div>
                 <textarea
                   value={orderNote}
-                  onChange={(event) => setOrderNote(event.target.value)}
-                  onBlur={() => updateDraftNote(orderNote)}
+                  onChange={(event) => {
+                    setOrderNote(event.target.value);
+                    updateDraftNote(event.target.value);
+                  }}
                   placeholder="주문 메모"
                   rows={2}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm resize-none"
                 />
+              </div>
+
+              <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 flex items-center justify-between">
+                <span className="text-sm font-black text-indigo-900">최종 금액</span>
+                <span className="text-2xl font-black text-indigo-700">{formatMoney(total)}</span>
+              </div>
+
+              <div className="space-y-2 mt-3">
+                <div className="grid grid-cols-[minmax(0,1fr)_56px] gap-2">
+                  <Button
+                    type="button"
+                    className="h-16 text-base"
+                    disabled={!currentOrder || currentOrder.items.length === 0}
+                    onClick={printOrder}
+                    icon={<Printer className="w-5 h-5" />}
+                  >
+                    주문서 출력
+                  </Button>
+                  <button
+                    type="button"
+                    disabled={!currentOrder || saving}
+                    onClick={clearDraftOrder}
+                    title="비우기"
+                    className="h-16 rounded-lg border border-red-100 bg-red-50 text-red-600 flex items-center justify-center transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
                 <select
                   value={paymentMethod}
                   onChange={(event) => setPaymentMethod(event.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-bold"
+                  className="w-full h-12 px-3 rounded-lg border border-gray-200 bg-white text-sm font-bold"
                 >
                   <option value="현금">현금</option>
                   <option value="카드">카드</option>
                   <option value="계좌이체">계좌이체</option>
                   <option value="기타">기타</option>
                 </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={!currentOrder || saving}
-                  onClick={clearDraftOrder}
-                  icon={<Trash2 className="w-4 h-4" />}
-                >
-                  비우기
-                </Button>
-                <Button
-                  type="button"
-                  disabled={!currentOrder || currentOrder.items.length === 0}
-                  onClick={printOrder}
-                  icon={<Printer className="w-4 h-4" />}
-                >
-                  주문서 출력
-                </Button>
                 <Button
                   type="button"
                   variant="success"
-                  className="col-span-2"
+                  className="w-full h-16 text-base"
                   disabled={!currentOrder || currentOrder.items.length === 0 || saving}
                   onClick={() => setShowReceiptConfirm(true)}
                 >
@@ -1257,6 +1350,33 @@ export default function MiniReceiptPage() {
                   );
                 })
               )}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'receiptSettings' && (
+          <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+            <div className="mb-4">
+              <h2 className="font-bold text-gray-900">영수증 양식관리</h2>
+              <p className="mt-1 text-xs text-gray-500">체크한 항목만 영수증 상단 정보에 출력됩니다.</p>
+            </div>
+            <div className="space-y-2">
+              {([
+                ['businessRegNo', '사업자번호'],
+                ['address', '주소'],
+                ['representativeName', '성명'],
+                ['contact', '전화'],
+              ] as Array<[keyof ReceiptPrintSettings, string]>).map(([key, label]) => (
+                <label key={key} className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                  <span className="text-sm font-bold text-gray-800">{label}</span>
+                  <input
+                    type="checkbox"
+                    checked={receiptSettings[key]}
+                    onChange={(event) => updateReceiptSetting(key, event.target.checked)}
+                    className="h-5 w-5 accent-indigo-600"
+                  />
+                </label>
+              ))}
             </div>
           </section>
         )}

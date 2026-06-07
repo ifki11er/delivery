@@ -34,6 +34,10 @@ interface AndroidBridge {
     taxableTotal: number,
     vat: number,
     receiptTotal: number,
+    showBusinessRegNo: boolean,
+    showAddress: boolean,
+    showRepresentativeName: boolean,
+    showContact: boolean,
     itemsJson: string
   ): boolean;
   saveDefaultPrinter(mac: string): void;

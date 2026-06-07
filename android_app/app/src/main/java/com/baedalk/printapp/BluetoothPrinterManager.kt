@@ -363,10 +363,14 @@ class BluetoothPrinterManager(private val context: Context) {
         taxableTotal: Int,
         vat: Int,
         receiptTotal: Int,
+        showBusinessRegNo: Boolean,
+        showAddress: Boolean,
+        showRepresentativeName: Boolean,
+        showContact: Boolean,
         items: List<PaymentReceiptItem>
     ): Bitmap {
         val width = 576
-        val titlePaint = makeKitchenPaint(40f, true, 0.82f)
+        val titlePaint = makeKitchenPaint(46f, true, 0.82f)
         val infoPaint = makeKitchenPaint(31f, false, 0.82f)
         val headerPaint = makeKitchenPaint(34f, false, 0.82f)
         val itemPaint = makeKitchenPaint(29f, false, 0.82f)
@@ -385,26 +389,27 @@ class BluetoothPrinterManager(private val context: Context) {
             val lineCount = wrapTextToLines(name, itemNameMaxWidth, itemPaint, 2).size.coerceAtLeast(1)
             ((lineCount * itemRowHeight) + itemBlockGap).toInt()
         }.coerceAtLeast(56)
-        val height = 1320 + itemAreaHeight
+        val infoLineCount = listOf(showBusinessRegNo, showAddress, showRepresentativeName, showContact).count { it }
+        val height = 740 + (infoLineCount * 34) + itemAreaHeight
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.WHITE)
 
         var y = 74f
-        canvas.drawCenteredText(storeName.ifBlank { "RESTAURANT" }.uppercase(), y, titlePaint, width)
+        val title = "${storeName.ifBlank { "RESTAURANT" }.uppercase()} (${tableName.ifBlank { "테이블" }})"
+        canvas.drawCenteredText(title, y, titlePaint, width)
 
-        y += 96f
-        canvas.drawFitText(tableName, 42f, y, width - 84f, infoPaint)
-        y += 34f
-        canvas.drawFitText("사업자번호 :$businessRegNo", 42f, y, width - 84f, infoPaint)
-        y += 34f
-        canvas.drawFitText("주소 :$address", 42f, y, width - 84f, infoPaint)
-        y += 34f
-        canvas.drawFitText("성명 :${representativeName.ifBlank { storeName }}", 42f, y, width - 84f, infoPaint)
-        y += 34f
-        canvas.drawFitText("전화 :$contact", 42f, y, width - 84f, infoPaint)
-        y += 34f
-        canvas.drawFitText("일자 : $printedAt", 42f, y, width - 84f, infoPaint)
+        y += 78f
+        val infoLines = mutableListOf<String>()
+        if (showBusinessRegNo) infoLines.add("사업자번호 :$businessRegNo")
+        if (showAddress) infoLines.add("주소 :$address")
+        if (showRepresentativeName) infoLines.add("성명 :${representativeName.ifBlank { storeName }}")
+        if (showContact) infoLines.add("전화 :$contact")
+
+        infoLines.forEachIndexed { index, line ->
+            canvas.drawFitText(line, 42f, y, width - 84f, infoPaint)
+            if (index < infoLines.lastIndex) y += 34f
+        }
 
         y += 28f
         drawHorizontalLine(canvas, y, width, linePaint)
@@ -435,16 +440,12 @@ class BluetoothPrinterManager(private val context: Context) {
 
         y += 58f
         canvas.drawText("소  계:", 42f, y, totalLabelPaint)
-        canvas.drawRightText(formatReceiptMoney(receiptTotal), 534f, y, totalLabelPaint)
+        canvas.drawRightText(formatReceiptMoney(taxableTotal), 534f, y, totalLabelPaint)
 
         y += 34f
         drawHorizontalLine(canvas, y, width, linePaint)
 
         y += 52f
-        canvas.drawText("품명 앞에 * 표시가 되어있는 품목은", 42f, y, infoPaint)
-        y += 38f
-        canvas.drawText("부가세 면세 품목입니다.", 42f, y, infoPaint)
-        y += 42f
         canvas.drawText("부가세 과세 물품가액:", 42f, y, infoPaint)
         canvas.drawRightText(formatReceiptMoney(taxableTotal), 534f, y, infoPaint)
         y += 38f
@@ -457,19 +458,6 @@ class BluetoothPrinterManager(private val context: Context) {
         y += 34f
         drawHorizontalLine(canvas, y, width, linePaint)
 
-        y += 54f
-        canvas.drawText("청구금액:", 42f, y, infoPaint)
-        canvas.drawRightText(formatReceiptMoney(receiptTotal), 534f, y, infoPaint)
-        y += 38f
-        canvas.drawText("받은금액:", 42f, y, infoPaint)
-        canvas.drawRightText(formatReceiptMoney(receiptTotal), 534f, y, infoPaint)
-        y += 38f
-        canvas.drawText("거스름돈:", 42f, y, infoPaint)
-        canvas.drawRightText("0", 534f, y, infoPaint)
-
-        y += 34f
-        drawHorizontalLine(canvas, y, width, linePaint)
-
         y += 78f
         canvas.drawText("${paymentMethod.ifBlank { "현금" }}:", 42f, y, totalAmountPaint)
         canvas.drawRightText(formatReceiptMoney(receiptTotal), 534f, y, totalAmountPaint)
@@ -477,10 +465,8 @@ class BluetoothPrinterManager(private val context: Context) {
         y += 34f
         drawHorizontalLine(canvas, y, width, linePaint)
 
-        y += 58f
-        canvas.drawText("정성을 다하겠습니다.", 42f, y, infoPaint)
-        y += 38f
-        canvas.drawText("계산자 : 관리자", 42f, y, infoPaint)
+        y += 52f
+        canvas.drawRightText(printedAt, width - 42f, y, infoPaint)
 
         return bitmap
     }
@@ -508,48 +494,37 @@ class BluetoothPrinterManager(private val context: Context) {
         }
     }
 
-    private fun compactSelectedAddress(rawAddress: String): String {
-        fun stripCityCountry(value: String): String {
-            return value
-                .replace(Regex("(?i)\\b(vietnam|viet nam)\\b"), "")
-                .replace(Regex("(?i)\\b(ho chi minh city|ho chi minh|hcm)\\b"), "")
-                .replace("베트남", "")
-                .replace("호찌민시", "")
-                .replace("호치민시", "")
-                .replace("호찌민", "")
-                .replace("호치민", "")
-                .replace(Regex("\\s{2,}"), " ")
-                .trim()
-        }
-
-        val parts = stripCityCountry(rawAddress).split(",")
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .toMutableList()
-
-        while (parts.isNotEmpty()) {
-            val last = parts.last().lowercase()
-            val shouldDrop = last.contains("vietnam") ||
-                last.contains("ho chi minh") ||
-                last.contains("hồ chí minh") ||
-                last.contains("hcm") ||
-                last.contains("베트남") ||
-                last.contains("호찌민") ||
-                last.contains("호치민")
-            if (!shouldDrop) break
-            parts.removeAt(parts.lastIndex)
-        }
-
-        return parts.joinToString(", ")
-    }
-
     private fun normalizePaymentMethod(rawMethod: String): String {
         return when {
-            rawMethod.contains("계좌") || rawMethod.contains("이체") || rawMethod.contains("bank", ignoreCase = true) -> "Banking"
-            rawMethod.contains("현금") || rawMethod.contains("cash", ignoreCase = true) -> "Cash"
-            rawMethod.contains("카드") || rawMethod.contains("card", ignoreCase = true) -> "Card"
+            rawMethod.contains("계좌") ||
+                rawMethod.contains("이체") ||
+                rawMethod.contains("bank", ignoreCase = true) ||
+                rawMethod.contains("transfer", ignoreCase = true) ||
+                rawMethod.contains("chuyển khoản", ignoreCase = true) ||
+                rawMethod.contains("โอน") -> "Banking"
+            rawMethod.contains("현금") ||
+                rawMethod.contains("cash", ignoreCase = true) ||
+                rawMethod.contains("tiền mặt", ignoreCase = true) ||
+                rawMethod.contains("現金") ||
+                rawMethod.contains("เงินสด") -> "Cash"
+            rawMethod.contains("카드") ||
+                rawMethod.contains("card", ignoreCase = true) ||
+                rawMethod.contains("thẻ", ignoreCase = true) ||
+                rawMethod.contains("カード") ||
+                rawMethod.contains("บัตร") -> "Card"
             else -> rawMethod.trim().ifBlank { "Unknown" }
         }
+    }
+
+    private fun lineContainsAny(line: String, keywords: List<String>): Boolean {
+        return keywords.any { keyword -> line.contains(keyword, ignoreCase = true) }
+    }
+
+    private fun valueAfterLabel(line: String): String {
+        val colonIndex = listOf(line.indexOf(':'), line.indexOf('：'))
+            .filter { it >= 0 }
+            .minOrNull()
+        return if (colonIndex == null) "" else line.substring(colonIndex + 1).trim()
     }
 
     private fun calculateChange(totalAmount: Int): Int {
@@ -561,23 +536,59 @@ class BluetoothPrinterManager(private val context: Context) {
 
     private fun parseDeliveryShareOrder(rawText: String): DeliveryShareOrder? {
         val lines = rawText.lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList()
-        val selectedAddress = lines.firstOrNull { it.contains("선택주소") }
-            ?.substringAfter(":")
-            ?.trim()
-        val inputAddress = lines.firstOrNull { it.contains("입력주소") }
-            ?.substringAfter(":")
-            ?.trim()
+        val selectedAddressLabels = listOf(
+            "선택주소",
+            "Selected address",
+            "Địa chỉ tùy chọn",
+            "選択住所",
+            "ที่อยู่ที่เลือก"
+        )
+        val inputAddressLabels = listOf(
+            "입력주소",
+            "Entered address",
+            "Địa chỉ nhập",
+            "入力住所",
+            "ที่อยู่ที่ระบุ"
+        )
+        val deliveryFeeLabels = listOf(
+            "배달비",
+            "Delivery fee",
+            "Phí ship",
+            "配達費用",
+            "ค่าส่ง"
+        )
+        val totalAmountLabels = listOf(
+            "최종결제금액",
+            "Total order amount",
+            "Tổng tiền thanh toán",
+            "最終決済金額",
+            "ยอดชำระทั้งหมด"
+        )
+        val paymentMethodLabels = listOf(
+            "결제방법",
+            "Payment method",
+            "Phương thức thanh toán",
+            "決済方法",
+            "วิธีการชำระเงิน"
+        )
+
+        val selectedAddress = lines.firstOrNull {
+            it.startsWith("🗺️") || lineContainsAny(it, selectedAddressLabels)
+        }?.let { valueAfterLabel(it) }
+        val inputAddress = lines.firstOrNull {
+            it.startsWith("✏️") || lineContainsAny(it, inputAddressLabels)
+        }?.let { valueAfterLabel(it) }
         val phone = lines.firstOrNull { it.contains("📞") || it.startsWith("+") }
             ?.replace("📞", "")
             ?.trim()
-        val deliveryFee = lines.firstOrNull { it.startsWith("배달비") }
-            ?.substringAfter(":")
+        val deliveryFee = lines.firstOrNull { lineContainsAny(it, deliveryFeeLabels) }
+            ?.let { valueAfterLabel(it) }
             ?.let { parseMoneyToInt(it) }
-        val totalAmount = lines.firstOrNull { it.startsWith("최종결제금액") }
-            ?.substringAfter(":")
+        val totalAmount = lines.firstOrNull { lineContainsAny(it, totalAmountLabels) }
+            ?.let { valueAfterLabel(it) }
             ?.let { parseMoneyToInt(it) }
-        val rawPayment = lines.firstOrNull { it.startsWith("결제방법") }
-            ?.substringAfter(":")
+        val rawPayment = lines.firstOrNull { lineContainsAny(it, paymentMethodLabels) }
+            ?.let { valueAfterLabel(it) }
             ?.substringBefore("(")
             ?.trim()
 
@@ -617,7 +628,7 @@ class BluetoothPrinterManager(private val context: Context) {
 
         return DeliveryShareOrder(
             nickname = "닉네임 정보 없음",
-            selectedAddress = compactSelectedAddress(selectedAddress),
+            selectedAddress = selectedAddress.trim(),
             inputAddress = inputAddress,
             phone = normalizePhone(phone),
             items = items,
@@ -966,6 +977,10 @@ class BluetoothPrinterManager(private val context: Context) {
         taxableTotal: Int,
         vat: Int,
         receiptTotal: Int,
+        showBusinessRegNo: Boolean,
+        showAddress: Boolean,
+        showRepresentativeName: Boolean,
+        showContact: Boolean,
         itemsJson: String
     ): Boolean {
         if (!ensureConnected()) return false
@@ -997,6 +1012,10 @@ class BluetoothPrinterManager(private val context: Context) {
                     taxableTotal,
                     vat,
                     receiptTotal,
+                    showBusinessRegNo,
+                    showAddress,
+                    showRepresentativeName,
+                    showContact,
                     items
                 )
             )

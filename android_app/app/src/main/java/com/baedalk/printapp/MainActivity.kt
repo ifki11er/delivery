@@ -243,6 +243,10 @@ class MainActivity : AppCompatActivity() {
             taxableTotal: Int,
             vat: Int,
             receiptTotal: Int,
+            showBusinessRegNo: Boolean,
+            showAddress: Boolean,
+            showRepresentativeName: Boolean,
+            showContact: Boolean,
             itemsJson: String
         ): Boolean {
             return printerManager.printPaymentReceipt(
@@ -257,6 +261,10 @@ class MainActivity : AppCompatActivity() {
                 taxableTotal,
                 vat,
                 receiptTotal,
+                showBusinessRegNo,
+                showAddress,
+                showRepresentativeName,
+                showContact,
                 itemsJson
             )
         }
