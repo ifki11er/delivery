@@ -11,7 +11,14 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(FileInputStream(localPropertiesFile))
 }
-val webUrl = localProperties.getProperty("DEV_WEB_URL", "http://192.168.2.212.nip.io:3000")
+
+// WebView가 처음 열 웹 주소입니다.
+// - local.properties에 DEV_WEB_URL이 있으면 그 값을 사용합니다.
+// - DEV_WEB_URL이 없으면 테스트 배포 주소(Vercel)를 기본값으로 사용합니다.
+// 로컬 서버로 테스트하려면 android_app/local.properties에 아래처럼 추가하세요.
+// DEV_WEB_URL=http://192.168.2.94.nip.io:3000
+// 다시 Vercel 배포본으로 테스트하려면 DEV_WEB_URL 줄을 지우거나 주석 처리한 뒤 앱을 다시 빌드하세요.
+val webUrl = localProperties.getProperty("DEV_WEB_URL", "https://delivery-nu-dun.vercel.app")
 val googleWebClientId = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", "")
 
 android {
