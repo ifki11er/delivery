@@ -203,11 +203,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         @android.webkit.JavascriptInterface
-        fun printTest(): Boolean {
-            return printerManager.printTestReceipt()
-        }
-
-        @android.webkit.JavascriptInterface
         fun printBitmapDataUrl(dataUrl: String): Boolean {
             return printerManager.printBitmapDataUrl(dataUrl)
         }

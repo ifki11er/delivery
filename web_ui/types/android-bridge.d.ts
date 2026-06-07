@@ -16,7 +16,6 @@ interface AndroidBridge {
   openBluetoothSettings(): void;
   getPairedPrinters(): string;
   connectPrinter(macAddress: string): boolean;
-  printTest(): boolean;
   printBitmapDataUrl?(dataUrl: string): boolean;
   saveDefaultPrinter(mac: string): void;
   getDefaultPrinter(): string;

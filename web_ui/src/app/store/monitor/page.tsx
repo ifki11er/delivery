@@ -18,6 +18,32 @@ import {
 
 type ConnectionStatus = "idle" | "ready" | "connecting" | "success" | "failed" | "error";
 
+function renderPrinterTestImage() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 576;
+  canvas.height = 360;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#000";
+  ctx.textAlign = "center";
+  ctx.font = "700 34px Arial, sans-serif";
+  ctx.fillText("Baedalk Print Test", 288, 88);
+  ctx.font = "400 28px Arial, sans-serif";
+  ctx.fillText("HPRT TP80N-M", 288, 150);
+  ctx.fillText("Connection Success", 288, 198);
+  ctx.beginPath();
+  ctx.moveTo(54, 240);
+  ctx.lineTo(522, 240);
+  ctx.stroke();
+  ctx.font = "400 22px Arial, sans-serif";
+  ctx.fillText(new Date().toLocaleString("ko-KR"), 288, 292);
+
+  return canvas.toDataURL("image/png");
+}
+
 export default function MonitorPage() {
   const t = useI18n();
   const { loading: isStoreLoading, hasStore } = useStores();
@@ -99,7 +125,12 @@ export default function MonitorPage() {
 
   const testPrint = () => {
     if (!ensurePrinterConnected()) return;
-    const success = window.AndroidBridge?.printTest() ?? false;
+    if (!window.AndroidBridge?.printBitmapDataUrl) {
+      alert("현재 앱이 웹 테스트 출력을 지원하지 않습니다. 앱 업데이트가 필요합니다.");
+      return;
+    }
+
+    const success = window.AndroidBridge.printBitmapDataUrl(renderPrinterTestImage());
     if (!success) alert(t.monitor_test_print_failed);
   };
 

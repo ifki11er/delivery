@@ -80,29 +80,6 @@ class BluetoothPrinterManager(private val context: Context) {
         return connectPrinter(defaultPrinter)
     }
 
-    fun printTestReceipt(): Boolean {
-        if (!ensureConnected()) return false
-        return try {
-            // ESC/POS 초기화 (Initialize Printer)
-            outputStream?.write(byteArrayOf(0x1B, 0x40)) 
-            
-            // 가운데 정렬 (Align Center)
-            outputStream?.write(byteArrayOf(0x1B, 0x61, 0x01)) 
-            
-            val text = "\n\n=== Baedalk Print Test ===\n\nHPRT TP80N-M\nConnection Success!\n\n\n\n\n\n"
-            // 일단 영어로 먼저 테스트 (한글은 추후 EUC-KR 설정 필요)
-            outputStream?.write(text.toByteArray(Charsets.US_ASCII))
-            
-            // 용지 컷팅 (Cut Paper)
-            feedAndCut()
-            
-            outputStream?.flush()
-            true
-        } catch (e: Exception) {
-            Log.e("BluetoothPrinter", "인쇄 실패", e)
-            false
-        }
-    }
     private fun bitmapToEscPos(bitmap: Bitmap): ByteArray {
         val width = bitmap.width
         val height = bitmap.height
