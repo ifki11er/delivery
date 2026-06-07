@@ -1,7 +1,8 @@
 import type { NextAuthConfig } from "next-auth";
-import { Role } from "@prisma/client";
 import Kakao from "next-auth/providers/kakao";
 import Google from "next-auth/providers/google";
+
+type Role = "CUSTOMER" | "OWNER" | "ADMIN";
 
 function isRole(value: unknown): value is Role {
   return value === "CUSTOMER" || value === "OWNER" || value === "ADMIN";
