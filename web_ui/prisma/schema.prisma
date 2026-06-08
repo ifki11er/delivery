@@ -93,6 +93,8 @@ model Store {
   posOrders          PosOrder[]
   printJobs          PrintJob[]
   dailySequences     StoreDailySequence[]
+  menuLanguageEnabled Boolean   @default(false) @map("menu_language_enabled")
+  menuLanguageRules   StoreMenuLanguageRule[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 }
@@ -301,6 +303,20 @@ model StoreDailySequence {
 
   @@unique([storeId, businessDate])
   @@map("store_daily_sequences")
+}
+
+model StoreMenuLanguageRule {
+  id              String   @id @default(cuid())
+  storeId          String   @map("store_id")
+  store            Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  matchText        String   @map("match_text")
+  replacementText  String   @map("replacement_text")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([storeId, matchText])
+  @@index([storeId])
+  @@map("store_menu_language_rules")
 }
 
 model AuditLog {

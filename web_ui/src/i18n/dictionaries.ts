@@ -1977,6 +1977,66 @@ Object.assign(vi, {
   mini_reprint_failed: "In lại thất bại. Vui lòng kiểm tra máy in.",
 });
 
+Object.assign(ko, {
+  menu_language_title: "메뉴언어관리",
+  menu_language_enable_title: "언어변경 사용",
+  menu_language_enable_desc: "체크하면 배달K 주문서 출력 시 메뉴명이 아래 규칙대로 변경됩니다.",
+  menu_language_add_rule: "매칭 규칙 추가",
+  menu_language_match_text: "매치되는 글자",
+  menu_language_replacement_text: "변경해야 하는 글자",
+  menu_language_rule_list: "매칭 규칙",
+  menu_language_empty: "등록된 매칭 규칙이 없습니다.",
+  menu_language_load_failed: "메뉴언어 설정을 불러오지 못했습니다.",
+  menu_language_save_failed: "저장에 실패했습니다.",
+  register_welcome: "회원가입",
+  register_continue_desc: "계정을 만들고 서비스를 시작하세요",
+  register_email_continue: "이메일로 회원가입",
+  register_processing: "회원가입 처리 중...",
+  register_has_account: "이미 계정이 있으신가요?",
+});
+
+Object.assign(en, {
+  menu_language_title: "Menu Language",
+  menu_language_enable_title: "Use menu name conversion",
+  menu_language_enable_desc: "When enabled, DeliveryK menu names are replaced using the rules below before printing.",
+  menu_language_add_rule: "Add Matching Rule",
+  menu_language_match_text: "Text to match",
+  menu_language_replacement_text: "Replacement text",
+  menu_language_rule_list: "Matching Rules",
+  menu_language_empty: "No matching rules registered.",
+  menu_language_load_failed: "Failed to load menu language settings.",
+  menu_language_save_failed: "Failed to save.",
+  login_btn: "Log in",
+  login_no_account: "Don't have an account?",
+  login_register: "Sign up",
+  register_welcome: "Create Account",
+  register_continue_desc: "Create an account and start using the service",
+  register_email_continue: "Sign up with email",
+  register_processing: "Signing up...",
+  register_has_account: "Already have an account?",
+});
+
+Object.assign(vi, {
+  menu_language_title: "Ngôn ngữ món",
+  menu_language_enable_title: "Dùng chuyển đổi tên món",
+  menu_language_enable_desc: "Khi bật, tên món từ DeliveryK sẽ được thay bằng quy tắc bên dưới trước khi in.",
+  menu_language_add_rule: "Thêm quy tắc",
+  menu_language_match_text: "Chữ cần khớp",
+  menu_language_replacement_text: "Chữ thay thế",
+  menu_language_rule_list: "Quy tắc khớp",
+  menu_language_empty: "Chưa có quy tắc nào.",
+  menu_language_load_failed: "Không thể tải cài đặt ngôn ngữ món.",
+  menu_language_save_failed: "Lưu thất bại.",
+  login_btn: "Đăng nhập",
+  login_no_account: "Bạn chưa có tài khoản?",
+  login_register: "Đăng ký",
+  register_welcome: "Đăng ký",
+  register_continue_desc: "Tạo tài khoản và bắt đầu sử dụng dịch vụ",
+  register_email_continue: "Đăng ký bằng email",
+  register_processing: "Đang đăng ký...",
+  register_has_account: "Bạn đã có tài khoản?",
+});
+
 export const dictionaries: Record<Locale, Dictionary> = { ko, en, vi };
 
 export type DictionaryKey = keyof typeof ko;

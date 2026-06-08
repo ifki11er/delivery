@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
-import { KeyRound } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import { getI18n } from '@/i18n/server';
-import LoginForm from './LoginForm';
+import LoginForm from '../LoginForm';
 
-export default async function LoginPage() {
+export default async function RegisterPage() {
   const t = (await getI18n()) as Record<string, string>;
 
   return (
@@ -14,14 +14,18 @@ export default async function LoginPage() {
       <div className="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] overflow-hidden transition-all duration-300 hover:shadow-[0_8px_40px_0_rgba(31,38,135,0.45)] p-8 relative z-10">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 mb-4 shadow-inner">
-            <KeyRound className="w-8 h-8 text-white" />
+            <UserPlus className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-3xl font-bold text-white mb-2 tracking-tight">{t.login_welcome}</h2>
-          <p className="text-indigo-100/80">{t.login_continue_desc}</p>
+          <h2 className="text-3xl font-bold text-white mb-2 tracking-tight">
+            {t.register_welcome || '회원가입'}
+          </h2>
+          <p className="text-indigo-100/80">
+            {t.register_continue_desc || '계정을 만들고 서비스를 시작하세요'}
+          </p>
         </div>
 
         <Suspense fallback={<div className="mx-auto my-4 h-6 w-6 rounded-full border-2 border-white/30 border-t-white animate-spin" />}>
-          <LoginForm mode="login" />
+          <LoginForm mode="register" />
         </Suspense>
       </div>
     </div>

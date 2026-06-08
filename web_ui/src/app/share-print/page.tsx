@@ -13,6 +13,7 @@ import {
 } from '@/lib/delivery-share';
 import { nextDailyOrderSequence } from '@/lib/daily-order-sequence';
 import { addPrintHistory } from '@/lib/print-history';
+import { applyMenuLanguageRules, getMenuLanguageSettings } from '@/lib/menu-language';
 
 type BlacklistReport = {
   id?: string;
@@ -87,9 +88,12 @@ export default function SharePrintPage() {
         return;
       }
 
-      const orderSequence = await nextDailyOrderSequence(stores[0]?.id);
-      const receiptImage = renderDeliveryShareReceipt(order);
-      const kitchenImage = renderDeliveryKitchenOrder(order, { orderSequence });
+      const storeId = stores[0]?.id;
+      const orderSequence = await nextDailyOrderSequence(storeId);
+      const menuLanguageSettings = await getMenuLanguageSettings(storeId);
+      const printableOrder = applyMenuLanguageRules(order, menuLanguageSettings);
+      const receiptImage = renderDeliveryShareReceipt(printableOrder);
+      const kitchenImage = renderDeliveryKitchenOrder(printableOrder, { orderSequence });
       const success = bridge.printBitmapDataUrl(receiptImage) && bridge.printBitmapDataUrl(kitchenImage);
 
       if (!success) {
@@ -99,7 +103,7 @@ export default function SharePrintPage() {
         return;
       }
 
-      await saveHistory('PRINTED', createDeliveryPrintHistoryData(order, orderSequence));
+      await saveHistory('PRINTED', createDeliveryPrintHistoryData(printableOrder, orderSequence));
       setStatus('done');
       setMessage('출력 완료!');
       setTimeout(() => router.replace('/store/monitor'), 700);

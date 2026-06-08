@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useSession, signOut } from 'next-auth/react';
-import { LogOut, User, Store, Settings, ChevronRight, Printer, Shield, Clock, AlertTriangle, Mail, Phone, ReceiptText } from 'lucide-react';
+import { LogOut, User, Store, Settings, ChevronRight, Printer, Shield, Clock, AlertTriangle, Mail, Phone, ReceiptText, Languages } from 'lucide-react';
 import Link from 'next/link';
 
 import { useI18n } from '@/i18n/I18nProvider';
@@ -273,6 +273,13 @@ export default function MypageClient() {
               <div className="flex items-center space-x-3 text-gray-700">
                 <Store className="w-5 h-5 text-gray-400" />
                 <span className="font-medium">{t.store_management}</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </Link>
+            <Link href="/store/menu-language" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center space-x-3 text-gray-700">
+                <Languages className="w-5 h-5 text-gray-400" />
+                <span className="font-medium">{t.menu_language_title || '메뉴언어관리'}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
             </Link>

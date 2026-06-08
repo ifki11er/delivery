@@ -15,7 +15,11 @@ type NativeGoogleSignInDetail = {
   errorCode?: string;
 };
 
-export default function LoginForm() {
+type LoginFormProps = {
+  mode?: 'login' | 'register';
+};
+
+export default function LoginForm({ mode = 'login' }: LoginFormProps) {
   const t = useI18n();
   const { platform } = usePlatform();
   const [isMounted, setIsMounted] = useState(false);
@@ -26,6 +30,13 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [nativeGoogleLoading, setNativeGoogleLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'kakao' | 'google' | null>(null);
+  const isRegister = mode === 'register';
+  const submitText = isRegister
+    ? (t.register_email_continue || '이메일로 회원가입')
+    : t.login_email_continue;
+  const processingText = isRegister
+    ? (t.register_processing || '회원가입 처리 중...')
+    : t.login_processing;
 
   useEffect(() => {
     setIsMounted(true);
@@ -155,7 +166,7 @@ export default function LoginForm() {
           disabled={loading}
           className={`w-full py-3 px-4 bg-white text-indigo-600 font-semibold rounded-xl shadow-lg hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-500 transition-all active:scale-[0.98] ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
         >
-          {loading ? t.login_processing : t.login_email_continue}
+          {loading ? processingText : submitText}
         </button>
       </form>
 
@@ -236,6 +247,16 @@ export default function LoginForm() {
             </button>
           </form>
         )}
+      </div>
+
+      <div className="mt-6 text-center text-sm text-indigo-100">
+        {isRegister ? (t.register_has_account || '이미 계정이 있으신가요?') : t.login_no_account}
+        <Link
+          href={isRegister ? '/login' : '/login/register'}
+          className="ml-2 font-bold text-white underline underline-offset-4 hover:text-indigo-100"
+        >
+          {isRegister ? t.login_btn : t.login_register}
+        </Link>
       </div>
     </>
   );

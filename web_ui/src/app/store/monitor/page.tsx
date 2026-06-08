@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -17,6 +17,7 @@ import {
   renderDeliveryShareReceipt,
 } from "@/lib/delivery-share";
 import { nextDailyOrderSequence } from "@/lib/daily-order-sequence";
+import { applyMenuLanguageRules, getMenuLanguageSettings } from "@/lib/menu-language";
 
 type ConnectionStatus = "idle" | "ready" | "connecting" | "success" | "failed" | "error";
 
@@ -50,6 +51,20 @@ export default function MonitorPage() {
     setPrintJobs(await getPrintHistory(getDateRangeIso(historyDate)));
   };
 
+  const verifyDefaultPrinterConnection = (defaultMac: string) => {
+    setConnectionStatus("connecting");
+    try {
+      const success = window.AndroidBridge?.connectPrinter(defaultMac) ?? false;
+      setConnectionStatus(success ? "success" : "ready");
+      if (success) {
+        window.AndroidBridge?.saveDefaultPrinter(defaultMac);
+      }
+    } catch (error) {
+      console.error(error);
+      setConnectionStatus("error");
+    }
+  };
+
   const loadPrinters = () => {
     if (typeof window !== "undefined" && window.AndroidBridge) {
       try {
@@ -62,7 +77,7 @@ export default function MonitorPage() {
         const defaultMac = window.AndroidBridge.getDefaultPrinter();
         if (defaultMac && parsed.some((printer) => printer.mac === defaultMac)) {
           setSelectedPrinter(defaultMac);
-          setConnectionStatus("ready");
+          verifyDefaultPrinterConnection(defaultMac);
         } else {
           setSelectedPrinter("");
           setConnectionStatus("idle");
@@ -71,6 +86,8 @@ export default function MonitorPage() {
         console.error(error);
         setConnectionStatus("error");
       }
+    } else {
+      setConnectionStatus("idle");
     }
   };
 
@@ -123,8 +140,10 @@ export default function MonitorPage() {
         return;
       }
     }
-    const success = window.AndroidBridge.printBitmapDataUrl(renderDeliveryShareReceipt(order))
-      && window.AndroidBridge.printBitmapDataUrl(renderDeliveryKitchenOrder(order, { orderSequence }));
+    const menuLanguageSettings = await getMenuLanguageSettings(stores[0]?.id);
+    const printableOrder = applyMenuLanguageRules(order, menuLanguageSettings);
+    const success = window.AndroidBridge.printBitmapDataUrl(renderDeliveryShareReceipt(printableOrder))
+      && window.AndroidBridge.printBitmapDataUrl(renderDeliveryKitchenOrder(printableOrder, { orderSequence }));
     if (!success) {
       alert(t.monitor_print_failed);
     }
@@ -187,9 +206,7 @@ export default function MonitorPage() {
 
       <div className="max-w-6xl mx-auto p-5">
       {connectionStatus !== "success" && (
-        <p className="mb-4 text-xs font-semibold text-gray-500">
-          우측 상단 아이콘을 이용하여 블루투스 프린터를 연결해주세요
-        </p>
+        <p className="mb-4 text-xs font-semibold text-gray-500">`r`n          우측 상단 아이콘을 이용하여 블루투스 프린터를 연결해주세요`r`n        </p>
       )}
 
       {refreshing && (
@@ -243,3 +260,4 @@ export default function MonitorPage() {
     </main>
   );
 }
+
