@@ -6,10 +6,12 @@ import Link from 'next/link';
 
 import { useI18n } from '@/i18n/I18nProvider';
 import { useState, useEffect, useRef } from 'react';
+import { useFeedback } from '@/components/providers/FeedbackProvider';
 
 export default function MypageClient() {
   const { data: session, status, update } = useSession();
   const t = useI18n();
+  const { confirm } = useFeedback();
   const [isEmployee, setIsEmployee] = useState(false);
   const [storeName, setStoreName] = useState<string | null>(null);
   const [userRole, setUserRole] = useState(session?.user?.role || 'CUSTOMER');
@@ -35,7 +37,11 @@ export default function MypageClient() {
   const [isSaving, setIsSaving] = useState(false);
 
   const handleWithdraw = async () => {
-    if (confirm(t.mypage_withdraw_desc)) {
+    if (await confirm({
+      title: t.mypage_withdraw,
+      message: t.mypage_withdraw_desc,
+      danger: true,
+    })) {
       try {
         const res = await fetch('/api/user/withdraw', { method: 'POST' });
         const data = await res.json();

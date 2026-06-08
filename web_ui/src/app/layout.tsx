@@ -14,6 +14,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import BottomNav from "@/components/layout/BottomNav";
 import AuthProvider from "@/components/providers/AuthProvider";
 import { StoreProvider } from "@/components/providers/StoreProvider";
+import { FeedbackProvider } from "@/components/providers/FeedbackProvider";
 
 export default async function RootLayout({
   children,
@@ -34,19 +35,21 @@ export default async function RootLayout({
         <AuthProvider session={session}>
           <StoreProvider>
             <I18nProvider dictionary={t} locale={locale}>
-              {session ? (
-                <div className="flex h-screen overflow-hidden">
-                  <Sidebar session={session} />
-                  <main className="flex-1 md:ml-64 w-full h-full overflow-y-auto pb-16 md:pb-0">
+              <FeedbackProvider>
+                {session ? (
+                  <div className="flex h-screen overflow-hidden">
+                    <Sidebar session={session} />
+                    <main className="flex-1 md:ml-64 w-full h-full overflow-y-auto pb-16 md:pb-0">
+                      {children}
+                    </main>
+                    <BottomNav session={session} />
+                  </div>
+                ) : (
+                  <main className="flex-1 w-full h-full">
                     {children}
                   </main>
-                  <BottomNav session={session} />
-                </div>
-              ) : (
-                <main className="flex-1 w-full h-full">
-                  {children}
-                </main>
-              )}
+                )}
+              </FeedbackProvider>
             </I18nProvider>
           </StoreProvider>
         </AuthProvider>

@@ -8,6 +8,7 @@ import { StoreRequiredNotice } from '@/components/store/StoreRequiredNotice';
 import { useStores } from '@/components/providers/StoreProvider';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/layout/PageHeader';
+import { useFeedback } from '@/components/providers/FeedbackProvider';
 import type { AttendanceStat, EmployeeRow } from '@/types/store-management';
 
 const DEFAULT_TIME_ZONE =
@@ -29,6 +30,7 @@ function shortName(name: string) {
 export default function StoreEmployeesPage() {
   const t = useI18n();
   const locale = useLocale();
+  const { confirm } = useFeedback();
   const { stores, loading: storesLoading } = useStores();
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
@@ -103,7 +105,7 @@ export default function StoreEmployeesPage() {
   });
 
   const handleDelete = async (employeeId: string) => {
-    if (!confirm(t.emp_resign_confirm)) return;
+    if (!(await confirm({ message: t.emp_resign_confirm, danger: true }))) return;
 
     try {
       const res = await fetch(`/api/store/employees?employeeId=${employeeId}`, { method: 'DELETE' });

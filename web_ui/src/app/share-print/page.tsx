@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -37,14 +37,24 @@ function riskLabel(count: number) {
   return '주의';
 }
 
+function formatDateOnly(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function SharePrintPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { stores, loading: storesLoading } = useStores();
   const rawText = searchParams.get('text') || '';
   const order = useMemo(() => parseDeliveryShareOrder(rawText), [rawText]);
-  const [status, setStatus] = useState<'checking' | 'blocked' | 'printing' | 'done' | 'failed'>('checking');
-  const [message, setMessage] = useState('블랙리스트 검수중...');
+  const [status, setStatus] = useState<'checking' | 'blocked' | 'printing' | 'done' | 'failed'>('printing');
+  const [message, setMessage] = useState('출력중...');
   const [blacklist, setBlacklist] = useState<BlacklistCheck | null>(null);
 
   const saveHistory = async (statusValue: string, parsedData: string) => {
@@ -182,7 +192,7 @@ export default function SharePrintPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-2xl font-black text-gray-900">{blacklist.phoneNumber}</h2>
-                  <p className="mt-1 text-xs font-bold text-gray-500">최근 제보일 {blacklist.latestDate?.slice(0, 10) || '-'}</p>
+                  <p className="mt-1 text-xs font-bold text-gray-500">{formatDateOnly(blacklist.latestDate)}</p>
                 </div>
                 <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-black text-red-700">
                   누적 {blacklist.count}건 ({riskLabel(blacklist.count)})
@@ -199,7 +209,7 @@ export default function SharePrintPage() {
                       {report.isMine ? <span className="shrink-0 rounded bg-indigo-100 px-2 py-0.5 text-[10px] font-black text-indigo-700">내 제보</span> : null}
                     </div>
                     <p className="mt-2 text-xs font-semibold text-gray-500">
-                      제보자 {report.reporterName || '익명'} · {report.createdAt?.slice(0, 10) || '-'}
+                      {formatDateOnly(report.createdAt)}
                     </p>
                   </div>
                 ))}
@@ -221,3 +231,4 @@ export default function SharePrintPage() {
     </main>
   );
 }
+

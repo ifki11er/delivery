@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Users, Store, FileText, CheckCircle, XCircle, Clock, AlertTriangle, Edit, Trash2, Save } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
+import { useFeedback } from '@/components/providers/FeedbackProvider';
 import type { AdminApplication, AdminBlacklist, AdminStats } from '@/types/admin';
 
 type AdminClientProps = {
@@ -17,6 +18,7 @@ type AppFilter = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export default function AdminClient({ stats, allApps: initialApps, allBlacklists: initialBlacklists = [] }: AdminClientProps) {
   const t = useI18n();
+  const { confirm } = useFeedback();
   const [mainTab, setMainTab] = useState<MainTab>('STATISTICS');
   const [apps, setApps] = useState<AdminApplication[]>(initialApps);
   const [blacklists, setBlacklists] = useState<AdminBlacklist[]>(initialBlacklists);
@@ -26,7 +28,7 @@ export default function AdminClient({ stats, allApps: initialApps, allBlacklists
   const [editingBL, setEditingBL] = useState<{ id: string; reason: string } | null>(null);
 
   const handleDeleteBlacklist = async (id: string) => {
-    if (!confirm(t.admin_blacklist_delete_confirm)) return;
+    if (!(await confirm({ message: t.admin_blacklist_delete_confirm, danger: true }))) return;
 
     try {
       const res = await fetch(`/api/admin/blacklist?id=${id}`, { method: 'DELETE' });
@@ -66,7 +68,10 @@ export default function AdminClient({ stats, allApps: initialApps, allBlacklists
   };
 
   const handleAction = async (id: string, action: 'APPROVE' | 'REJECT') => {
-    if (!confirm(action === 'APPROVE' ? t.admin_approve_confirm : t.admin_reject_confirm)) return;
+    if (!(await confirm({
+      message: action === 'APPROVE' ? t.admin_approve_confirm : t.admin_reject_confirm,
+      danger: action === 'REJECT',
+    }))) return;
 
     setLoadingId(id);
     try {

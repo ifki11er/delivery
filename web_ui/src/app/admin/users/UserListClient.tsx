@@ -6,18 +6,20 @@ import { ArrowLeft, UserX, UserCheck, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import type { UserStatus } from '@prisma/client';
 import { useI18n } from '@/i18n/I18nProvider';
+import { useFeedback } from '@/components/providers/FeedbackProvider';
 import type { AdminUserRow } from '@/types/admin';
 
 export default function UserListClient({ users: initialUsers, filterType }: { users: AdminUserRow[]; filterType: string }) {
   const t = useI18n();
+  const { confirm } = useFeedback();
   const [users, setUsers] = useState<AdminUserRow[]>(initialUsers);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const router = useRouter();
 
   const handleStatusChange = async (userId: string, newStatus: UserStatus) => {
     if (newStatus === 'WITHDRAWN') {
-      if (!confirm(t.admin_user_withdraw_confirm)) return;
-    } else if (!confirm(t.admin_user_status_confirm.replace('{status}', newStatus))) {
+      if (!(await confirm({ message: t.admin_user_withdraw_confirm, danger: true }))) return;
+    } else if (!(await confirm({ message: t.admin_user_status_confirm.replace('{status}', newStatus) }))) {
       return;
     }
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Store, Wifi, Save, Send, ChevronLeft, Search, User, Trash2 } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
+import { useFeedback } from '@/components/providers/FeedbackProvider';
 import type { StoreSummary, UserSearchResult } from '@/types/store-management';
 
 const DEFAULT_TIME_ZONE =
@@ -30,6 +31,7 @@ function resolveStoreTimeZone(timeZone?: string | null) {
 export default function StoreManagePage() {
   const router = useRouter();
   const t = useI18n();
+  const { confirm, prompt } = useFeedback();
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -151,7 +153,7 @@ export default function StoreManagePage() {
   };
 
   const handleTransfer = async (userId: string, userName: string) => {
-    if (!confirm(t.manage_transfer_confirm.replace('{name}', userName))) return;
+    if (!(await confirm({ message: t.manage_transfer_confirm.replace('{name}', userName) }))) return;
 
     try {
       const res = await fetch('/api/store', {
@@ -174,10 +176,17 @@ export default function StoreManagePage() {
   };
 
   const handleDeleteStore = async () => {
-    if (!confirm(t.manage_close_confirm.replace('{name}', storeName))) return;
+    if (!(await confirm({
+      title: t.store_management,
+      message: t.manage_close_confirm.replace('{name}', storeName),
+      danger: true,
+    }))) return;
     
     // 이중 확인
-    const confirmName = prompt(t.manage_close_prompt.replace('{name}', storeName));
+    const confirmName = await prompt({
+      title: t.store_management,
+      message: t.manage_close_prompt.replace('{name}', storeName),
+    });
     if (confirmName !== storeName) {
       alert(t.manage_close_name_mismatch);
       return;

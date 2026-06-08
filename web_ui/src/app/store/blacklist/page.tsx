@@ -1,27 +1,38 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { AlertTriangle, Search, Plus, Edit3, Save, X, Phone, FileText, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { AlertTriangle, Search, Plus, Edit3, Save, X, Trash2 } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 import { StoreRequiredNotice } from '@/components/store/StoreRequiredNotice';
 import { useStores } from '@/components/providers/StoreProvider';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/layout/PageHeader';
+import { useFeedback } from '@/components/providers/FeedbackProvider';
 import type { BlacklistEntry } from '@/types/store-management';
 
 const blacklistMemoryCache = new Map<string, BlacklistEntry[]>();
+const MAX_REASON_LENGTH = 100;
+
+function formatDateOnly(value?: string | Date | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 export default function BlacklistPage() {
   const t = useI18n();
+  const { confirm } = useFeedback();
   const { data: session } = useSession();
   const { loading: storesLoading, hasStore } = useStores();
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showAdd, setShowAdd] = useState(false);
-  const [newPhone, setNewPhone] = useState('');
-  const [newReason, setNewReason] = useState('');
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editingReason, setEditingReason] = useState('');
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
@@ -77,35 +88,6 @@ export default function BlacklistPage() {
     void fetchBlacklist(searchQuery);
   };
 
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPhone || !newReason) {
-      alert(t.blacklist_req);
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/blacklist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: newPhone, reason: newReason }),
-      });
-
-      if (res.ok) {
-        alert(t.blacklist_success);
-        setShowAdd(false);
-        setNewPhone('');
-        setNewReason('');
-        void fetchBlacklist('', true);
-      } else {
-        const errData = await res.json();
-        alert(errData.error || t.blacklist_fail);
-      }
-    } catch {
-      alert(t.blacklist_error);
-    }
-  };
-
   const handleEditSave = async (reportId: string) => {
     if (!editingReason) return;
 
@@ -129,7 +111,12 @@ export default function BlacklistPage() {
   };
 
   const handleDelete = async (reportId: string) => {
-    if (!confirm('정말로 이 블랙리스트 제보를 삭제하시겠습니까?')) return;
+    if (!(await confirm({
+      title: '블랙리스트 삭제',
+      message: '정말로 이 블랙리스트 제보를 삭제하시겠습니까?',
+      danger: true,
+      confirmText: '삭제',
+    }))) return;
 
     try {
       const res = await fetch(`/api/blacklist?id=${encodeURIComponent(reportId)}`, {
@@ -192,61 +179,25 @@ export default function BlacklistPage() {
         title={t.mypage_blacklist}
         icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
         actions={(
-          <button
-            onClick={() => setShowAdd(!showAdd)}
+          <Link
+            href="/store/blacklist/new"
             className="text-red-600 bg-red-50 p-2 rounded-lg font-bold flex items-center text-sm"
           >
             <Plus className="w-4 h-4 mr-1" />
             {t.blacklist_add}
-          </button>
+          </Link>
         )}
       />
 
       <div className="max-w-2xl mx-auto px-4 space-y-4 mt-6">
+        <p className="rounded-xl border border-gray-100 bg-white px-4 py-3 text-xs font-semibold leading-5 text-gray-500 shadow-sm">
+          현재 리스트는 내가 제보한 리스트만 나옵니다. 검색을 하면 내가 제보하지 않은 리스트도 확인 가능합니다.
+        </p>
+
         {refreshing && (
           <div className="rounded-xl bg-red-50 px-4 py-2 text-center text-xs font-bold text-red-600">
             새로고침 중...
           </div>
-        )}
-
-        {showAdd && (
-          <form onSubmit={handleAdd} className="bg-white p-5 rounded-2xl shadow-sm border border-red-100 bg-red-50/10">
-            <h2 className="font-bold text-gray-900 mb-3 flex items-center">{t.blacklist_add_title}</h2>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">{t.blacklist_phone}</label>
-                <div className="relative">
-                  <Phone className="w-5 h-5 absolute left-3 top-3.5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={newPhone}
-                    onChange={(e) => setNewPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="01012345678"
-                    className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">{t.blacklist_reason}</label>
-                <div className="relative">
-                  <FileText className="w-5 h-5 absolute left-3 top-3.5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={newReason}
-                    onChange={(e) => setNewReason(e.target.value)}
-                    placeholder={t.blacklist_reason_placeholder}
-                    className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-              <button
-                type="submit"
-                className="w-full py-3.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors"
-              >
-                {t.blacklist_submit}
-              </button>
-            </div>
-          </form>
         )}
 
         <form onSubmit={handleSearch} className="relative">
@@ -296,8 +247,7 @@ export default function BlacklistPage() {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs text-gray-400">{t.blacklist_latest_report}</p>
-                      <p className="text-xs font-medium text-gray-600">{new Date(entry.latestDate).toLocaleDateString()}</p>
+                      <p className="text-xs font-medium text-gray-600">{formatDateOnly(entry.latestDate)}</p>
                     </div>
                   </div>
 
@@ -309,9 +259,13 @@ export default function BlacklistPage() {
                             <input
                               type="text"
                               value={editingReason}
-                              onChange={(e) => setEditingReason(e.target.value)}
+                              maxLength={MAX_REASON_LENGTH}
+                              onChange={(e) => setEditingReason(e.target.value.slice(0, MAX_REASON_LENGTH))}
                               className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-indigo-500 text-sm"
                             />
+                            <p className="text-right text-[11px] font-semibold text-gray-400">
+                              {editingReason.length}/{MAX_REASON_LENGTH}자 이내
+                            </p>
                             <div className="flex justify-end space-x-2">
                               <button type="button" onClick={() => setEditingReportId(null)} className="text-xs text-gray-500 font-bold px-2 py-1 flex items-center hover:bg-gray-200 rounded">
                                 <X className="w-3 h-3 mr-1" />
@@ -334,10 +288,7 @@ export default function BlacklistPage() {
                               )}
                             </div>
                             <div className="mt-2 flex justify-between items-center">
-                              <div className="text-xs text-gray-500 flex items-center">
-                                <span className="bg-white border border-gray-200 px-2 py-0.5 rounded-md mr-2">{t.blacklist_reporter}</span>
-                                {rep.reporterName || t.blacklist_anon}
-                              </div>
+                              <div className="text-xs font-semibold text-gray-500">{formatDateOnly(rep.createdAt)}</div>
                               {session?.user?.id === rep.reporterId && (
                                 <div className="flex items-center gap-2">
                                   <button
@@ -385,3 +336,4 @@ export default function BlacklistPage() {
     </div>
   );
 }
+

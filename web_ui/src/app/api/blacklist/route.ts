@@ -18,6 +18,8 @@ type BlacklistGroup = {
   reports: BlacklistReport[];
 };
 
+const MAX_REASON_LENGTH = 100;
+
 async function requireOwnerOrAdmin() {
   const session = await auth();
   if (!session?.user?.id) return { session: null, response: jsonError("Unauthorized", 401) };
@@ -122,6 +124,10 @@ export async function POST(req: Request) {
       return jsonError("Phone number and reason are required", 400);
     }
 
+    if (reason.length > MAX_REASON_LENGTH) {
+      return jsonError("Reason must be 100 characters or fewer", 400);
+    }
+
     const entry = await prisma.blacklist.upsert({
       where: {
         phoneNumber_reporterId: {
@@ -155,6 +161,10 @@ export async function PUT(req: Request) {
 
     if (!id || !reason) {
       return jsonError("ID and reason are required", 400);
+    }
+
+    if (reason.length > MAX_REASON_LENGTH) {
+      return jsonError("Reason must be 100 characters or fewer", 400);
     }
 
     const entry = await prisma.blacklist.findUnique({ where: { id } });

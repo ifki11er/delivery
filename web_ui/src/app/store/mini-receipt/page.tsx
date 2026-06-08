@@ -21,6 +21,7 @@ import { StoreRequiredNotice } from '@/components/store/StoreRequiredNotice';
 import { useStores } from '@/components/providers/StoreProvider';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/layout/PageHeader';
+import { useFeedback } from '@/components/providers/FeedbackProvider';
 import { renderMiniKitchenOrder, renderMiniPaymentReceipt } from '@/lib/mini-receipt-print';
 import { nextDailyOrderSequence } from '@/lib/daily-order-sequence';
 
@@ -177,6 +178,7 @@ function formatReceiptPrintedAt() {
 
 export default function MiniReceiptPage() {
   const t = useI18n();
+  const { confirm, prompt } = useFeedback();
   const { stores, loading: storesLoading } = useStores();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -562,13 +564,13 @@ export default function MiniReceiptPage() {
       return;
     }
 
-    if (!confirm(t.mini_return_confirm)) {
+    if (!(await confirm({ message: t.mini_return_confirm, danger: true }))) {
       return;
     }
 
     const returnSnapshot = buildReturnOrder(order);
     const success = printPaymentReceipt(returnSnapshot);
-    if (!success && !confirm(t.mini_return_print_failed_confirm)) {
+    if (!success && !(await confirm({ message: t.mini_return_print_failed_confirm }))) {
       return;
     }
 
@@ -626,7 +628,7 @@ export default function MiniReceiptPage() {
 
     if (shouldPrintReceipt) {
       const success = printPaymentReceipt(orderForCheckout);
-      if (!success && !confirm(t.mini_checkout_print_failed_confirm)) {
+      if (!success && !(await confirm({ message: t.mini_checkout_print_failed_confirm }))) {
         return;
       }
     }
@@ -650,23 +652,40 @@ export default function MiniReceiptPage() {
   };
 
   const renameTable = async (table: PosTable) => {
-    const name = prompt(t.mini_table_name_prompt, table.name)?.trim();
+    const name = (await prompt({
+      message: t.mini_table_name_prompt,
+      defaultValue: table.name,
+    }))?.trim();
     if (!name || name === table.name) return;
     await postAction({ action: 'table.update', tableId: table.id, name });
   };
 
   const renameCategory = async (category: PosCategory) => {
-    const name = prompt(t.mini_category_name_prompt, category.name)?.trim();
+    const name = (await prompt({
+      message: t.mini_category_name_prompt,
+      defaultValue: category.name,
+    }))?.trim();
     if (!name || name === category.name) return;
     await postAction({ action: 'category.update', categoryId: category.id, name });
   };
 
   const editMenu = async (menu: PosMenu) => {
-    const nextMenuCode = prompt(t.mini_menu_code_prompt, menu.menu_code)?.replace(/[^0-9]/g, '').trim();
+    const nextMenuCode = (await prompt({
+      message: t.mini_menu_code_prompt,
+      defaultValue: menu.menu_code,
+      inputMode: 'numeric',
+    }))?.replace(/[^0-9]/g, '').trim();
     if (!nextMenuCode) return;
-    const name = prompt(t.mini_menu_name_prompt, menu.name)?.trim();
+    const name = (await prompt({
+      message: t.mini_menu_name_prompt,
+      defaultValue: menu.name,
+    }))?.trim();
     if (!name) return;
-    const priceText = prompt(t.mini_price_prompt, String(menu.price))?.replace(/[^0-9]/g, '');
+    const priceText = (await prompt({
+      message: t.mini_price_prompt,
+      defaultValue: String(menu.price),
+      inputMode: 'numeric',
+    }))?.replace(/[^0-9]/g, '');
     if (priceText === undefined) return;
     await postAction({
       action: 'menu.update',
@@ -1054,9 +1073,12 @@ export default function MiniReceiptPage() {
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm(textTemplate(t.mini_table_delete_confirm, { name: table.name }))) {
-                            postAction({ action: 'table.delete', tableId: table.id });
+                        onClick={async () => {
+                          if (await confirm({
+                            message: textTemplate(t.mini_table_delete_confirm, { name: table.name }),
+                            danger: true,
+                          })) {
+                            await postAction({ action: 'table.delete', tableId: table.id });
                           }
                         }}
                         className="h-9 w-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-red-500"
@@ -1168,13 +1190,13 @@ export default function MiniReceiptPage() {
                           {t.mini_edit}
                         </button>
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             const menuCount = category.menus.length;
                             const message = menuCount > 0
                               ? textTemplate(t.mini_category_delete_with_menus_confirm, { name: category.name, count: menuCount })
                               : textTemplate(t.mini_category_delete_confirm, { name: category.name });
-                            if (confirm(message)) {
-                              postAction({ action: 'category.delete', categoryId: category.id });
+                            if (await confirm({ message, danger: true })) {
+                              await postAction({ action: 'category.delete', categoryId: category.id });
                             }
                           }}
                           className="text-xs font-bold text-red-500"
@@ -1218,9 +1240,12 @@ export default function MiniReceiptPage() {
                                 {menu.is_active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                               </button>
                               <button
-                                onClick={() => {
-                                  if (confirm(textTemplate(t.mini_menu_delete_confirm, { name: menu.name }))) {
-                                    postAction({ action: 'menu.delete', menuId: menu.id });
+                                onClick={async () => {
+                                  if (await confirm({
+                                    message: textTemplate(t.mini_menu_delete_confirm, { name: menu.name }),
+                                    danger: true,
+                                  })) {
+                                    await postAction({ action: 'menu.delete', menuId: menu.id });
                                   }
                                 }}
                                 className="h-9 w-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-red-500"

@@ -6,18 +6,20 @@ import { ArrowLeft, Store, AlertTriangle, XCircle, CheckCircle } from 'lucide-re
 import { useRouter } from 'next/navigation';
 import type { StoreStatus } from '@prisma/client';
 import { useI18n } from '@/i18n/I18nProvider';
+import { useFeedback } from '@/components/providers/FeedbackProvider';
 import type { AdminStoreRow } from '@/types/admin';
 
 export default function StoreListClient({ stores: initialStores, filterType }: { stores: AdminStoreRow[]; filterType: string }) {
   const t = useI18n();
+  const { confirm } = useFeedback();
   const [stores, setStores] = useState<AdminStoreRow[]>(initialStores);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const router = useRouter();
 
   const handleStatusChange = async (storeId: string, newStatus: StoreStatus) => {
     if (newStatus === 'CLOSED') {
-      if (!confirm(t.admin_store_close_confirm)) return;
-    } else if (!confirm(t.admin_store_status_confirm.replace('{status}', newStatus))) {
+      if (!(await confirm({ message: t.admin_store_close_confirm, danger: true }))) return;
+    } else if (!(await confirm({ message: t.admin_store_status_confirm.replace('{status}', newStatus) }))) {
       return;
     }
 
