@@ -86,6 +86,36 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
 
+    if (isRegister) {
+      const registerRes = await fetch('/api/auth/register-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const registerData = await registerRes.json();
+
+      if (!registerRes.ok) {
+        const message = registerData.error || '회원가입 처리 중 오류가 발생했습니다.';
+        setErrorMsg(message);
+        setLoading(false);
+        return;
+      }
+    } else {
+      const statusRes = await fetch('/api/auth/email-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const statusData = await statusRes.json();
+
+      if (!statusRes.ok) {
+        const message = statusData.error || t.login_invalid_credentials;
+        setErrorMsg(message);
+        setLoading(false);
+        return;
+      }
+    }
+
     const res = await clientSignIn('credentials', {
       email,
       password,
@@ -106,7 +136,7 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
   return (
     <>
       {errorMsg && (
-        <div className="bg-red-500/10 border border-red-500/50 text-red-100 p-4 rounded-xl mb-6 text-sm text-center animate-in fade-in slide-in-from-top-4">
+        <div className="bg-red-500/10 border border-red-500/50 text-red-100 p-4 rounded-xl mb-6 text-sm text-center whitespace-pre-line animate-in fade-in slide-in-from-top-4">
           {errorMsg}
         </div>
       )}

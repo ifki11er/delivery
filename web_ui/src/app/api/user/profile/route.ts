@@ -4,6 +4,47 @@ import { prisma } from "@/lib/prisma";
 import { jsonError, normalizePhone, readJson } from "@/lib/api";
 import { writeAuditLog } from "@/lib/audit";
 
+function providerLabel(provider?: string | null) {
+  if (provider === "kakao") return "카카오";
+  if (provider === "google" || provider === "google-native") return "구글";
+  if (provider === "credentials" || provider === "email") return "이메일";
+  return provider || "기존 계정";
+}
+
+function resolveLoginProvider(user: {
+  password: string | null;
+  accounts: { provider: string }[];
+}) {
+  const accountProvider = user.accounts[0]?.provider;
+  if (accountProvider) return providerLabel(accountProvider);
+  if (user.password) return "이메일";
+  return "기존 계정";
+}
+
+function isDisposableDuplicateAccount(user: {
+  phoneNumber: string | null;
+  role: string;
+  status: string;
+  _count: {
+    applications: number;
+    stores: number;
+    employments: number;
+    blacklists: number;
+    printJobs: number;
+  };
+}) {
+  return (
+    !user.phoneNumber &&
+    user.role === "CUSTOMER" &&
+    user.status === "ACTIVE" &&
+    user._count.applications === 0 &&
+    user._count.stores === 0 &&
+    user._count.employments === 0 &&
+    user._count.blacklists === 0 &&
+    user._count.printJobs === 0
+  );
+}
+
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return jsonError("Unauthorized", 401);
@@ -33,13 +74,75 @@ export async function PUT(req: Request) {
       return jsonError("Name and phone number are required.", 400);
     }
 
-    const existingPhone = await prisma.user.findUnique({
-      where: { phoneNumber },
-      select: { id: true },
-    });
+    const [existingPhone, currentUser] = await Promise.all([
+      prisma.user.findUnique({
+        where: { phoneNumber },
+        select: {
+          id: true,
+          password: true,
+          accounts: {
+            select: { provider: true },
+            orderBy: { provider: "asc" },
+          },
+        },
+      }),
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          id: true,
+          phoneNumber: true,
+          role: true,
+          status: true,
+          _count: {
+            select: {
+              applications: true,
+              stores: true,
+              employments: true,
+              blacklists: true,
+              printJobs: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    if (!currentUser) {
+      return jsonError("Unauthorized", 401);
+    }
 
     if (existingPhone && existingPhone.id !== session.user.id) {
-      return jsonError("Phone number is already in use.", 400);
+      const loginProvider = resolveLoginProvider(existingPhone);
+      const message = `이미 ${loginProvider}로 가입되어 있습니다.\n${loginProvider}로 로그인해주세요.`;
+      const cleanedDuplicateAccount = isDisposableDuplicateAccount(currentUser);
+
+      if (cleanedDuplicateAccount) {
+        await prisma.$transaction([
+          prisma.account.deleteMany({ where: { userId: currentUser.id } }),
+          prisma.session.deleteMany({ where: { userId: currentUser.id } }),
+          prisma.user.delete({ where: { id: currentUser.id } }),
+        ]);
+
+        await writeAuditLog({
+          actorId: null,
+          action: "duplicate_signup_account_cleaned",
+          targetType: "user",
+          targetId: currentUser.id,
+          metadata: {
+            duplicatePhoneNumber: phoneNumber,
+            existingUserId: existingPhone.id,
+            loginProvider,
+          },
+        });
+      }
+
+      return NextResponse.json(
+        {
+          error: message,
+          duplicateAccountCleaned: cleanedDuplicateAccount,
+          loginProvider,
+        },
+        { status: 409 },
+      );
     }
 
     const updatedUser = await prisma.user.update({

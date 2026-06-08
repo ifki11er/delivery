@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import { CheckCircle } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 
@@ -43,6 +43,11 @@ export default function OnboardingPage() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 409 && data.duplicateAccountCleaned) {
+          const message = data.error || t.onboarding_save_failed;
+          await signOut({ callbackUrl: `/login?message=${encodeURIComponent(message)}` });
+          return;
+        }
         throw new Error(data.error || t.onboarding_save_failed);
       }
 

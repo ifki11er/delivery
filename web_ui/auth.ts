@@ -54,15 +54,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = String(credentials.password);
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) {
-          const hashedPassword = await bcrypt.hash(password, 10);
-          return prisma.user.create({
-            data: {
-              email,
-              password: hashedPassword,
-            },
-          });
-        }
+        if (!user) return null;
 
         if (!user.password) return null;
         if (user.deletedAt || user.status === "WITHDRAWN") return null;
