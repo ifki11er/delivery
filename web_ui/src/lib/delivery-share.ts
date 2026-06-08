@@ -288,7 +288,6 @@ export function renderDeliveryShareReceipt(order: DeliveryShareOrder) {
 }
 
 export function renderDeliveryKitchenOrder(order: DeliveryShareOrder, options?: { orderSequence?: number }) {
-  const fullAddress = [order.selectedAddress, order.inputAddress].filter(Boolean).join(' ');
   const measure = makeCanvas(1).ctx;
   measure.font = '400 32px Arial, sans-serif';
   const itemHeight = order.items.reduce((sum, item, index) => {
@@ -296,8 +295,10 @@ export function renderDeliveryKitchenOrder(order: DeliveryShareOrder, options?: 
     return sum + Math.max(1, wrapText(measure, name, 330, 2).length) * 42;
   }, 0);
   measure.font = '700 36px Arial, sans-serif';
-  const addressHeight = Math.max(1, wrapText(measure, fullAddress, 500, 5).length) * 42;
-  const height = 510 + itemHeight + addressHeight;
+  const selectedAddressLines = wrapText(measure, order.selectedAddress, 500, 5);
+  const inputAddressLines = wrapText(measure, order.inputAddress, 500, 3);
+  const addressHeight = Math.max(1, selectedAddressLines.length + inputAddressLines.length) * 42 + 8;
+  const height = 524 + itemHeight + addressHeight;
   const { canvas, ctx } = makeCanvas(height);
   let y = 72;
 
@@ -344,12 +345,17 @@ export function renderDeliveryKitchenOrder(order: DeliveryShareOrder, options?: 
   drawText(ctx, printedAt, 542, y, { size: 36, bold: true, align: 'right' });
   y += 44;
   ctx.font = '700 36px Arial, sans-serif';
-  wrapText(ctx, fullAddress, 500, 5).forEach((line) => {
+  selectedAddressLines.forEach((line) => {
+    drawText(ctx, line, 34, y, { size: 36, bold: true });
+    y += 42;
+  });
+  y += 8;
+  inputAddressLines.forEach((line) => {
     drawText(ctx, line, 34, y, { size: 36, bold: true });
     y += 42;
   });
   if (options?.orderSequence) {
-    y += 2;
+    y += 16;
     drawText(ctx, `주문순서:${options.orderSequence}`, 34, y, { size: 40, bold: true });
   }
 
