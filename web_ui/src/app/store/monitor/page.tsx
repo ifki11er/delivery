@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bluetooth, Printer, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { Bluetooth, BluetoothConnected, CalendarDays, Hash, Printer } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
-import { Button } from "@/components/ui/button";
-import { Panel } from "@/components/ui/panel";
 import { StoreRequiredNotice } from "@/components/store/StoreRequiredNotice";
 import { useStores } from "@/components/providers/StoreProvider";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -21,120 +20,58 @@ import { nextDailyOrderSequence } from "@/lib/daily-order-sequence";
 
 type ConnectionStatus = "idle" | "ready" | "connecting" | "success" | "failed" | "error";
 
-function renderPrinterTestImage() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 576;
-  canvas.height = 360;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return "";
+function getTodayInputDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#000";
-  ctx.textAlign = "center";
-  ctx.font = "700 34px Arial, sans-serif";
-  ctx.fillText("Baedalk Print Test", 288, 88);
-  ctx.font = "400 28px Arial, sans-serif";
-  ctx.fillText("HPRT TP80N-M", 288, 150);
-  ctx.fillText("Connection Success", 288, 198);
-  ctx.beginPath();
-  ctx.moveTo(54, 240);
-  ctx.lineTo(522, 240);
-  ctx.stroke();
-  ctx.font = "400 22px Arial, sans-serif";
-  ctx.fillText(new Date().toLocaleString("ko-KR"), 288, 292);
-
-  return canvas.toDataURL("image/png");
+function getDateRangeIso(date: string) {
+  const start = new Date(`${date}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return {
+    from: start.toISOString(),
+    to: end.toISOString(),
+  };
 }
 
 export default function MonitorPage() {
   const t = useI18n();
   const { stores, loading: isStoreLoading, hasStore } = useStores();
   const [printJobs, setPrintJobs] = useState<AndroidOrder[]>([]);
-  const [printers, setPrinters] = useState<AndroidPrinter[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle");
-  const [showToast, setShowToast] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  const connectionStatusText = {
-    idle: t.monitor_printer_idle,
-    ready: t.monitor_printer_ready,
-    connecting: t.monitor_printer_connecting,
-    success: t.monitor_printer_connected,
-    failed: t.monitor_printer_failed,
-    error: t.monitor_printer_error,
-  }[connectionStatus];
+  const [historyDate, setHistoryDate] = useState(getTodayInputDate);
 
   const fetchPrintJobs = async () => {
-    setPrintJobs(await getPrintHistory());
+    setPrintJobs(await getPrintHistory(getDateRangeIso(historyDate)));
   };
 
   const loadPrinters = () => {
     if (typeof window !== "undefined" && window.AndroidBridge) {
       try {
         if (!window.AndroidBridge.isBluetoothEnabled()) {
-          alert(t.monitor_bluetooth_disabled);
-          setPrinters([]);
           setConnectionStatus("idle");
           return;
         }
 
         const parsed = JSON.parse(window.AndroidBridge.getPairedPrinters()) as AndroidPrinter[];
-        setPrinters(parsed);
-
         const defaultMac = window.AndroidBridge.getDefaultPrinter();
         if (defaultMac && parsed.some((printer) => printer.mac === defaultMac)) {
           setSelectedPrinter(defaultMac);
           setConnectionStatus("ready");
-        } else if (parsed.length > 0 && !selectedPrinter) {
-          setSelectedPrinter(parsed[0].mac);
-          setConnectionStatus("ready");
-        } else if (parsed.length === 0) {
+        } else {
+          setSelectedPrinter("");
           setConnectionStatus("idle");
         }
       } catch (error) {
         console.error(error);
-      }
-    }
-  };
-
-  const handleManualRefresh = () => {
-    loadPrinters();
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 2000);
-  };
-
-  const connectToPrinter = () => {
-    if (!selectedPrinter || isConnecting) return;
-
-    setConnectionStatus("connecting");
-    setIsConnecting(true);
-
-    setTimeout(() => {
-      try {
-        const success = window.AndroidBridge?.connectPrinter(selectedPrinter) ?? false;
-        setConnectionStatus(success ? "success" : "failed");
-        if (success) {
-          window.AndroidBridge?.saveDefaultPrinter(selectedPrinter);
-        }
-      } catch {
         setConnectionStatus("error");
-      } finally {
-        setIsConnecting(false);
       }
-    }, 100);
-  };
-
-  const testPrint = () => {
-    if (!ensurePrinterConnected()) return;
-    if (!window.AndroidBridge?.printBitmapDataUrl) {
-      alert(t.monitor_web_test_update_required);
-      return;
     }
-
-    const success = window.AndroidBridge.printBitmapDataUrl(renderPrinterTestImage());
-    if (!success) alert(t.monitor_test_print_failed);
   };
 
   const ensurePrinterConnected = () => {
@@ -207,6 +144,11 @@ export default function MonitorPage() {
     };
   }, [hasStore, isStoreLoading]);
 
+  useEffect(() => {
+    if (isStoreLoading || !hasStore) return;
+    void fetchPrintJobs();
+  }, [historyDate, hasStore, isStoreLoading]);
+
   const { refreshing } = usePullToRefresh({
     disabled: isStoreLoading || !hasStore,
     onRefresh: () => {
@@ -224,9 +166,31 @@ export default function MonitorPage() {
 
   return (
     <main className="bg-gray-50 min-h-screen">
-      <PageHeader title={t.mypage_monitor} icon={<Printer className="w-5 h-5" />} maxWidth="max-w-6xl" />
+      <PageHeader
+        title={t.mypage_monitor}
+        icon={<Printer className="w-5 h-5" />}
+        maxWidth="max-w-6xl"
+        actions={(
+          <Link
+            href="/store/monitor/printer"
+            className={`h-10 w-10 rounded-full flex items-center justify-center border transition-colors ${
+              connectionStatus === "success"
+                ? "border-blue-100 bg-blue-50 text-blue-600"
+                : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
+            }`}
+            title={t.mypage_printer}
+          >
+            {connectionStatus === "success" ? <BluetoothConnected className="w-5 h-5" /> : <Bluetooth className="w-5 h-5" />}
+          </Link>
+        )}
+      />
 
       <div className="max-w-6xl mx-auto p-5">
+      {connectionStatus !== "success" && (
+        <p className="mb-4 text-xs font-semibold text-gray-500">
+          우측 상단 아이콘을 이용하여 블루투스 프린터를 연결해주세요
+        </p>
+      )}
 
       {refreshing && (
         <div className="mb-4 rounded-xl bg-blue-50 px-4 py-2 text-center text-xs font-bold text-blue-600">
@@ -234,84 +198,18 @@ export default function MonitorPage() {
         </div>
       )}
 
-      <Panel className="mb-6 p-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
-          <div className="flex items-center gap-2">
-            <Printer className="w-5 h-5 text-gray-700" />
-            <h2 className="text-lg font-bold text-gray-800 whitespace-nowrap">{t.mypage_printer}</h2>
-            {showToast && (
-              <span className="text-xs font-semibold text-green-600 animate-pulse whitespace-nowrap">
-                {t.monitor_refreshed}
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button
-              onClick={() => window.AndroidBridge?.openBluetoothSettings()}
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="flex-1 sm:flex-none text-blue-700 bg-blue-50 hover:bg-blue-100"
-            >
-              <Bluetooth className="w-3.5 h-3.5 inline-block mr-1" />
-              {t.monitor_pairing}
-            </Button>
-            <Button
-              onClick={handleManualRefresh}
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="flex-1 sm:flex-none"
-            >
-              <RefreshCw className="w-3.5 h-3.5 inline-block mr-1" />
-              {t.monitor_refresh}
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <select
-            className="p-2 border rounded text-sm text-black disabled:bg-gray-100 disabled:text-gray-400"
-            value={selectedPrinter}
-            onChange={(event) => {
-              setSelectedPrinter(event.target.value);
-              setConnectionStatus(event.target.value ? "ready" : "idle");
-            }}
-            disabled={isConnecting}
-          >
-            {printers.length === 0 ? <option>{t.monitor_no_bluetooth_devices}</option> : null}
-            {printers.map((printer) => (
-              <option key={printer.mac} value={printer.mac}>
-                {printer.name} ({printer.mac})
-              </option>
-            ))}
-          </select>
-
-          <div className="flex gap-2">
-            <Button
-              onClick={connectToPrinter}
-              disabled={isConnecting}
-              className="flex-1"
-            >
-              {isConnecting ? t.monitor_printer_connecting : t.monitor_connect_printer}
-            </Button>
-            <Button
-              onClick={testPrint}
-              disabled={isConnecting}
-              variant="success"
-              className="flex-1"
-            >
-              {t.monitor_test_print}
-            </Button>
-          </div>
-
-          <p className="text-xs text-center text-gray-500 mt-1">
-            {t.monitor_status_label}: <span className="font-medium text-gray-700">{connectionStatusText}</span>
-          </p>
-        </div>
-      </Panel>
-
-      <h2 className="text-lg font-bold mb-3 text-gray-800">{t.monitor_print_history_title}</h2>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-bold text-gray-800 whitespace-nowrap">{t.monitor_print_history_title}</h2>
+        <label className="ml-auto flex shrink-0 items-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2 text-sm font-bold text-gray-700 shadow-sm">
+          <CalendarDays className="w-4 h-4 text-gray-400" />
+          <input
+            type="date"
+            value={historyDate}
+            onChange={(event) => setHistoryDate(event.target.value || getTodayInputDate())}
+            className="bg-transparent outline-none"
+          />
+        </label>
+      </div>
       <div className="space-y-4">
         {printJobs.length === 0 ? (
           <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 text-center">
@@ -323,8 +221,9 @@ export default function MonitorPage() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs font-medium text-gray-400">{order.timestamp}</span>
                 <div className="flex gap-2">
-                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${order.status === "PRINTED" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                    {order.status === "PRINTED" ? t.monitor_print_status_printed : t.monitor_print_status_failed}
+                  <span className="text-xs font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-700 inline-flex items-center gap-1">
+                    <Hash className="w-3 h-3" />
+                    {getDeliveryPrintHistorySequence(order.parsed_data) ?? "-"}
                   </span>
                   <button
                     onClick={() => void reprintDeliveryOrder(order)}

@@ -8,8 +8,16 @@ export type PrintHistoryItem = {
   status: string;
 };
 
-export async function getPrintHistory(): Promise<PrintHistoryItem[]> {
-  const res = await fetch('/api/print-history', { cache: 'no-store' });
+export async function getPrintHistory(options?: {
+  from?: string;
+  to?: string;
+}): Promise<PrintHistoryItem[]> {
+  const params = new URLSearchParams();
+  if (options?.from) params.set('from', options.from);
+  if (options?.to) params.set('to', options.to);
+
+  const query = params.toString();
+  const res = await fetch(`/api/print-history${query ? `?${query}` : ''}`, { cache: 'no-store' });
   if (!res.ok) return [];
 
   const data = await res.json() as { items?: PrintHistoryItem[] };

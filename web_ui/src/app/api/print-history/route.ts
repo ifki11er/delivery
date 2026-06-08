@@ -46,8 +46,23 @@ export async function GET(req: Request) {
     return NextResponse.json({ items: [] });
   }
 
+  const from = searchParams.get('from');
+  const to = searchParams.get('to');
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
+
   const jobs = await prisma.printJob.findMany({
-    where: { storeId: store.id },
+    where: {
+      storeId: store.id,
+      ...(fromDate && !Number.isNaN(fromDate.getTime()) || toDate && !Number.isNaN(toDate.getTime())
+        ? {
+            createdAt: {
+              ...(fromDate && !Number.isNaN(fromDate.getTime()) ? { gte: fromDate } : {}),
+              ...(toDate && !Number.isNaN(toDate.getTime()) ? { lt: toDate } : {}),
+            },
+          }
+        : {}),
+    },
     orderBy: { createdAt: 'desc' },
     take: 100,
   });
