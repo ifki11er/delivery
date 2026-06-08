@@ -158,7 +158,9 @@ export default function EditEmployeePage() {
         ) : (
           <>
             <section className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-              <h2 className="font-bold text-gray-900">{t.mypage_edit}</h2>
+              <div>
+                <h3 className="text-xs font-bold text-gray-600 mb-2">관리방식</h3>
+              </div>
               <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1">
                 <button
                   type="button"
