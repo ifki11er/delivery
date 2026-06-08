@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle, CheckCircle2, Printer, XCircle } from 'lucide-react';
+import { useStores } from '@/components/providers/StoreProvider';
 import {
+  createDeliveryPrintHistoryData,
   getDeliverySharePhoneDigits,
   parseDeliveryShareOrder,
   renderDeliveryKitchenOrder,
   renderDeliveryShareReceipt,
 } from '@/lib/delivery-share';
+import { nextDailyOrderSequence } from '@/lib/daily-order-sequence';
 import { addPrintHistory } from '@/lib/print-history';
 
 type BlacklistReport = {
@@ -37,6 +40,7 @@ function riskLabel(count: number) {
 export default function SharePrintPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { stores, loading: storesLoading } = useStores();
   const rawText = searchParams.get('text') || '';
   const order = useMemo(() => parseDeliveryShareOrder(rawText), [rawText]);
   const [status, setStatus] = useState<'checking' | 'blocked' | 'printing' | 'done' | 'failed'>('checking');
@@ -65,8 +69,6 @@ export default function SharePrintPage() {
 
     try {
       const bridge = window.AndroidBridge;
-      const receiptImage = renderDeliveryShareReceipt(order);
-      const kitchenImage = renderDeliveryKitchenOrder(order);
 
       if (!bridge?.printBitmapDataUrl) {
         setStatus('failed');
@@ -75,16 +77,19 @@ export default function SharePrintPage() {
         return;
       }
 
+      const orderSequence = await nextDailyOrderSequence(stores[0]?.id);
+      const receiptImage = renderDeliveryShareReceipt(order);
+      const kitchenImage = renderDeliveryKitchenOrder(order, { orderSequence });
       const success = bridge.printBitmapDataUrl(receiptImage) && bridge.printBitmapDataUrl(kitchenImage);
 
       if (!success) {
         setStatus('failed');
-        setMessage('프린터에 연결할 수 없습니다. 전원과 블루투스 연결을 확인해 주세요.');
+        setMessage('프린터에 연결할 수 없습니다. 전원과 블루투스 연결을 확인해주세요.');
         await saveHistory('FAILED', order.selectedAddress);
         return;
       }
 
-      await saveHistory('PRINTED', `${order.paymentMethod} ${order.totalAmount.toLocaleString()}₫`);
+      await saveHistory('PRINTED', createDeliveryPrintHistoryData(order, orderSequence));
       setStatus('done');
       setMessage('출력 완료!');
       setTimeout(() => router.replace('/store/monitor'), 700);
@@ -98,6 +103,8 @@ export default function SharePrintPage() {
 
   useEffect(() => {
     const run = async () => {
+      if (storesLoading) return;
+
       if (!order) {
         setStatus('failed');
         setMessage('배달K 주문 공유 형식이 아닙니다.');
@@ -132,7 +139,7 @@ export default function SharePrintPage() {
     };
 
     void run();
-  }, []);
+  }, [storesLoading]);
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-8">

@@ -11,10 +11,13 @@ import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import PageHeader from "@/components/layout/PageHeader";
 import { getPrintHistory } from "@/lib/print-history";
 import {
+  getDeliveryPrintHistorySequence,
+  getDeliveryPrintHistorySummary,
   parseDeliveryShareOrder,
   renderDeliveryKitchenOrder,
   renderDeliveryShareReceipt,
 } from "@/lib/delivery-share";
+import { nextDailyOrderSequence } from "@/lib/daily-order-sequence";
 
 type ConnectionStatus = "idle" | "ready" | "connecting" | "success" | "failed" | "error";
 
@@ -46,7 +49,7 @@ function renderPrinterTestImage() {
 
 export default function MonitorPage() {
   const t = useI18n();
-  const { loading: isStoreLoading, hasStore } = useStores();
+  const { stores, loading: isStoreLoading, hasStore } = useStores();
   const [printJobs, setPrintJobs] = useState<AndroidOrder[]>([]);
   const [printers, setPrinters] = useState<AndroidPrinter[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState("");
@@ -159,10 +162,10 @@ export default function MonitorPage() {
     }
   };
 
-  const reprintDeliveryOrder = (text: string) => {
+  const reprintDeliveryOrder = async (job: AndroidOrder) => {
     if (!ensurePrinterConnected()) return;
 
-    const order = parseDeliveryShareOrder(text);
+    const order = parseDeliveryShareOrder(job.raw_text);
     if (!order) {
       alert(t.monitor_print_failed);
       return;
@@ -173,8 +176,18 @@ export default function MonitorPage() {
       return;
     }
 
+    let orderSequence = getDeliveryPrintHistorySequence(job.parsed_data);
+    if (!orderSequence) {
+      try {
+        orderSequence = await nextDailyOrderSequence(stores[0]?.id);
+      } catch (error) {
+        console.error(error);
+        alert(t.monitor_print_failed);
+        return;
+      }
+    }
     const success = window.AndroidBridge.printBitmapDataUrl(renderDeliveryShareReceipt(order))
-      && window.AndroidBridge.printBitmapDataUrl(renderDeliveryKitchenOrder(order));
+      && window.AndroidBridge.printBitmapDataUrl(renderDeliveryKitchenOrder(order, { orderSequence }));
     if (!success) {
       alert(t.monitor_print_failed);
     }
@@ -314,14 +327,14 @@ export default function MonitorPage() {
                     {order.status === "PRINTED" ? t.monitor_print_status_printed : t.monitor_print_status_failed}
                   </span>
                   <button
-                    onClick={() => reprintDeliveryOrder(order.raw_text)}
+                    onClick={() => void reprintDeliveryOrder(order)}
                     className="text-xs font-bold px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 shadow-sm transition"
                   >
                     {t.monitor_reprint}
                   </button>
                 </div>
               </div>
-              {order.parsed_data ? <p className="text-sm font-semibold text-gray-700 mb-2">{order.parsed_data}</p> : null}
+              {order.parsed_data ? <p className="text-sm font-semibold text-gray-700 mb-2">{getDeliveryPrintHistorySummary(order.parsed_data)}</p> : null}
               <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800 bg-gray-50 p-3 rounded-lg">{order.raw_text}</pre>
             </div>
           ))

@@ -126,6 +126,33 @@ export function getDeliverySharePhoneDigits(order: DeliveryShareOrder) {
   return order.phone.replace(/[^\d]/g, '');
 }
 
+export function createDeliveryPrintHistoryData(order: DeliveryShareOrder, orderSequence: number) {
+  return JSON.stringify({
+    summary: `${order.paymentMethod} ${order.totalAmount.toLocaleString()}₫`,
+    orderSequence,
+  });
+}
+
+export function getDeliveryPrintHistorySummary(parsedData?: string) {
+  if (!parsedData) return '';
+  try {
+    const parsed = JSON.parse(parsedData) as { summary?: unknown };
+    return typeof parsed.summary === 'string' ? parsed.summary : parsedData;
+  } catch {
+    return parsedData;
+  }
+}
+
+export function getDeliveryPrintHistorySequence(parsedData?: string) {
+  if (!parsedData) return undefined;
+  try {
+    const parsed = JSON.parse(parsedData) as { orderSequence?: unknown };
+    return typeof parsed.orderSequence === 'number' ? parsed.orderSequence : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function moneyToK(amount: number) {
   return `${Math.round(amount / 1000).toLocaleString()}k`;
 }
@@ -260,16 +287,17 @@ export function renderDeliveryShareReceipt(order: DeliveryShareOrder) {
   return canvas.toDataURL('image/png');
 }
 
-export function renderDeliveryKitchenOrder(order: DeliveryShareOrder) {
+export function renderDeliveryKitchenOrder(order: DeliveryShareOrder, options?: { orderSequence?: number }) {
+  const fullAddress = [order.selectedAddress, order.inputAddress].filter(Boolean).join(' ');
   const measure = makeCanvas(1).ctx;
   measure.font = '400 32px Arial, sans-serif';
   const itemHeight = order.items.reduce((sum, item, index) => {
     const name = `${String(index + 1).padStart(2, '0')}.${item.name}`;
     return sum + Math.max(1, wrapText(measure, name, 330, 2).length) * 42;
   }, 0);
-  measure.font = '400 27px Arial, sans-serif';
-  const inputAddressHeight = Math.max(1, wrapText(measure, `입력주소:${order.inputAddress}`, 500, 2).length) * 32;
-  const height = 470 + itemHeight + inputAddressHeight;
+  measure.font = '700 36px Arial, sans-serif';
+  const addressHeight = Math.max(1, wrapText(measure, fullAddress, 500, 5).length) * 42;
+  const height = 510 + itemHeight + addressHeight;
   const { canvas, ctx } = makeCanvas(height);
   let y = 72;
 
@@ -314,12 +342,16 @@ export function renderDeliveryKitchenOrder(order: DeliveryShareOrder) {
   const now = new Date();
   const printedAt = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   drawText(ctx, printedAt, 542, y, { size: 36, bold: true, align: 'right' });
-  y += 40;
-  ctx.font = '400 27px Arial, sans-serif';
-  wrapText(ctx, `입력주소:${order.inputAddress}`, 500, 2).forEach((line) => {
-    drawText(ctx, line, 34, y, { size: 27 });
-    y += 32;
+  y += 44;
+  ctx.font = '700 36px Arial, sans-serif';
+  wrapText(ctx, fullAddress, 500, 5).forEach((line) => {
+    drawText(ctx, line, 34, y, { size: 36, bold: true });
+    y += 42;
   });
+  if (options?.orderSequence) {
+    y += 2;
+    drawText(ctx, `주문순서:${options.orderSequence}`, 34, y, { size: 40, bold: true });
+  }
 
   return canvas.toDataURL('image/png');
 }

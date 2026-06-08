@@ -92,6 +92,7 @@ model Store {
   posMenus           PosMenu[]
   posOrders          PosOrder[]
   printJobs          PrintJob[]
+  dailySequences     StoreDailySequence[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 }
@@ -287,6 +288,19 @@ model PrintJob {
   @@index([storeId, createdAt])
   @@index([userId, createdAt])
   @@map("print_jobs")
+}
+
+model StoreDailySequence {
+  id           String   @id @default(cuid())
+  storeId      String   @map("store_id")
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  businessDate String   @map("business_date")
+  sequence     Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([storeId, businessDate])
+  @@map("store_daily_sequences")
 }
 
 model AuditLog {

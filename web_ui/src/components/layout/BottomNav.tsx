@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ClipboardCheck, Printer, ReceiptText, ShieldAlert, User } from 'lucide-react';
+import { ClipboardCheck, Printer, ReceiptText, User } from 'lucide-react';
 import type { Session } from 'next-auth';
 import { useI18n } from '@/i18n/I18nProvider';
 
@@ -16,7 +16,6 @@ export default function BottomNav({ session }: { session: Session | null }) {
   const menuItems = [
     { label: t.nav_print, icon: <Printer className="w-5 h-5" />, href: '/store/monitor' },
     { label: t.nav_attendance, icon: <ClipboardCheck className="w-5 h-5" />, href: '/store/employees' },
-    { label: t.nav_blacklist, icon: <ShieldAlert className="w-5 h-5" />, href: '/store/blacklist' },
     { label: t.nav_mini_receipt, icon: <ReceiptText className="w-5 h-5" />, href: '/store/mini-receipt' },
     { label: t.nav_my_info, icon: <User className="w-5 h-5" />, href: '/mypage' },
   ];

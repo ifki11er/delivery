@@ -22,6 +22,7 @@ import { useStores } from '@/components/providers/StoreProvider';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/layout/PageHeader';
 import { renderMiniKitchenOrder, renderMiniPaymentReceipt } from '@/lib/mini-receipt-print';
+import { nextDailyOrderSequence } from '@/lib/daily-order-sequence';
 
 type PosTable = {
   id: string;
@@ -98,7 +99,6 @@ type StoreSeed = PosPayload['store'];
 
 const currency = '₫';
 const draftStoragePrefix = 'mini_receipt_drafts_v1';
-const sequenceStoragePrefix = 'mini_receipt_daily_sequence_v1';
 const receiptSettingsStoragePrefix = 'mini_receipt_receipt_settings_v1';
 const payloadCachePrefix = 'mini_receipt_payload_v1';
 const miniReceiptMemoryCache = new Map<string, PosPayload>();
@@ -173,15 +173,6 @@ function formatReceiptPrintedAt() {
   const second = String(now.getSeconds()).padStart(2, '0');
 
   return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
-}
-
-function getTodayKey() {
-  const now = new Date();
-  return [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-  ].join('');
 }
 
 export default function MiniReceiptPage() {
@@ -502,13 +493,11 @@ export default function MiniReceiptPage() {
     });
   };
 
-  const assignDailyOrderSequence = (order: PosOrder) => {
+  const assignDailyOrderSequence = async (order: PosOrder) => {
     if (order.order_sequence) return order;
     if (!payload?.store.id) return order;
 
-    const key = `${sequenceStoragePrefix}_${payload.store.id}_${getTodayKey()}`;
-    const nextSequence = Number(localStorage.getItem(key) || '0') + 1;
-    localStorage.setItem(key, String(nextSequence));
+    const nextSequence = await nextDailyOrderSequence(payload.store.id);
 
     const nextOrder = { ...order, order_sequence: nextSequence };
     setDraftOrders((current) => ({
@@ -609,7 +598,14 @@ export default function MiniReceiptPage() {
       return;
     }
 
-    const printableOrder = assignDailyOrderSequence({ ...currentOrder, total });
+    let printableOrder: PosOrder;
+    try {
+      printableOrder = await assignDailyOrderSequence({ ...currentOrder, total });
+    } catch (error) {
+      console.error(error);
+      alert(t.mini_printer_failed);
+      return;
+    }
     const success = printKitchenOrderSheet(printableOrder);
     if (!success) {
       alert(t.mini_printer_failed);
@@ -619,7 +615,14 @@ export default function MiniReceiptPage() {
 
   const closeOrder = async (shouldPrintReceipt: boolean) => {
     if (!currentOrder || currentOrder.items.length === 0) return;
-    const orderForCheckout = assignDailyOrderSequence({ ...currentOrder, total, payment_method: paymentMethod });
+    let orderForCheckout: PosOrder;
+    try {
+      orderForCheckout = await assignDailyOrderSequence({ ...currentOrder, total, payment_method: paymentMethod });
+    } catch (error) {
+      console.error(error);
+      alert(t.mini_printer_failed);
+      return;
+    }
 
     if (shouldPrintReceipt) {
       const success = printPaymentReceipt(orderForCheckout);
