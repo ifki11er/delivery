@@ -19,11 +19,7 @@ export async function GET(req: Request) {
 
     // Auth check
     const store = await prisma.store.findUnique({ where: { id: storeId } });
-    const isManager = await prisma.employee.findFirst({
-      where: { storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
-    });
-
-    if (!store || (store.ownerId !== session.user.id && session.user.role !== 'ADMIN' && !isManager)) {
+    if (!store || (store.ownerId !== session.user.id && session.user.role !== 'ADMIN')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -63,7 +59,6 @@ export async function GET(req: Request) {
       return {
         employeeId: emp.id,
         name: emp.user.name || emp.user.email?.split('@')[0],
-        role: emp.role,
         wageType: emp.wageType,
         wageAmount: emp.wageAmount,
         statistics: {

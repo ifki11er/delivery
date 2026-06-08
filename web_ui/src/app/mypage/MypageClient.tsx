@@ -11,7 +11,6 @@ export default function MypageClient() {
   const { data: session, status, update } = useSession();
   const t = useI18n();
   const [isEmployee, setIsEmployee] = useState(false);
-  const [empRole, setEmpRole] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string | null>(null);
   const [userRole, setUserRole] = useState(session?.user?.role || 'CUSTOMER');
   
@@ -63,7 +62,6 @@ export default function MypageClient() {
         .then(res => res.json())
         .then(data => {
           setIsEmployee(data.isEmployee);
-          setEmpRole(data.empRole);
           setStoreName(data.storeName);
           if (data.role && data.role !== session.user.role) {
             setUserRole(data.role);
@@ -309,16 +307,6 @@ export default function MypageClient() {
               </div>
               <ChevronRight className="w-5 h-5 text-indigo-400" />
             </Link>
-            {/* 매니저 권한이면 근태 관리 메뉴를 표시한다. */}
-            {empRole === 'MANAGER' && (
-              <Link href="/store/employees" className="flex items-center justify-between p-4 hover:bg-indigo-50 transition-colors">
-                <div className="flex items-center space-x-3 text-indigo-700">
-                  <User className="w-5 h-5 text-indigo-400" />
-                  <span className="font-bold">{t.employee_management}</span>
-                </div>
-                <ChevronRight className="w-5 h-5 text-indigo-400" />
-              </Link>
-            )}
           </>
         )}
 

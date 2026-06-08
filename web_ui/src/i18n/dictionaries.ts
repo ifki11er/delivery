@@ -269,6 +269,9 @@ const ko: Dictionary = {
 };
 
 Object.assign(ko, {
+  emp_mode_attendance_only: "출퇴근관리",
+  emp_mode_full: "전체관리",
+  emp_mode_attendance_only_desc: "출퇴근 기록만 관리합니다. 급여, 금액, 근무시간 설정과 급여 계산은 사용하지 않습니다.",
   monitor_print_history_refreshing: "출력 이력 새로고침 중...",
   monitor_print_history_title: "출력 이력",
   monitor_print_history_empty: "아직 출력한 주문이 없습니다.",
@@ -457,6 +460,9 @@ const en: Dictionary = {
 };
 
 Object.assign(en, {
+  emp_mode_attendance_only: "Attendance Only",
+  emp_mode_full: "Full Management",
+  emp_mode_attendance_only_desc: "Only attendance records are managed. Wage settings and salary calculation are not used.",
   monitor_print_history_refreshing: "Refreshing print history...",
   monitor_print_history_title: "Print History",
   monitor_print_history_empty: "No printed orders yet.",
@@ -1877,6 +1883,9 @@ Object.assign(vi, {
 });
 
 Object.assign(vi, {
+  emp_mode_attendance_only: "Chỉ chấm công",
+  emp_mode_full: "Quản lý đầy đủ",
+  emp_mode_attendance_only_desc: "Chỉ quản lý lịch sử chấm công. Không dùng cài đặt lương hoặc tính lương.",
   monitor_print_history_refreshing: "Đang làm mới lịch sử in...",
   monitor_print_history_title: "Lịch sử in",
   monitor_print_history_empty: "Chưa có đơn đã in.",

@@ -15,15 +15,6 @@ export async function GET() {
         status: { not: 'CLOSED' },
         OR: [
           { ownerId: session.user.id },
-          {
-            employees: {
-              some: {
-                userId: session.user.id,
-                role: 'MANAGER',
-                status: 'ACTIVE'
-              }
-            }
-          }
         ]
       },
       include: {

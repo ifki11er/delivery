@@ -9,15 +9,6 @@ async function getAccessibleStore(userId: string, role: string | undefined, stor
       ...(storeId ? { id: storeId } : {}),
       OR: [
         { ownerId: userId },
-        {
-          employees: {
-            some: {
-              userId,
-              role: 'MANAGER',
-              status: 'ACTIVE',
-            },
-          },
-        },
         ...(role === 'ADMIN' ? [{}] : []),
       ],
     },

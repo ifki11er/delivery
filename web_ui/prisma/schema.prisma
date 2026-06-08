@@ -103,9 +103,9 @@ model Employee {
   store         Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
   userId        String
   user          User         @relation(fields: [userId], references: [id])
-  role          String       @default("STAFF") // STAFF, MANAGER
   wageType      String       @default("HOURLY") // HOURLY, DAILY
   wageAmount    Int          @default(0)
+  managementMode String      @default("FULL") @map("management_mode")
   workStartTime String       @default("09:00")
   workEndTime   String       @default("18:00")
   status        String       @default("ACTIVE") // ACTIVE, INACTIVE

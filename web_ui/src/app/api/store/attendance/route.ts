@@ -69,6 +69,7 @@ export async function POST(req: Request) {
     const nowMinutes = getMinutesInTimeZone(now, storeTimeZone);
     const startExpected = timeStringToMinutes(employee.workStartTime);
     const endExpected = timeStringToMinutes(employee.workEndTime);
+    const shouldCalculateWage = employee.managementMode === "FULL";
 
     if (body.action === "CHECK_IN") {
       if (attendance?.checkInTime) {
@@ -82,16 +83,16 @@ export async function POST(req: Request) {
         update: {
           checkInTime: now,
           status: nowMinutes > startExpected ? "LATE" : "NORMAL",
-          wageType: employee.wageType,
-          wageAmount: employee.wageAmount,
+          wageType: shouldCalculateWage ? employee.wageType : "NONE",
+          wageAmount: shouldCalculateWage ? employee.wageAmount : 0,
         },
         create: {
           employeeId: employee.id,
           date: dateStr,
           checkInTime: now,
           status: nowMinutes > startExpected ? "LATE" : "NORMAL",
-          wageType: employee.wageType,
-          wageAmount: employee.wageAmount,
+          wageType: shouldCalculateWage ? employee.wageType : "NONE",
+          wageAmount: shouldCalculateWage ? employee.wageAmount : 0,
         },
       });
     } else {
@@ -106,10 +107,10 @@ export async function POST(req: Request) {
       const expectedMins = endExpected - startExpected;
       let calculatedWage: number | null = null;
 
-      if (attendance.wageType === "HOURLY") {
+      if (shouldCalculateWage && attendance.wageType === "HOURLY") {
         calculatedWage = Math.floor((workMins / 60) * attendance.wageAmount);
       }
-      if (attendance.wageType === "DAILY") {
+      if (shouldCalculateWage && attendance.wageType === "DAILY") {
         calculatedWage =
           expectedMins > 0
             ? Math.floor((Math.min(workMins, expectedMins) / expectedMins) * attendance.wageAmount)
@@ -162,11 +163,7 @@ export async function GET(req: Request) {
 
     if (storeId) {
       const store = await prisma.store.findUnique({ where: { id: storeId } });
-      const isManager = await prisma.employee.findFirst({
-        where: { storeId, userId: session.user.id, role: "MANAGER", status: "ACTIVE" },
-      });
-
-      if (!store || (store.ownerId !== session.user.id && session.user.role !== "ADMIN" && !isManager)) {
+      if (!store || (store.ownerId !== session.user.id && session.user.role !== "ADMIN")) {
         return jsonError("Forbidden", 403);
       }
 

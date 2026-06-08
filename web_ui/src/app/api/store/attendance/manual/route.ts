@@ -34,10 +34,7 @@ export async function POST(req: Request) {
 
     if (employee.store.ownerId !== session.user.id) {
       const user = await prisma.user.findUnique({ where: { id: session.user.id } });
-      const isManager = await prisma.employee.findFirst({
-        where: { storeId: employee.storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
-      });
-      if (user?.role !== 'ADMIN' && !isManager) {
+      if (user?.role !== 'ADMIN') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }
@@ -63,15 +60,16 @@ export async function POST(req: Request) {
       }
     }
 
-    // Calculate calculatedWage based on the logic
+    // Calculate calculatedWage only for full-management employees.
     const startExpected = timeStringToMinutes(employee.workStartTime);
     const endExpected = timeStringToMinutes(employee.workEndTime);
     const expectedMins = endExpected - startExpected;
     let calculatedWage = null;
+    const shouldCalculateWage = employee.managementMode === 'FULL';
 
-    if (employee.wageType === 'HOURLY') {
+    if (shouldCalculateWage && employee.wageType === 'HOURLY') {
       calculatedWage = Math.floor((workMinutes / 60) * employee.wageAmount);
-    } else if (employee.wageType === 'DAILY') {
+    } else if (shouldCalculateWage && employee.wageType === 'DAILY') {
       if (expectedMins > 0) {
         if (workMinutes >= expectedMins) {
           calculatedWage = employee.wageAmount;
@@ -96,8 +94,8 @@ export async function POST(req: Request) {
         checkInTime: checkInTime,
         checkOutTime: checkOutTime,
         workMinutes: workMinutes,
-        wageType: employee.wageType,
-        wageAmount: employee.wageAmount,
+        wageType: shouldCalculateWage ? employee.wageType : 'NONE',
+        wageAmount: shouldCalculateWage ? employee.wageAmount : 0,
         calculatedWage: calculatedWage
       },
       create: {
@@ -107,8 +105,8 @@ export async function POST(req: Request) {
         checkInTime: checkInTime,
         checkOutTime: checkOutTime,
         workMinutes: workMinutes,
-        wageType: employee.wageType,
-        wageAmount: employee.wageAmount,
+        wageType: shouldCalculateWage ? employee.wageType : 'NONE',
+        wageAmount: shouldCalculateWage ? employee.wageAmount : 0,
         calculatedWage: calculatedWage
       }
     });

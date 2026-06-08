@@ -25,7 +25,7 @@ export async function GET() {
     return NextResponse.json({ 
       isEmployee: !!emp,
       role: user?.role || session.user.role,
-      empRole: emp?.role || null,
+      empRole: null,
       storeName: emp?.store?.name || null
     });
   } catch (error) {

@@ -49,8 +49,8 @@ export type EmployeeHistory = {
 
 export type EmployeeRow = {
   id: string;
-  role: string;
   status: string;
+  managementMode: string;
   wageType: string;
   wageAmount: number;
   workStartTime: string;
@@ -61,7 +61,7 @@ export type EmployeeRow = {
 };
 
 export type EmployeeEditForm = {
-  role: string;
+  managementMode: string;
   wageType: string;
   wageAmount: number;
   workStartTime: string;

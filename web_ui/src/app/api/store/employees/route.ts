@@ -17,10 +17,7 @@ export async function GET(req: Request) {
 
   try {
     const store = await prisma.store.findUnique({ where: { id: storeId } });
-    const isManager = await prisma.employee.findFirst({
-      where: { storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
-    });
-    if (!store || (store.ownerId !== session.user.id && session.user.role !== 'ADMIN' && !isManager)) {
+    if (!store || (store.ownerId !== session.user.id && session.user.role !== 'ADMIN')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -58,13 +55,11 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { storeId, phoneNumber, role, wageType, wageAmount, workStartTime, workEndTime } = body;
+    const { storeId, phoneNumber, managementMode, wageType, wageAmount, workStartTime, workEndTime } = body;
+    const normalizedMode = managementMode === 'ATTENDANCE_ONLY' ? 'ATTENDANCE_ONLY' : 'FULL';
 
     const store = await prisma.store.findUnique({ where: { id: storeId } });
-    const isManager = await prisma.employee.findFirst({
-      where: { storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
-    });
-    if (!store || (store.ownerId !== session.user.id && session.user.role !== 'ADMIN' && !isManager)) {
+    if (!store || (store.ownerId !== session.user.id && session.user.role !== 'ADMIN')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -84,7 +79,7 @@ export async function POST(req: Request) {
           where: { id: existingEmployee.id },
           data: {
             status: 'ACTIVE',
-            role: role || 'STAFF',
+            managementMode: normalizedMode,
             wageType: wageType || 'HOURLY',
             wageAmount: wageAmount || 0,
             workStartTime: workStartTime || '09:00',
@@ -106,7 +101,7 @@ export async function POST(req: Request) {
       data: {
         storeId,
         userId: targetUser.id,
-        role: role || 'STAFF',
+        managementMode: normalizedMode,
         wageType: wageType || 'HOURLY',
         wageAmount: wageAmount || 0,
         workStartTime: workStartTime || '09:00',
@@ -135,25 +130,22 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json();
-    const { employeeId, role, wageType, wageAmount, workStartTime, workEndTime, status } = body;
+    const { employeeId, managementMode, wageType, wageAmount, workStartTime, workEndTime, status } = body;
 
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
       include: { store: true }
     });
 
-    const isManager = employee ? await prisma.employee.findFirst({
-      where: { storeId: employee.storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
-    }) : null;
-
-    if (!employee || (employee.store.ownerId !== session.user.id && session.user.role !== 'ADMIN' && !isManager)) {
+    if (!employee || (employee.store.ownerId !== session.user.id && session.user.role !== 'ADMIN')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const normalizedMode = managementMode === 'ATTENDANCE_ONLY' ? 'ATTENDANCE_ONLY' : managementMode === 'FULL' ? 'FULL' : undefined;
     const updatedEmployee = await prisma.employee.update({
       where: { id: employeeId },
       data: {
-        role: role !== undefined ? role : undefined,
+        managementMode: normalizedMode,
         wageType: wageType !== undefined ? wageType : undefined,
         wageAmount: wageAmount !== undefined ? wageAmount : undefined,
         workStartTime: workStartTime !== undefined ? workStartTime : undefined,
@@ -188,11 +180,7 @@ export async function DELETE(req: Request) {
       include: { store: true }
     });
 
-    const isManager = employee ? await prisma.employee.findFirst({
-      where: { storeId: employee.storeId, userId: session.user.id, role: 'MANAGER', status: 'ACTIVE' }
-    }) : null;
-
-    if (!employee || (employee.store.ownerId !== session.user.id && session.user.role !== 'ADMIN' && !isManager)) {
+    if (!employee || (employee.store.ownerId !== session.user.id && session.user.role !== 'ADMIN')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
