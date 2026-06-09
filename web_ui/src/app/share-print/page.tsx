@@ -52,6 +52,13 @@ function formatDateOnly(value?: string | null) {
   return `${year}-${month}-${day}`;
 }
 
+function finishSharePrintOrNavigate(router: ReturnType<typeof useRouter>) {
+  const closedByApp = window.AndroidBridge?.finishSharePrint?.() ?? false;
+  if (!closedByApp) {
+    router.replace('/store/monitor');
+  }
+}
+
 export default function SharePrintPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -132,7 +139,7 @@ export default function SharePrintPage() {
       await saveHistory('PRINTED', createDeliveryPrintHistoryData(printableOrder, orderSequence));
       setStatus('done');
       setMessage('출력 완료!');
-      setTimeout(() => router.replace('/store/monitor'), 700);
+      setTimeout(() => finishSharePrintOrNavigate(router), 700);
     } catch (error) {
       console.error(error);
       setStatus('failed');

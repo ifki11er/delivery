@@ -24,6 +24,15 @@ import PageHeader from '@/components/layout/PageHeader';
 import { useFeedback } from '@/components/providers/FeedbackProvider';
 import { renderMiniKitchenOrder, renderMiniPaymentReceipt } from '@/lib/mini-receipt-print';
 import { nextDailyOrderSequence } from '@/lib/daily-order-sequence';
+import { getPrintHistory, type PrintHistoryItem } from '@/lib/print-history';
+import {
+  getDeliveryPrintHistorySequence,
+  getDeliveryPrintHistorySummary,
+  parseDeliveryShareOrder,
+  renderDeliveryKitchenOrder,
+  renderDeliveryShareReceipt,
+} from '@/lib/delivery-share';
+import { applyMenuLanguageRules, getMenuLanguageSettings } from '@/lib/menu-language';
 
 type PosTable = {
   id: string;
@@ -95,6 +104,13 @@ type ReceiptPrintSettings = {
   representativeName: boolean;
   contact: boolean;
 };
+type HistoryEntry = {
+  type: 'pos';
+  order: PosOrder;
+} | {
+  type: 'delivery';
+  job: PrintHistoryItem;
+};
 
 type StoreSeed = PosPayload['store'];
 
@@ -156,6 +172,16 @@ function getTodayInputDate() {
   return `${year}-${month}-${day}`;
 }
 
+function getDateRangeIso(historyDate: string) {
+  const start = new Date(`${historyDate}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return {
+    from: start.toISOString(),
+    to: end.toISOString(),
+  };
+}
+
 function formatKitchenPrintedAt() {
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -176,6 +202,31 @@ function formatReceiptPrintedAt() {
   const second = String(now.getSeconds()).padStart(2, '0');
 
   return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+}
+
+function getHistoryEntryTime(entry: HistoryEntry) {
+  const value = entry.type === 'pos'
+    ? entry.order.closed_at || entry.order.updated_at || entry.order.created_at
+    : entry.job.timestamp;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function getHistoryEntrySequence(entry: HistoryEntry, entries: HistoryEntry[], index: number) {
+  if (entry.type === 'pos' && entry.order.order_sequence) return entry.order.order_sequence;
+  if (entry.type === 'delivery') {
+    const sequence = getDeliveryPrintHistorySequence(entry.job.parsed_data);
+    if (sequence) return sequence;
+  }
+
+  const chronologicalIndex = [...entries]
+    .sort((a, b) => getHistoryEntryTime(a) - getHistoryEntryTime(b))
+    .findIndex((item) => (
+      entry.type === 'pos' && item.type === 'pos'
+        ? item.order.id === entry.order.id
+        : item.type === 'delivery' && entry.type === 'delivery' && item.job.id === entry.job.id
+    ));
+  return chronologicalIndex >= 0 ? chronologicalIndex + 1 : entries.length - index;
 }
 
 export default function MiniReceiptPage() {
@@ -209,6 +260,7 @@ export default function MiniReceiptPage() {
   const [receiptSettings, setReceiptSettings] = useState<ReceiptPrintSettings>(defaultReceiptPrintSettings);
   const [expandedHistoryId, setExpandedHistoryId] = useState('');
   const [historyDate, setHistoryDate] = useState(getTodayInputDate);
+  const [deliveryHistory, setDeliveryHistory] = useState<PrintHistoryItem[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const manageMenuRef = useRef<HTMLDivElement | null>(null);
   const preferredStore = stores.find((store) => store.id === selectedStoreId) || stores[0] || null;
@@ -276,24 +328,32 @@ export default function MiniReceiptPage() {
   const loadData = async (nextHistoryDate = historyDate) => {
     if (!preferredStoreId) {
       setPayload(null);
+      setDeliveryHistory([]);
       setLoading(false);
       return;
     }
 
     try {
       const params = new URLSearchParams({ storeId: preferredStoreId, historyDate: nextHistoryDate });
-      const res = await fetch(`/api/store/mini-receipt?${params.toString()}`);
+      const range = getDateRangeIso(nextHistoryDate);
+      const [res, nextDeliveryHistory] = await Promise.all([
+        fetch(`/api/store/mini-receipt?${params.toString()}`),
+        getPrintHistory({ storeId: preferredStoreId, from: range.from, to: range.to, force: true }),
+      ]);
       if (!res.ok) {
         setPayload(null);
+        setDeliveryHistory(nextDeliveryHistory);
         return;
       }
 
       const data = (await res.json()) as PosPayload;
       applyPayload(data);
+      setDeliveryHistory(nextDeliveryHistory.filter((item) => item.status === 'PRINTED'));
       cachePayload(data, nextHistoryDate);
     } catch (error) {
       console.error(error);
       setPayload(null);
+      setDeliveryHistory([]);
     } finally {
       setLoading(false);
     }
@@ -399,6 +459,13 @@ export default function MiniReceiptPage() {
   const total = useMemo(() => {
     return currentOrder?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) ?? 0;
   }, [currentOrder]);
+
+  const historyEntries = useMemo<HistoryEntry[]>(() => {
+    return [
+      ...(payload?.history ?? []).map((order) => ({ type: 'pos' as const, order })),
+      ...deliveryHistory.map((job) => ({ type: 'delivery' as const, job })),
+    ].sort((a, b) => getHistoryEntryTime(b) - getHistoryEntryTime(a));
+  }, [deliveryHistory, payload?.history]);
 
   const menuQuantityMap = useMemo(() => {
     const quantities: Record<string, number> = {};
@@ -622,6 +689,29 @@ export default function MiniReceiptPage() {
     }));
   };
 
+  const reprintDeliveryHistory = async (job: PrintHistoryItem, displaySequence: number) => {
+    const order = parseDeliveryShareOrder(job.raw_text);
+    if (!order) {
+      alert(t.monitor_print_failed);
+      return;
+    }
+
+    if (!window.AndroidBridge?.printBitmapDataUrl) {
+      alert(t.monitor_web_reprint_update_required);
+      return;
+    }
+
+    const orderSequence = getDeliveryPrintHistorySequence(job.parsed_data) ?? displaySequence;
+    const menuLanguageSettings = await getMenuLanguageSettings(preferredStoreId);
+    const printableOrder = applyMenuLanguageRules(order, menuLanguageSettings);
+    const success = window.AndroidBridge.printBitmapDataUrl(renderDeliveryShareReceipt(printableOrder, { orderSequence }))
+      && window.AndroidBridge.printBitmapDataUrl(renderDeliveryKitchenOrder(printableOrder, { orderSequence }));
+
+    if (!success) {
+      alert(t.monitor_print_failed);
+    }
+  };
+
   const buildReturnOrder = (order: PosOrder): PosOrder => ({
     ...order,
     id: `return_${order.id}_${Date.now()}`,
@@ -661,6 +751,7 @@ export default function MiniReceiptPage() {
       action: 'order.returnSnapshot',
       historyDate: returnHistoryDate,
       tableId: order.table_id,
+      orderSequence: order.order_sequence,
       paymentMethod: order.payment_method || paymentMethod,
       note: `반품: ${order.id}`,
       items: order.items.map((item) => ({
@@ -717,6 +808,7 @@ export default function MiniReceiptPage() {
     await postAction({
       action: 'order.checkoutSnapshot',
       tableId: currentOrder.table_id,
+      orderSequence: orderForCheckout.order_sequence,
       paymentMethod,
       note: orderForCheckout.note || '',
       items: orderForCheckout.items.map((item) => ({
@@ -1421,16 +1513,64 @@ export default function MiniReceiptPage() {
               />
             </div>
             <div className="space-y-2">
-              {payload.history.length === 0 ? (
+              {historyEntries.length === 0 ? (
                 <div className="py-12 text-center text-sm font-semibold text-gray-400">{t.mini_no_history}</div>
               ) : (
-                payload.history.map((order) => {
+                historyEntries.map((entry, index) => {
+                  if (entry.type === 'delivery') {
+                    const job = entry.job;
+                    const isExpanded = expandedHistoryId === job.id;
+                    const sequence = getHistoryEntrySequence(entry, historyEntries, index);
+                    return (
+                      <div key={`delivery_${job.id}`} className="rounded-xl bg-gray-50 p-3">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedHistoryId(isExpanded ? '' : job.id)}
+                          className="w-full flex items-center justify-between gap-3 text-left"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="break-words font-bold text-gray-900">#{sequence} 배달</p>
+                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-600">배달K</span>
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              {formatDate(job.timestamp)} {job.parsed_data ? `· ${getDeliveryPrintHistorySummary(job.parsed_data)}` : ''}
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="font-black text-indigo-600">출력완료</p>
+                            <p className="mt-1 text-xs font-bold text-gray-400">{isExpanded ? t.mini_collapse : t.mini_detail}</p>
+                          </div>
+                        </button>
+
+                        {isExpanded ? (
+                          <div className="mt-3 border-t border-gray-200 pt-3">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              className="mb-3 w-full"
+                              onClick={() => void reprintDeliveryHistory(job, sequence)}
+                            >
+                              {t.monitor_reprint}
+                            </Button>
+                            <pre className="whitespace-pre-wrap break-words rounded-lg bg-white px-3 py-2 font-sans text-sm text-gray-800">
+                              {job.raw_text}
+                            </pre>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  }
+
+                  const order = entry.order;
                   const table = payload.tables.find((item) => item.id === order.table_id);
                   const isExpanded = expandedHistoryId === order.id;
                   const isReturned = order.status === 'RETURNED';
                   const hasReturnRecord = payload.history.some((item) => (
                     item.status === 'RETURNED' && item.note === `반품: ${order.id}`
                   ));
+                  const title = `#${getHistoryEntrySequence(entry, historyEntries, index)} ${table?.name || t.mini_tables}`;
                   return (
                     <div key={order.id} className="rounded-xl bg-gray-50 p-3">
                       <button
@@ -1440,7 +1580,9 @@ export default function MiniReceiptPage() {
                       >
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="break-words font-bold text-gray-900">{table?.name || t.mini_tables}</p>
+                            <p className="break-words font-bold text-gray-900">
+                              {title}
+                            </p>
                             {isReturned ? (
                               <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-600">{t.mini_return}</span>
                             ) : null}

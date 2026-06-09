@@ -20,6 +20,7 @@ interface AndroidBridge {
   saveDefaultPrinter(mac: string): void;
   getDefaultPrinter(): string;
   signInWithGoogle(): void;
+  finishSharePrint?(): boolean;
 }
 
 interface Window {

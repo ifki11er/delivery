@@ -76,6 +76,7 @@ function serializeOrder(order: NonNullable<OrderWithItems>) {
     note: order.note,
     payment_method: order.paymentMethod,
     total: order.total,
+    order_sequence: order.orderSequence,
     created_at: order.createdAt,
     updated_at: order.updatedAt,
     closed_at: order.closedAt,
@@ -355,6 +356,9 @@ export async function POST(req: Request) {
       const items: CheckoutSnapshotItem[] = Array.isArray(body.items) ? body.items : [];
       const paymentMethod = String(body.paymentMethod || '미기록');
       const note = String(body.note || '').trim();
+      const orderSequence = typeof body.orderSequence === 'number' && Number.isFinite(body.orderSequence)
+        ? body.orderSequence
+        : null;
       const isReturn = action === 'order.returnSnapshot';
       const table = await prisma.posTable.findFirst({
         where: { id: tableId, storeId: store.id },
@@ -386,6 +390,7 @@ export async function POST(req: Request) {
           note,
           paymentMethod,
           total,
+          orderSequence,
           closedAt: new Date(),
           items: {
             create: sanitizedItems,

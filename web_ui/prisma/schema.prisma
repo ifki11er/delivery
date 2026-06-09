@@ -265,6 +265,7 @@ model PosOrder {
   note          String?
   paymentMethod String?        @map("payment_method")
   total         Int            @default(0)
+  orderSequence Int?           @map("order_sequence")
   items         PosOrderItem[]
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")

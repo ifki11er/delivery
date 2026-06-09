@@ -26,6 +26,7 @@ import org.json.JSONObject
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private var startedFromSharePrint = false
 
     companion object {
         private const val RC_GOOGLE_SIGN_IN = 9001
@@ -52,6 +53,7 @@ class MainActivity : AppCompatActivity() {
 
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+        startedFromSharePrint = isSharePrintIntent(intent)
 
         // [옵션 A: 릴리즈 모드] 앱 내부에 탑재된 정적 파일 로드 (현재 주석 처리됨)
         /*
@@ -100,6 +102,7 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        startedFromSharePrint = isSharePrintIntent(intent)
         if (::webView.isInitialized) {
             loadUrlIfChanged(resolveStartUrl(intent))
         }
@@ -127,6 +130,13 @@ class MainActivity : AppCompatActivity() {
         } else {
             "$baseUrl/${path.trimStart('/')}"
         }
+    }
+
+    private fun isSharePrintIntent(intent: Intent?): Boolean {
+        val path = intent?.getStringExtra(EXTRA_START_PATH)?.trim() ?: return false
+        return path.startsWith("/share-print")
+            || path.startsWith("share-print")
+            || path.contains("/share-print?")
     }
 
     // 웹에서 안드로이드 코드를 호출할 수 있게 해주는 인터페이스
@@ -233,6 +243,20 @@ class MainActivity : AppCompatActivity() {
         fun getDefaultPrinter(): String {
             val prefs = this@MainActivity.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
             return prefs.getString("default_printer", "") ?: ""
+        }
+
+        @android.webkit.JavascriptInterface
+        fun finishSharePrint(): Boolean {
+            if (!startedFromSharePrint) return false
+
+            this@MainActivity.runOnUiThread {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    this@MainActivity.finishAndRemoveTask()
+                } else {
+                    this@MainActivity.finish()
+                }
+            }
+            return true
         }
     }
 
