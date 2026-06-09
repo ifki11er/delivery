@@ -8,20 +8,64 @@ export type PrintHistoryItem = {
   status: string;
 };
 
-export async function getPrintHistory(options?: {
+const historyRequestCache = new Map<string, { timestamp: number; promise: Promise<PrintHistoryItem[]> }>();
+const historyMemoryCache = new Map<string, PrintHistoryItem[]>();
+const HISTORY_REQUEST_DEDUPE_MS = 1000;
+
+function getHistoryRequestKey(options?: {
   from?: string;
   to?: string;
-}): Promise<PrintHistoryItem[]> {
+}) {
   const params = new URLSearchParams();
   if (options?.from) params.set('from', options.from);
   if (options?.to) params.set('to', options.to);
 
   const query = params.toString();
-  const res = await fetch(`/api/print-history${query ? `?${query}` : ''}`, { cache: 'no-store' });
-  if (!res.ok) return [];
+  return {
+    requestKey: query || 'all',
+    query,
+  };
+}
 
-  const data = await res.json() as { items?: PrintHistoryItem[] };
-  return data.items ?? [];
+export function getCachedPrintHistory(options?: {
+  from?: string;
+  to?: string;
+}) {
+  return historyMemoryCache.get(getHistoryRequestKey(options).requestKey) ?? null;
+}
+
+export async function getPrintHistory(options?: {
+  from?: string;
+  to?: string;
+  force?: boolean;
+}): Promise<PrintHistoryItem[]> {
+  const { requestKey, query } = getHistoryRequestKey(options);
+
+  if (!options?.force) {
+    const memoryCached = historyMemoryCache.get(requestKey);
+    if (memoryCached) return memoryCached;
+  }
+
+  const cached = historyRequestCache.get(requestKey);
+  const now = Date.now();
+  if (cached && now - cached.timestamp < HISTORY_REQUEST_DEDUPE_MS) {
+    return cached.promise;
+  }
+
+  const promise = fetch(`/api/print-history${query ? `?${query}` : ''}`, { cache: 'no-store' })
+    .then(async (res) => {
+      if (!res.ok) return [];
+      const data = await res.json() as { items?: PrintHistoryItem[] };
+      const items = data.items ?? [];
+      historyMemoryCache.set(requestKey, items);
+      return items;
+    })
+    .finally(() => {
+      setTimeout(() => historyRequestCache.delete(requestKey), HISTORY_REQUEST_DEDUPE_MS);
+    });
+
+  historyRequestCache.set(requestKey, { timestamp: now, promise });
+  return promise;
 }
 
 export async function addPrintHistory(item: {
@@ -44,5 +88,9 @@ export async function addPrintHistory(item: {
   if (!res.ok) return null;
 
   const data = await res.json() as { item?: PrintHistoryItem };
+  if (data.item) {
+    historyMemoryCache.clear();
+    historyRequestCache.clear();
+  }
   return data.item ?? null;
 }

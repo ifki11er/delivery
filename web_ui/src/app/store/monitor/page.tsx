@@ -1,14 +1,14 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bluetooth, BluetoothConnected, CalendarDays, Hash, Printer } from "lucide-react";
+import { Bluetooth, BluetoothConnected, CalendarDays, Hash, LoaderCircle, Printer } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { StoreRequiredNotice } from "@/components/store/StoreRequiredNotice";
 import { useStores } from "@/components/providers/StoreProvider";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import PageHeader from "@/components/layout/PageHeader";
-import { getPrintHistory } from "@/lib/print-history";
+import { getCachedPrintHistory, getPrintHistory } from "@/lib/print-history";
 import {
   getDeliveryPrintHistorySequence,
   getDeliveryPrintHistorySummary,
@@ -46,10 +46,30 @@ export default function MonitorPage() {
   const [selectedPrinter, setSelectedPrinter] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle");
   const [historyDate, setHistoryDate] = useState(getTodayInputDate);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const verifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchPrintJobs = async () => {
-    setPrintJobs(await getPrintHistory(getDateRangeIso(historyDate)));
-  };
+  const fetchPrintJobs = useCallback(async (options?: { force?: boolean; showLoading?: boolean }) => {
+    const range = getDateRangeIso(historyDate);
+    const cached = !options?.force ? getCachedPrintHistory(range) : null;
+    if (cached) {
+      setPrintJobs(cached);
+      return;
+    }
+
+    const showLoading = options?.showLoading ?? true;
+    if (showLoading) {
+      setIsHistoryLoading(true);
+    }
+
+    try {
+      setPrintJobs(await getPrintHistory({ ...range, force: options?.force }));
+    } finally {
+      if (showLoading) {
+        setIsHistoryLoading(false);
+      }
+    }
+  }, [historyDate]);
 
   const verifyDefaultPrinterConnection = (defaultMac: string) => {
     setConnectionStatus("connecting");
@@ -65,6 +85,17 @@ export default function MonitorPage() {
     }
   };
 
+  const scheduleDefaultPrinterVerification = (defaultMac: string) => {
+    setConnectionStatus("ready");
+    if (verifyTimerRef.current) {
+      clearTimeout(verifyTimerRef.current);
+    }
+    verifyTimerRef.current = setTimeout(() => {
+      verifyTimerRef.current = null;
+      verifyDefaultPrinterConnection(defaultMac);
+    }, 300);
+  };
+
   const loadPrinters = () => {
     if (typeof window !== "undefined" && window.AndroidBridge) {
       try {
@@ -77,7 +108,7 @@ export default function MonitorPage() {
         const defaultMac = window.AndroidBridge.getDefaultPrinter();
         if (defaultMac && parsed.some((printer) => printer.mac === defaultMac)) {
           setSelectedPrinter(defaultMac);
-          verifyDefaultPrinterConnection(defaultMac);
+          scheduleDefaultPrinterVerification(defaultMac);
         } else {
           setSelectedPrinter("");
           setConnectionStatus("idle");
@@ -154,11 +185,14 @@ export default function MonitorPage() {
 
     if (isStoreLoading || !hasStore) return undefined;
 
-    void fetchPrintJobs();
     loadPrinters();
     window.addEventListener("focus", handleFocus);
 
     return () => {
+      if (verifyTimerRef.current) {
+        clearTimeout(verifyTimerRef.current);
+        verifyTimerRef.current = null;
+      }
       window.removeEventListener("focus", handleFocus);
     };
   }, [hasStore, isStoreLoading]);
@@ -166,12 +200,12 @@ export default function MonitorPage() {
   useEffect(() => {
     if (isStoreLoading || !hasStore) return;
     void fetchPrintJobs();
-  }, [historyDate, hasStore, isStoreLoading]);
+  }, [fetchPrintJobs, hasStore, isStoreLoading]);
 
   const { refreshing } = usePullToRefresh({
     disabled: isStoreLoading || !hasStore,
     onRefresh: () => {
-      void fetchPrintJobs();
+      void fetchPrintJobs({ force: true, showLoading: false });
     },
   });
 
@@ -206,7 +240,9 @@ export default function MonitorPage() {
 
       <div className="max-w-6xl mx-auto p-5">
       {connectionStatus !== "success" && (
-        <p className="mb-4 text-xs font-semibold text-gray-500">`r`n          우측 상단 아이콘을 이용하여 블루투스 프린터를 연결해주세요`r`n        </p>
+        <p className="mb-4 text-xs font-semibold text-gray-500">
+          우측 상단 아이콘을 이용하여 블루투스 프린터를 연결해주세요
+        </p>
       )}
 
       {refreshing && (
@@ -227,6 +263,14 @@ export default function MonitorPage() {
           />
         </label>
       </div>
+
+      {isHistoryLoading && (
+        <div className="mb-3 flex items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700">
+          <LoaderCircle className="w-4 h-4 animate-spin" />
+          <span>가져오는 중입니다.</span>
+        </div>
+      )}
+
       <div className="space-y-4">
         {printJobs.length === 0 ? (
           <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 text-center">
