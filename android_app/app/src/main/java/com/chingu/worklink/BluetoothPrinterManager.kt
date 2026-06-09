@@ -1,4 +1,4 @@
-﻿package com.baedalk.printapp
+﻿package com.chingu.worklink
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -73,7 +73,7 @@ class BluetoothPrinterManager(private val context: Context) {
         if (outputStream != null) return true
         if (!isBluetoothEnabled()) return false
 
-        val prefs = context.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
+        val prefs = context.getSharedPreferences("WorkLinkPrefs", Context.MODE_PRIVATE)
         val defaultPrinter = prefs.getString("default_printer", "") ?: ""
         if (defaultPrinter.isBlank()) return false
 

@@ -25,3 +25,5 @@ android_app/captures/
 web_ui/public/uploads/
 decompile/
 sample/
+web_ui/resources/
+resources/

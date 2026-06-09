@@ -12,7 +12,7 @@ type StoreContextValue = {
 };
 
 const StoreContext = createContext<StoreContextValue | null>(null);
-const STORE_CACHE_PREFIX = 'baedalk_store_cache';
+const STORE_CACHE_PREFIX = 'worklink_store_cache';
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();

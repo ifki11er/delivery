@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "BaedalkPrintApp"
+rootProject.name = "WorkLink"
 include(":app")

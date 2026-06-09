@@ -23,7 +23,7 @@ function renderPrinterTestImage() {
   ctx.fillStyle = "#000";
   ctx.textAlign = "center";
   ctx.font = "700 34px Arial, sans-serif";
-  ctx.fillText("Baedalk Print Test", 288, 88);
+  ctx.fillText("WorkLink Print Test", 288, 88);
   ctx.font = "400 28px Arial, sans-serif";
   ctx.fillText("HPRT TP80N-M", 288, 150);
   ctx.fillText("Connection Success", 288, 198);

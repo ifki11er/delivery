@@ -1,4 +1,4 @@
-package com.baedalk.printapp
+package com.chingu.worklink
 
 import android.content.Intent
 import android.os.Bundle

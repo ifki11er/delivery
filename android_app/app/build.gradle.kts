@@ -22,11 +22,11 @@ val webUrl = localProperties.getProperty("DEV_WEB_URL", "https://delivery-nu-dun
 val googleWebClientId = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", "")
 
 android {
-    namespace = "com.baedalk.printapp"
+    namespace = "com.chingu.worklink"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.baedalk.printapp"
+        applicationId = "com.chingu.worklink"
         minSdk = 24
         targetSdk = 34
         versionCode = 1

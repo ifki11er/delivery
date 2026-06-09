@@ -1,4 +1,4 @@
-package com.baedalk.printapp
+package com.chingu.worklink
 
 import android.annotation.SuppressLint
 import android.os.Bundle
@@ -30,7 +30,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val RC_GOOGLE_SIGN_IN = 9001
-        const val EXTRA_START_PATH = "com.baedalk.printapp.START_PATH"
+        const val EXTRA_START_PATH = "com.chingu.worklink.START_PATH"
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -235,13 +235,13 @@ class MainActivity : AppCompatActivity() {
 
         @android.webkit.JavascriptInterface
         fun saveDefaultPrinter(mac: String) {
-            val prefs = this@MainActivity.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
+            val prefs = this@MainActivity.getSharedPreferences("WorkLinkPrefs", Context.MODE_PRIVATE)
             prefs.edit().putString("default_printer", mac).apply()
         }
         
         @android.webkit.JavascriptInterface
         fun getDefaultPrinter(): String {
-            val prefs = this@MainActivity.getSharedPreferences("PrintAppPrefs", Context.MODE_PRIVATE)
+            val prefs = this@MainActivity.getSharedPreferences("WorkLinkPrefs", Context.MODE_PRIVATE)
             return prefs.getString("default_printer", "") ?: ""
         }
 
