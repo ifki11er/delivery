@@ -13,10 +13,12 @@ const historyMemoryCache = new Map<string, PrintHistoryItem[]>();
 const HISTORY_REQUEST_DEDUPE_MS = 1000;
 
 function getHistoryRequestKey(options?: {
+  storeId?: string;
   from?: string;
   to?: string;
 }) {
   const params = new URLSearchParams();
+  if (options?.storeId) params.set('storeId', options.storeId);
   if (options?.from) params.set('from', options.from);
   if (options?.to) params.set('to', options.to);
 
@@ -28,6 +30,7 @@ function getHistoryRequestKey(options?: {
 }
 
 export function getCachedPrintHistory(options?: {
+  storeId?: string;
   from?: string;
   to?: string;
 }) {
@@ -35,6 +38,7 @@ export function getCachedPrintHistory(options?: {
 }
 
 export async function getPrintHistory(options?: {
+  storeId?: string;
   from?: string;
   to?: string;
   force?: boolean;
@@ -69,6 +73,7 @@ export async function getPrintHistory(options?: {
 }
 
 export async function addPrintHistory(item: {
+  storeId?: string;
   raw_text: string;
   parsed_data?: string;
   status: string;
@@ -78,6 +83,7 @@ export async function addPrintHistory(item: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      storeId: item.storeId,
       rawText: item.raw_text,
       parsedData: item.parsed_data,
       status: item.status,

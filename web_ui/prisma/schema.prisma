@@ -65,12 +65,27 @@ model User {
   sessions      Session[]
   applications  BusinessApplication[]
   stores        Store[]
-  employments   Employee[]
   blacklists    Blacklist[]
   printJobs     PrintJob[]
   deletedAt     DateTime? // 소프트 삭제용 필드
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model EmployeeAccount {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  password    String
+  name        String
+  phoneNumber String    @map("phone_number")
+  status      String    @default("ACTIVE")
+  employee    Employee?
+  deletedAt   DateTime? @map("deleted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([phoneNumber])
+  @@map("employee_accounts")
 }
 
 model Store {
@@ -93,7 +108,7 @@ model Store {
   posOrders          PosOrder[]
   printJobs          PrintJob[]
   dailySequences     StoreDailySequence[]
-  menuLanguageEnabled Boolean   @default(false) @map("menu_language_enabled")
+  menuLanguageMode    String    @default("KOREAN_ONLY") @map("menu_language_mode")
   menuLanguageRules   StoreMenuLanguageRule[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
@@ -103,8 +118,9 @@ model Employee {
   id            String       @id @default(cuid())
   storeId       String
   store         Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  userId        String
-  user          User         @relation(fields: [userId], references: [id])
+  accountId     String       @unique @map("account_id")
+  account       EmployeeAccount @relation(fields: [accountId], references: [id])
+  phoneNumber   String?      @map("phone_number")
   wageType      String       @default("HOURLY") // HOURLY, DAILY
   wageAmount    Int          @default(0)
   managementMode String      @default("FULL") @map("management_mode")
@@ -116,7 +132,7 @@ model Employee {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  @@unique([storeId, userId])
+  @@index([phoneNumber])
 }
 
 enum AttendanceStatus {
@@ -188,6 +204,8 @@ model EmploymentHistory {
   employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   joinedAt    DateTime  @default(now())
   resignedAt  DateTime?
+  resignationReason String? @map("resignation_reason")
+  resignationNote   String? @db.Text @map("resignation_note")
 }
 
 model PosTable {

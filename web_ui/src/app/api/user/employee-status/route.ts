@@ -9,22 +9,24 @@ export async function GET() {
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { role: true }
-    });
+    const user = session.user.role === 'EMPLOYEE'
+      ? null
+      : await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { role: true }
+        });
     
     const emp = await prisma.employee.findFirst({
-      where: { 
-        userId: session.user.id,
-        status: 'ACTIVE'
+      where: {
+        status: 'ACTIVE',
+        accountId: session.user.id,
       },
       include: { store: true }
     });
     
     return NextResponse.json({ 
       isEmployee: !!emp,
-      role: user?.role || session.user.role,
+      role: emp && session.user.role === 'EMPLOYEE' ? 'EMPLOYEE' : user?.role || session.user.role,
       empRole: null,
       storeName: emp?.store?.name || null
     });

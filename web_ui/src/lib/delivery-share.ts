@@ -162,7 +162,7 @@ function nextChangeAmount(total: number) {
   return paid - total;
 }
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines = 3) {
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines?: number) {
   const chars = [...text];
   const lines: string[] = [];
   let current = '';
@@ -177,7 +177,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number,
     }
   });
   if (current) lines.push(current);
-  return lines.slice(0, maxLines);
+  return typeof maxLines === 'number' ? lines.slice(0, maxLines) : lines;
 }
 
 function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, options?: {
@@ -202,7 +202,7 @@ function makeCanvas(height: number) {
   return { canvas, ctx };
 }
 
-export function renderDeliveryShareReceipt(order: DeliveryShareOrder) {
+export function renderDeliveryShareReceipt(order: DeliveryShareOrder, options?: { orderSequence?: number }) {
   const rowHeight = 34;
   const measure = makeCanvas(1).ctx;
   measure.font = '400 31px Arial, sans-serif';
@@ -210,9 +210,9 @@ export function renderDeliveryShareReceipt(order: DeliveryShareOrder) {
   const itemHeight = order.items.reduce((sum, item) => {
     const { ctx } = makeCanvas(1);
     ctx.font = '400 27px Arial, sans-serif';
-    return sum + wrapText(ctx, item.name, 300, 2).length * rowHeight;
+    return sum + wrapText(ctx, item.name, 300).length * rowHeight;
   }, 0);
-  const height = 710 + itemHeight + selectedAddressLines * 38;
+  const height = 790 + itemHeight + selectedAddressLines * 38;
   const { canvas, ctx } = makeCanvas(height);
   let y = 64;
 
@@ -251,7 +251,7 @@ export function renderDeliveryShareReceipt(order: DeliveryShareOrder) {
 
   order.items.forEach((item) => {
     ctx.font = '400 27px Arial, sans-serif';
-    const lines = wrapText(ctx, `⦁ ${item.name}`, 330, 2);
+    const lines = wrapText(ctx, `⦁ ${item.name}`, 330);
     lines.forEach((line, index) => {
       drawText(ctx, line, 36, y, { size: 27 });
       if (index === 0) {
@@ -283,6 +283,14 @@ export function renderDeliveryShareReceipt(order: DeliveryShareOrder) {
   drawText(ctx, 'MEMO', 72, y, { size: 24 });
   y += 22;
   ctx.strokeRect(34, y, 508, 148);
+  y += 196;
+
+  const now = new Date();
+  const printedAt = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  drawText(ctx, printedAt, 36, y, { size: 38, bold: true });
+  if (options?.orderSequence) {
+    drawText(ctx, `주문순서:${options.orderSequence}`, 542, y, { size: 38, bold: true, align: 'right' });
+  }
 
   return canvas.toDataURL('image/png');
 }
@@ -292,7 +300,7 @@ export function renderDeliveryKitchenOrder(order: DeliveryShareOrder, options?: 
   measure.font = '400 32px Arial, sans-serif';
   const itemHeight = order.items.reduce((sum, item, index) => {
     const name = `${String(index + 1).padStart(2, '0')}.${item.name}`;
-    return sum + Math.max(1, wrapText(measure, name, 330, 2).length) * 42;
+    return sum + Math.max(1, wrapText(measure, name, 330).length) * 42;
   }, 0);
   measure.font = '700 36px Arial, sans-serif';
   const selectedAddressLines = wrapText(measure, order.selectedAddress, 500, 5);
@@ -325,7 +333,7 @@ export function renderDeliveryKitchenOrder(order: DeliveryShareOrder, options?: 
   order.items.forEach((item, index) => {
     ctx.font = '400 32px Arial, sans-serif';
     const name = `${String(index + 1).padStart(2, '0')}.${item.name}`;
-    wrapText(ctx, name, 330, 2).forEach((line, lineIndex) => {
+    wrapText(ctx, name, 330).forEach((line, lineIndex) => {
       drawText(ctx, lineIndex === 0 ? line : `   ${line}`, 34, y, { size: 32 });
       if (lineIndex === 0) {
         drawText(ctx, String(item.quantity), 410, y, { size: 32, align: 'center' });

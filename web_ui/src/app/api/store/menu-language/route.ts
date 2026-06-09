@@ -47,7 +47,8 @@ export async function GET(req: Request) {
   });
 
   return NextResponse.json({
-    enabled: store.menuLanguageEnabled,
+    enabled: store.menuLanguageMode !== 'KOREAN_ONLY',
+    mode: store.menuLanguageMode,
     rules: rules.map(serializeRule),
   });
 }
@@ -56,18 +57,21 @@ export async function PUT(req: Request) {
   const session = await auth();
   if (!session?.user?.id) return jsonError('Unauthorized', 401);
 
-  const body = await readJson<{ storeId?: unknown; enabled?: unknown }>(req);
+  const body = await readJson<{ storeId?: unknown; enabled?: unknown; mode?: unknown }>(req);
   const storeId = typeof body?.storeId === 'string' ? body.storeId : null;
   const store = await getAccessibleStore(session.user.id, session.user.role, storeId);
   if (!store) return jsonError('No store found', 404);
 
+  const mode = body?.mode === 'FOREIGN_ONLY' || body?.mode === 'BOTH' ? body.mode : 'KOREAN_ONLY';
   const updated = await prisma.store.update({
     where: { id: store.id },
-    data: { menuLanguageEnabled: Boolean(body?.enabled) },
-    select: { menuLanguageEnabled: true },
+    data: {
+      menuLanguageMode: mode,
+    },
+    select: { menuLanguageMode: true },
   });
 
-  return NextResponse.json({ enabled: updated.menuLanguageEnabled });
+  return NextResponse.json({ enabled: updated.menuLanguageMode !== 'KOREAN_ONLY', mode: updated.menuLanguageMode });
 }
 
 export async function POST(req: Request) {

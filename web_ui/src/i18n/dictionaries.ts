@@ -1,4 +1,4 @@
-export type Locale = "ko" | "en" | "vi";
+﻿export type Locale = "ko" | "en" | "vi";
 export type Dictionary = Record<string, string>;
 
 const ko: Dictionary = {
@@ -6,9 +6,9 @@ const ko: Dictionary = {
   app_name: "배달앱",
   mypage: "마이페이지",
   nav_print: "프린트",
-  nav_attendance: "근태 관리",
+  nav_attendance: "직원 관리",
   nav_blacklist: "블랙리스트",
-  nav_mini_receipt: "미니영수증",
+  nav_mini_receipt: "메뉴출력",
   nav_my_info: "내 정보",
   settings: "설정",
   settings_lang_desc: "* 언어를 변경하면 앱 전체에 즉시 적용됩니다.",
@@ -22,7 +22,7 @@ const ko: Dictionary = {
   order_date: "주문일시",
   view_details: "상세보기",
   store_management: "상점 관리",
-  employee_management: "근태 관리",
+  employee_management: "직원 관리",
   order_monitor: "프린트 관리",
   admin_dashboard: "본사 관리자 대시보드",
   logout: "로그아웃",
@@ -163,7 +163,7 @@ const ko: Dictionary = {
   mypage_admin_dash: "본사 관리자 대시보드",
   mypage_monitor: "프린트 관리",
   mypage_store_mng: "상점 관리",
-  mypage_emp_mng: "근태 관리",
+  mypage_emp_mng: "직원 관리",
   mypage_blacklist: "블랙리스트 관리",
   mypage_printer: "블루투스 프린터 설정",
   mypage_emp_menu: "직원 메뉴",
@@ -651,7 +651,8 @@ Object.assign(ko, {
   emp_add_error: "등록 중 오류가 발생했습니다.",
   emp_user_not_found: "사용자를 찾을 수 없습니다.",
   emp_search_error: "검색 중 오류가 발생했습니다.",
-  emp_resign_confirm: "해당 직원을 퇴사 처리하시겠습니까? 과거 통계는 유지됩니다.",
+  emp_resign_confirm: "해당 직원을 퇴사 처리하시겠습니까? 더이상 로그인이 불가능합니다.",
+  emp_self_resign_confirm: "퇴사하시겠습니까? 더이상 로그인이 불가능합니다.",
   emp_resign_success: "퇴사 처리되었습니다.",
   emp_generic_error: "오류가 발생했습니다.",
   emp_update_success: "저장되었습니다.",
@@ -813,6 +814,7 @@ Object.assign(en, {
   emp_user_not_found: "User not found.",
   emp_search_error: "An error occurred while searching.",
   emp_resign_confirm: "Mark this employee as resigned? Past statistics will remain.",
+  emp_self_resign_confirm: "Resign from this workplace? You will no longer be able to log in.",
   emp_resign_success: "Employee has been marked as resigned.",
   emp_generic_error: "An error occurred.",
   emp_update_success: "Saved.",
@@ -974,6 +976,7 @@ Object.assign(vi, {
   emp_user_not_found: "Không tìm thấy người dùng.",
   emp_search_error: "Đã xảy ra lỗi khi tìm kiếm.",
   emp_resign_confirm: "Đánh dấu nhân viên này đã nghỉ việc? Thống kê cũ vẫn được giữ lại.",
+  emp_self_resign_confirm: "Bạn có muốn nghỉ việc không? Bạn sẽ không thể đăng nhập nữa.",
   emp_resign_success: "Đã xử lý nghỉ việc.",
   emp_generic_error: "Đã xảy ra lỗi.",
   emp_update_success: "Đã lưu.",

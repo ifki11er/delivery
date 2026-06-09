@@ -49,24 +49,30 @@ export default function StoreManagePage() {
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
+  const applyStoreToForm = (store: StoreSummary) => {
+    setStoreId(store.id);
+    setStoreName(store.name);
+    setAddress(store.address || '');
+    setContact(store.contact || '');
+    setRepresentativeName(store.representativeName || '');
+    setBusinessRegNo(store.businessRegNo || '');
+    setWifiIp(store.wifiIpAddress || '');
+    setCurrency(DEFAULT_CURRENCY);
+    setTimeZone(resolveStoreTimeZone(store.timeZone));
+  };
+
   // Fetch stores on load
-  const fetchStores = async () => {
+  const fetchStores = async (preferredStoreId?: string) => {
     try {
       const res = await fetch('/api/store');
       if (res.ok) {
         const data = (await res.json()) as StoreSummary[];
         setStores(data);
         if (data.length > 0) {
-          const primary = data[0];
-          setStoreId(primary.id);
-          setStoreName(primary.name);
-          setAddress(primary.address || '');
-          setContact(primary.contact || '');
-          setRepresentativeName(primary.representativeName || '');
-          setBusinessRegNo(primary.businessRegNo || '');
-          setWifiIp(primary.wifiIpAddress || '');
-          setCurrency(DEFAULT_CURRENCY);
-          setTimeZone(resolveStoreTimeZone(primary.timeZone));
+          const selectedStore = data.find((store) => store.id === preferredStoreId)
+            || data.find((store) => store.id === storeId)
+            || data[0];
+          applyStoreToForm(selectedStore);
         }
       }
     } catch (error) {
@@ -99,14 +105,41 @@ export default function StoreManagePage() {
         })
       });
       if (res.ok) {
+        const updatedStore = (await res.json()) as StoreSummary;
         alert(t.manage_save_success);
-        fetchStores();
+        await fetchStores(updatedStore.id || storeId);
       } else {
         const err = await res.json();
         alert(t.manage_save_fail_with_error.replace('{error}', err.error || 'Unknown error'));
       }
     } catch {
       alert(t.manage_save_fail);
+    }
+  };
+
+  const handleCreateStore = async () => {
+    const name = await prompt({
+      title: '상점 추가',
+      message: '새 상점 이름을 입력해주세요.',
+      defaultValue: '새 상점',
+    });
+    if (!name?.trim()) return;
+
+    try {
+      const res = await fetch('/api/store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), timeZone: DEFAULT_TIME_ZONE }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || '상점 추가에 실패했습니다.');
+        return;
+      }
+      const createdStore = (await res.json()) as StoreSummary;
+      await fetchStores(createdStore.id);
+    } catch {
+      alert('상점 추가 중 오류가 발생했습니다.');
     }
   };
 
@@ -236,21 +269,11 @@ export default function StoreManagePage() {
         ) : (
           <>
             {/* 기본 상점 선택 (간소화를 위해 탭 대신 첫 번째 상점 사용) */}
-            <div className="flex space-x-2 overflow-x-auto pb-2">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
               {stores.map(store => (
                 <button 
                   key={store.id}
-                  onClick={() => {
-                    setStoreId(store.id);
-                    setStoreName(store.name);
-                    setAddress(store.address || '');
-                    setContact(store.contact || '');
-                    setRepresentativeName(store.representativeName || '');
-                    setBusinessRegNo(store.businessRegNo || '');
-                    setWifiIp(store.wifiIpAddress || '');
-                    setCurrency(DEFAULT_CURRENCY);
-                    setTimeZone(resolveStoreTimeZone(store.timeZone));
-                  }}
+                  onClick={() => applyStoreToForm(store)}
                   className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors flex items-center ${
                     storeId === store.id ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-700'
                   }`}
@@ -261,6 +284,14 @@ export default function StoreManagePage() {
                   )}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={handleCreateStore}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-lg font-black text-white shadow-sm hover:bg-indigo-700"
+                title="상점 추가"
+              >
+                +
+              </button>
             </div>
 
             {/* 상점 정보 설정 */}
@@ -339,7 +370,7 @@ export default function StoreManagePage() {
                   </div>
                 )}
 
-                <div>
+                <div className="hidden">
                   <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_timezone_setting}</label>
                   <select
                     value={timeZone}
@@ -354,7 +385,7 @@ export default function StoreManagePage() {
                   <p className="text-xs text-gray-500 mt-2">{t.manage_timezone_desc}</p>
                 </div>
 
-                <div>
+                <div className="hidden">
                   <label className="block text-sm font-bold text-gray-700 mb-1">{t.manage_wifi_auth}</label>
                   <p className="text-xs text-gray-500 mb-2">{t.manage_wifi_desc}</p>
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -386,7 +417,7 @@ export default function StoreManagePage() {
             </div>
 
             {/* 상점 양도 */}
-            <div className="bg-red-50 rounded-2xl border border-red-100 p-5 space-y-4">
+            <div className="hidden bg-red-50 rounded-2xl border border-red-100 p-5 space-y-4">
               <h2 className="font-bold text-lg text-red-700 flex items-center">
                 <Send className="w-5 h-5 mr-2 text-red-500" /> {t.manage_transfer_title}
               </h2>
@@ -446,7 +477,7 @@ export default function StoreManagePage() {
             </div>
 
             {/* 상점 폐업 (Soft Delete) */}
-            <div className="bg-gray-900 rounded-2xl border border-gray-800 p-5 space-y-4 relative overflow-hidden">
+            <div className="hidden bg-gray-900 rounded-2xl border border-gray-800 p-5 space-y-4 relative overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
                 <Trash2 className="w-32 h-32 text-white" />
               </div>

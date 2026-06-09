@@ -72,7 +72,12 @@ function money(amount: number) {
   return amount.toLocaleString();
 }
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines = 2) {
+function moneyK(amount: number) {
+  const value = amount / 1000;
+  return `${Number.isInteger(value) ? value.toLocaleString() : value.toLocaleString(undefined, { maximumFractionDigits: 1 })}k`;
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
   const chars = [...text];
   const lines: string[] = [];
   let current = '';
@@ -87,7 +92,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number,
     }
   });
   if (current) lines.push(current);
-  return lines.slice(0, maxLines);
+  return lines;
 }
 
 export function renderMiniKitchenOrder(params: {
@@ -101,7 +106,7 @@ export function renderMiniKitchenOrder(params: {
   setFont(measure, 31, false, true);
   const itemHeight = params.items.reduce((sum, item) => {
     const name = `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}`;
-    return sum + Math.max(1, wrapText(measure, name, 330, 2).length) * 38;
+    return sum + Math.max(1, wrapText(measure, name, 330).length) * 38;
   }, 0);
   const height = 440 + itemHeight + (params.note ? 48 : 0);
   const { canvas, ctx } = makeCanvas(height);
@@ -123,7 +128,7 @@ export function renderMiniKitchenOrder(params: {
   params.items.forEach((item) => {
     const name = `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}`;
     setFont(ctx, 31, false, true);
-    const lines = wrapText(ctx, name, 330, 2);
+    const lines = wrapText(ctx, name, 330);
     lines.forEach((text, index) => {
       drawText(ctx, index === 0 ? text : `   ${text}`, 28, y, { size: 31, condensed: true });
       if (index === 0) {
@@ -166,7 +171,7 @@ export function renderMiniPaymentReceipt(params: {
   setFont(measure, 24, false, true);
   const itemHeight = params.items.reduce((sum, item) => {
     const name = `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}`;
-    return sum + Math.max(1, wrapText(measure, name, 220, 2).length) * 32 + 4;
+    return sum + Math.max(1, wrapText(measure, name, 260).length) * 32 + 4;
   }, 0);
   const height = 700 + infoRows.length * 32 + itemHeight;
   const { canvas, ctx } = makeCanvas(height);
@@ -189,8 +194,8 @@ export function renderMiniPaymentReceipt(params: {
   line(ctx, y);
   y += 40;
   drawText(ctx, '품명', 28, y, { size: 27, condensed: true });
-  drawText(ctx, '단가', 346, y, { size: 27, align: 'right', condensed: true });
-  drawText(ctx, '수량', 420, y, { size: 27, align: 'center', condensed: true });
+  drawText(ctx, '단가', 374, y, { size: 27, align: 'right', condensed: true });
+  drawText(ctx, '수량', 438, y, { size: 27, align: 'center', condensed: true });
   drawText(ctx, '금액', 542, y, { size: 27, align: 'right', condensed: true });
   y += 24;
   line(ctx, y);
@@ -200,14 +205,14 @@ export function renderMiniPaymentReceipt(params: {
     const amount = item.price * item.quantity;
     const name = `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}`;
     setFont(ctx, 24, false, true);
-    const lines = wrapText(ctx, name, 220, 2);
+    const lines = wrapText(ctx, name, 260);
 
     lines.forEach((text, index) => {
       drawText(ctx, index === 0 ? text : `   ${text}`, 28, y, { size: 24, condensed: true });
       if (index === 0) {
-        drawRightFit(ctx, money(item.price), 346, y, 82, 24);
-        drawText(ctx, String(item.quantity), 420, y, { size: 24, align: 'center', condensed: true });
-        drawRightFit(ctx, money(amount), 542, y, 112, 24);
+        drawRightFit(ctx, moneyK(item.price), 374, y, 62, 23);
+        drawText(ctx, String(item.quantity), 438, y, { size: 24, align: 'center', condensed: true });
+        drawRightFit(ctx, moneyK(amount), 542, y, 86, 23);
       }
       y += 32;
     });

@@ -2,10 +2,10 @@ import type { NextAuthConfig } from "next-auth";
 import Kakao from "next-auth/providers/kakao";
 import Google from "next-auth/providers/google";
 
-type Role = "CUSTOMER" | "OWNER" | "ADMIN";
+type Role = "CUSTOMER" | "OWNER" | "ADMIN" | "EMPLOYEE";
 
 function isRole(value: unknown): value is Role {
-  return value === "CUSTOMER" || value === "OWNER" || value === "ADMIN";
+  return value === "CUSTOMER" || value === "OWNER" || value === "ADMIN" || value === "EMPLOYEE";
 }
 
 function nullableString(value: unknown) {
@@ -40,7 +40,8 @@ export const authConfig = {
       }
 
       if (isLoggedIn && !isApiRoute) {
-        const hasMissingInfo = !auth?.user?.name || !auth.user.phoneNumber;
+        const isEmployee = auth?.user?.role === "EMPLOYEE";
+        const hasMissingInfo = !isEmployee && (!auth?.user?.name || !auth.user.phoneNumber);
 
         if (hasMissingInfo && !isOnboardingPage) {
           return Response.redirect(new URL("/onboarding", nextUrl));

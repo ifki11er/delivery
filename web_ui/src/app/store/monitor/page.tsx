@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bluetooth, BluetoothConnected, CalendarDays, Hash, LoaderCircle, Printer } from "lucide-react";
+import { Bluetooth, BluetoothConnected, CalendarDays, Hash, LoaderCircle, MoreVertical, Printer } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { StoreRequiredNotice } from "@/components/store/StoreRequiredNotice";
 import { useStores } from "@/components/providers/StoreProvider";
@@ -20,6 +20,8 @@ import { nextDailyOrderSequence } from "@/lib/daily-order-sequence";
 import { applyMenuLanguageRules, getMenuLanguageSettings } from "@/lib/menu-language";
 
 type ConnectionStatus = "idle" | "ready" | "connecting" | "success" | "failed" | "error";
+const activeStoreStorageKey = "store_active_selected_store_id";
+const monitorStoreStorageKey = "store_monitor_selected_store_id";
 
 function getTodayInputDate() {
   const now = new Date();
@@ -47,11 +49,52 @@ export default function MonitorPage() {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle");
   const [historyDate, setHistoryDate] = useState(getTodayInputDate);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [selectedStoreId, setSelectedStoreId] = useState("");
+  const [showManageMenu, setShowManageMenu] = useState(false);
   const verifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const manageMenuRef = useRef<HTMLDivElement | null>(null);
+  const preferredStore = stores.find((store) => store.id === selectedStoreId) || stores[0] || null;
+  const preferredStoreId = preferredStore?.id || "";
+
+  useEffect(() => {
+    if (isStoreLoading || stores.length === 0 || selectedStoreId) return;
+
+    const storedStoreId = localStorage.getItem(activeStoreStorageKey) || localStorage.getItem(monitorStoreStorageKey);
+    const nextStoreId = storedStoreId && stores.some((store) => store.id === storedStoreId)
+      ? storedStoreId
+      : stores[0].id;
+    setSelectedStoreId(nextStoreId);
+  }, [isStoreLoading, selectedStoreId, stores]);
+
+  useEffect(() => {
+    if (selectedStoreId) {
+      localStorage.setItem(activeStoreStorageKey, selectedStoreId);
+      localStorage.setItem(monitorStoreStorageKey, selectedStoreId);
+    }
+  }, [selectedStoreId]);
+
+  useEffect(() => {
+    if (!showManageMenu) return undefined;
+
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!manageMenuRef.current?.contains(event.target as Node)) {
+        setShowManageMenu(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [showManageMenu]);
 
   const fetchPrintJobs = useCallback(async (options?: { force?: boolean; showLoading?: boolean }) => {
+    if (!preferredStoreId) {
+      setPrintJobs([]);
+      return;
+    }
+
     const range = getDateRangeIso(historyDate);
-    const cached = !options?.force ? getCachedPrintHistory(range) : null;
+    const params = { storeId: preferredStoreId, ...range };
+    const cached = !options?.force ? getCachedPrintHistory(params) : null;
     if (cached) {
       setPrintJobs(cached);
       return;
@@ -63,13 +106,13 @@ export default function MonitorPage() {
     }
 
     try {
-      setPrintJobs(await getPrintHistory({ ...range, force: options?.force }));
+      setPrintJobs(await getPrintHistory({ ...params, force: options?.force }));
     } finally {
       if (showLoading) {
         setIsHistoryLoading(false);
       }
     }
-  }, [historyDate]);
+  }, [historyDate, preferredStoreId]);
 
   const verifyDefaultPrinterConnection = (defaultMac: string) => {
     setConnectionStatus("connecting");
@@ -164,16 +207,16 @@ export default function MonitorPage() {
     let orderSequence = getDeliveryPrintHistorySequence(job.parsed_data);
     if (!orderSequence) {
       try {
-        orderSequence = await nextDailyOrderSequence(stores[0]?.id);
+        orderSequence = await nextDailyOrderSequence(preferredStoreId);
       } catch (error) {
         console.error(error);
         alert(t.monitor_print_failed);
         return;
       }
     }
-    const menuLanguageSettings = await getMenuLanguageSettings(stores[0]?.id);
+    const menuLanguageSettings = await getMenuLanguageSettings(preferredStoreId);
     const printableOrder = applyMenuLanguageRules(order, menuLanguageSettings);
-    const success = window.AndroidBridge.printBitmapDataUrl(renderDeliveryShareReceipt(printableOrder))
+    const success = window.AndroidBridge.printBitmapDataUrl(renderDeliveryShareReceipt(printableOrder, { orderSequence }))
       && window.AndroidBridge.printBitmapDataUrl(renderDeliveryKitchenOrder(printableOrder, { orderSequence }));
     if (!success) {
       alert(t.monitor_print_failed);
@@ -221,20 +264,58 @@ export default function MonitorPage() {
     <main className="bg-gray-50 min-h-screen">
       <PageHeader
         title={t.mypage_monitor}
+        subtitle={preferredStore?.name || ""}
         icon={<Printer className="w-5 h-5" />}
         maxWidth="max-w-6xl"
         actions={(
-          <Link
-            href="/store/monitor/printer"
-            className={`h-10 w-10 rounded-full flex items-center justify-center border transition-colors ${
-              connectionStatus === "success"
-                ? "border-blue-100 bg-blue-50 text-blue-600"
-                : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
-            }`}
-            title={t.mypage_printer}
-          >
-            {connectionStatus === "success" ? <BluetoothConnected className="w-5 h-5" /> : <Bluetooth className="w-5 h-5" />}
-          </Link>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-bold ${connectionStatus === "success" ? "text-blue-600" : "text-gray-500"}`}>
+              {connectionStatus === "success" ? "연결됨" : "연결안됨"}
+            </span>
+            <Link
+              href="/store/monitor/printer"
+              className={`h-10 w-10 rounded-full flex items-center justify-center border transition-colors ${
+                connectionStatus === "success"
+                  ? "border-blue-100 bg-blue-50 text-blue-600"
+                  : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
+              }`}
+              title={t.mypage_printer}
+            >
+              {connectionStatus === "success" ? <BluetoothConnected className="w-5 h-5" /> : <Bluetooth className="w-5 h-5" />}
+            </Link>
+            <div ref={manageMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setShowManageMenu((current) => !current)}
+                className="h-10 w-10 rounded-full flex items-center justify-center text-gray-700 transition-colors hover:bg-gray-100"
+                title="관리 메뉴"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
+              {showManageMenu && (
+                <div className="absolute right-0 top-12 z-50 w-56 rounded-xl border border-gray-100 bg-white p-1 shadow-lg">
+                  {stores.length > 1 && (
+                    <div className="border-b border-gray-100 p-2">
+                      <label className="mb-1 block text-[11px] font-black text-gray-500">상점 선택</label>
+                      <select
+                        value={preferredStoreId}
+                        onChange={(event) => {
+                          setSelectedStoreId(event.target.value);
+                          setPrintJobs([]);
+                          setShowManageMenu(false);
+                        }}
+                        className="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs font-bold"
+                      >
+                        {stores.map((store) => (
+                          <option key={store.id} value={store.id}>{store.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         )}
       />
 

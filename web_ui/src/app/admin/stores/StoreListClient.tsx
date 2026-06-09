@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Store, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Store, AlertTriangle, XCircle, CheckCircle, UserRoundCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import type { StoreStatus } from '@prisma/client';
 import { useI18n } from '@/i18n/I18nProvider';
@@ -11,7 +11,7 @@ import type { AdminStoreRow } from '@/types/admin';
 
 export default function StoreListClient({ stores: initialStores, filterType }: { stores: AdminStoreRow[]; filterType: string }) {
   const t = useI18n();
-  const { confirm } = useFeedback();
+  const { confirm, prompt } = useFeedback();
   const [stores, setStores] = useState<AdminStoreRow[]>(initialStores);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const router = useRouter();
@@ -39,6 +39,43 @@ export default function StoreListClient({ stores: initialStores, filterType }: {
         const error = await res.json();
         alert(t.update_failed_with_error.replace('{error}', error.error));
       }
+    } catch {
+      alert(t.common_error);
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  const handleTransfer = async (store: AdminStoreRow) => {
+    const ownerEmail = (await prompt({
+      title: '상점 양도',
+      message: `${store.name} 상점을 양도받을 사장님 이메일을 입력해주세요.`,
+      inputMode: 'email',
+    }))?.trim().toLowerCase();
+    if (!ownerEmail) return;
+
+    if (!(await confirm({ message: `${ownerEmail} 계정으로 상점을 양도할까요?` }))) return;
+
+    setLoadingId(store.id);
+    try {
+      const res = await fetch('/api/admin/stores/transfer', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId: store.id, ownerEmail }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || t.common_error);
+        return;
+      }
+
+      setStores((prev) => prev.map((item) => (
+        item.id === store.id
+          ? { ...item, ownerName: data.store.owner.name, ownerEmail: data.store.owner.email }
+          : item
+      )));
+      alert('상점 양도가 완료되었습니다.');
+      router.refresh();
     } catch {
       alert(t.common_error);
     } finally {
@@ -82,12 +119,13 @@ export default function StoreListClient({ stores: initialStores, filterType }: {
                 <th className="py-4 px-6 font-semibold">{t.admin_employee_count}</th>
                 <th className="py-4 px-6 font-semibold">{t.admin_registered_at}</th>
                 <th className="py-4 px-6 font-semibold">{t.admin_current_status_manage}</th>
+                <th className="py-4 px-6 font-semibold">관리</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {stores.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-gray-500">{t.admin_no_stores}</td>
+                  <td colSpan={8} className="py-12 text-center text-gray-500">{t.admin_no_stores}</td>
                 </tr>
               ) : (
                 stores.map((store) => (
@@ -119,6 +157,17 @@ export default function StoreListClient({ stores: initialStores, filterType }: {
                           <option value="CLOSED">{t.status_closed} (CLOSED)</option>
                         </select>
                       </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <button
+                        type="button"
+                        disabled={loadingId === store.id}
+                        onClick={() => handleTransfer(store)}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50 px-3 text-xs font-bold text-indigo-700 disabled:opacity-50"
+                      >
+                        <UserRoundCheck className="h-4 w-4" />
+                        양도
+                      </button>
                     </td>
                   </tr>
                 ))

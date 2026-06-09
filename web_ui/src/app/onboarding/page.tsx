@@ -12,6 +12,8 @@ export default function OnboardingPage() {
   const { data: session, update } = useSession();
   const [name, setName] = useState(session?.user?.name || '');
   const [phoneNumber, setPhoneNumber] = useState('');
+  // 일반 계정 가입을 다시 받을 때 아래 주석 처리된 체크박스 UI와 함께 선택값으로 되돌릴 수 있습니다.
+  const autoCreateStore = true;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -37,6 +39,7 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           name,
           phoneNumber: phoneNumber.replace(/-/g, ''),
+          autoCreateStore,
         }),
       });
 
@@ -55,6 +58,7 @@ export default function OnboardingPage() {
         user: {
           name: data.user.name,
           phoneNumber: data.user.phoneNumber,
+          role: data.user.role,
         },
       });
 
@@ -112,6 +116,18 @@ export default function OnboardingPage() {
                 />
               </div>
             </div>
+
+            {/*
+            <label className="flex items-center gap-3 rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={autoCreateStore}
+                onChange={(e) => setAutoCreateStore(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="text-sm font-bold text-gray-800">자동 상점 만들기</span>
+            </label>
+            */}
 
             {error && <div className="text-red-500 text-sm font-medium text-center">{error}</div>}
 

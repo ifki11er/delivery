@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     const employees = await prisma.employee.findMany({
       where: { storeId },
       include: {
-        user: { select: { name: true, email: true } },
+        account: { select: { name: true, email: true } },
         attendances: {
           where: { date: { startsWith: month } }
         }
@@ -58,7 +58,7 @@ export async function GET(req: Request) {
 
       return {
         employeeId: emp.id,
-        name: emp.user.name || emp.user.email?.split('@')[0],
+        name: emp.account?.name || emp.account?.email?.split('@')[0] || '직원',
         wageType: emp.wageType,
         wageAmount: emp.wageAmount,
         statistics: {

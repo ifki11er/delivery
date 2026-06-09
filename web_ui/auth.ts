@@ -54,7 +54,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = String(credentials.password);
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) return null;
+        if (!user) {
+          const employeeAccount = await prisma.employeeAccount.findUnique({
+            where: { email },
+            include: { employee: true },
+          });
+
+          if (!employeeAccount) return null;
+          if (employeeAccount.deletedAt || employeeAccount.status !== "ACTIVE") return null;
+          if (!employeeAccount.employee || employeeAccount.employee.status !== "ACTIVE") return null;
+
+          const passwordsMatch = await bcrypt.compare(password, employeeAccount.password);
+          return passwordsMatch
+            ? {
+                id: employeeAccount.id,
+                email: employeeAccount.email,
+                name: employeeAccount.name,
+                role: "EMPLOYEE",
+                phoneNumber: employeeAccount.phoneNumber,
+              }
+            : null;
+        }
 
         if (!user.password) return null;
         if (user.deletedAt || user.status === "WITHDRAWN") return null;

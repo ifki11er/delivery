@@ -25,7 +25,6 @@ export default async function AdminPage() {
     activeStores,
     suspendedStores,
     closedStores,
-    allApps, 
     allBlacklists
   ] = await Promise.all([
     prisma.user.count(),
@@ -39,12 +38,6 @@ export default async function AdminPage() {
     prisma.store.count({ where: { status: 'ACTIVE' } }),
     prisma.store.count({ where: { status: 'SUSPENDED' } }),
     prisma.store.count({ where: { status: 'CLOSED' } }),
-    prisma.businessApplication.findMany({
-      include: {
-        user: { select: { name: true, email: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
     prisma.blacklist.findMany({
       include: {
         reporter: { select: { name: true, email: true } },
@@ -65,13 +58,12 @@ export default async function AdminPage() {
       customers: customerUsers,
       employees: totalEmployees
     },
-    stores: { active: activeStores, suspended: suspendedStores, closed: closedStores, pending: allApps.filter((app) => app.status === 'PENDING').length }
+    stores: { active: activeStores, suspended: suspendedStores, closed: closedStores, pending: 0 }
   };
 
   return (
     <AdminClient 
       stats={stats}
-      allApps={allApps} 
       allBlacklists={allBlacklists} 
     />
   );

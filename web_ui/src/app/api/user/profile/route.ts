@@ -28,7 +28,6 @@ function isDisposableDuplicateAccount(user: {
   _count: {
     applications: number;
     stores: number;
-    employments: number;
     blacklists: number;
     printJobs: number;
   };
@@ -39,7 +38,6 @@ function isDisposableDuplicateAccount(user: {
     user.status === "ACTIVE" &&
     user._count.applications === 0 &&
     user._count.stores === 0 &&
-    user._count.employments === 0 &&
     user._count.blacklists === 0 &&
     user._count.printJobs === 0
   );
@@ -66,9 +64,10 @@ export async function PUT(req: Request) {
   if (!session?.user?.id) return jsonError("Unauthorized", 401);
 
   try {
-    const body = await readJson<{ name?: unknown; phoneNumber?: unknown }>(req);
+    const body = await readJson<{ name?: unknown; phoneNumber?: unknown; autoCreateStore?: unknown }>(req);
     const name = typeof body?.name === "string" ? body.name.trim() : "";
     const phoneNumber = normalizePhone(body?.phoneNumber);
+    const autoCreateStore = body?.autoCreateStore === true;
 
     if (!name || !phoneNumber) {
       return jsonError("Name and phone number are required.", 400);
@@ -97,7 +96,6 @@ export async function PUT(req: Request) {
             select: {
               applications: true,
               stores: true,
-              employments: true,
               blacklists: true,
               printJobs: true,
             },
@@ -145,10 +143,40 @@ export async function PUT(req: Request) {
       );
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: session.user.id },
-      data: { name, phoneNumber },
-      select: { id: true, name: true, email: true, phoneNumber: true, role: true },
+    const existingActiveStoreCount = await prisma.store.count({
+      where: {
+        ownerId: session.user.id,
+        status: { not: "CLOSED" },
+      },
+    });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id: session.user.id },
+        data: {
+          name,
+          phoneNumber,
+          role: autoCreateStore ? "OWNER" : undefined,
+        },
+        select: { id: true, name: true, email: true, phoneNumber: true, role: true },
+      });
+
+      let store = null;
+      if (autoCreateStore && existingActiveStoreCount === 0) {
+        store = await tx.store.create({
+          data: {
+            ownerId: session.user.id,
+            name: `${name}의 상점`,
+            contact: phoneNumber,
+            representativeName: name,
+            currency: "VND",
+            timeZone: "Asia/Ho_Chi_Minh",
+          },
+          select: { id: true, name: true },
+        });
+      }
+
+      return { user: updatedUser, store };
     });
 
     await writeAuditLog({
@@ -159,7 +187,7 @@ export async function PUT(req: Request) {
       metadata: { changedFields: ["name", "phoneNumber"] },
     });
 
-    return NextResponse.json({ success: true, user: updatedUser });
+    return NextResponse.json({ success: true, user: result.user, store: result.store });
   } catch (error) {
     console.error("[Profile PUT Error]:", error);
     return jsonError("Failed to update profile", 500);

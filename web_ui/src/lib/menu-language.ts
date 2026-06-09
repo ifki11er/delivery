@@ -11,6 +11,7 @@ export type MenuLanguageRule = {
 
 export type MenuLanguageSettings = {
   enabled: boolean;
+  mode: 'KOREAN_ONLY' | 'FOREIGN_ONLY' | 'BOTH';
   rules: MenuLanguageRule[];
 };
 
@@ -19,23 +20,24 @@ export async function getMenuLanguageSettings(storeId?: string): Promise<MenuLan
   if (storeId) params.set('storeId', storeId);
   const query = params.toString();
   const res = await fetch(`/api/store/menu-language${query ? `?${query}` : ''}`, { cache: 'no-store' });
-  if (!res.ok) return { enabled: false, rules: [] };
+  if (!res.ok) return { enabled: false, mode: 'KOREAN_ONLY', rules: [] };
   const data = await res.json() as Partial<MenuLanguageSettings>;
   return {
     enabled: Boolean(data.enabled),
+    mode: data.mode === 'FOREIGN_ONLY' || data.mode === 'BOTH' ? data.mode : 'KOREAN_ONLY',
     rules: Array.isArray(data.rules) ? data.rules : [],
   };
 }
 
-export async function updateMenuLanguageEnabled(storeId: string | undefined, enabled: boolean) {
+export async function updateMenuLanguageMode(storeId: string | undefined, mode: MenuLanguageSettings['mode']) {
   const res = await fetch('/api/store/menu-language', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ storeId, enabled }),
+    body: JSON.stringify({ storeId, mode }),
   });
 
   if (!res.ok) throw new Error('Failed to update menu language setting');
-  return res.json() as Promise<{ enabled: boolean }>;
+  return res.json() as Promise<{ enabled: boolean; mode: MenuLanguageSettings['mode'] }>;
 }
 
 export async function addMenuLanguageRule(storeId: string | undefined, matchText: string, replacementText: string) {
@@ -80,13 +82,19 @@ function replaceMenuName(name: string, rules: MenuLanguageRule[]) {
 }
 
 export function applyMenuLanguageRules(order: DeliveryShareOrder, settings: MenuLanguageSettings): DeliveryShareOrder {
-  if (!settings.enabled || settings.rules.length === 0) return order;
+  if (settings.mode === 'KOREAN_ONLY' || settings.rules.length === 0) return order;
 
   return {
     ...order,
-    items: order.items.map((item) => ({
-      ...item,
-      name: replaceMenuName(item.name, settings.rules),
-    })),
+    items: order.items.map((item) => {
+      const translatedName = replaceMenuName(item.name, settings.rules);
+
+      return {
+        ...item,
+        name: settings.mode === 'BOTH' && translatedName !== item.name
+          ? `${item.name} / ${translatedName}`
+          : translatedName,
+      };
+    }),
   };
 }

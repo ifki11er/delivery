@@ -45,10 +45,13 @@ export type EmployeeHistory = {
   id: string;
   joinedAt: string;
   resignedAt?: string | null;
+  resignationReason?: string | null;
+  resignationNote?: string | null;
 };
 
 export type EmployeeRow = {
   id: string;
+  phoneNumber?: string | null;
   status: string;
   managementMode: string;
   wageType: string;

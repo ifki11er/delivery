@@ -1,9 +1,16 @@
 import { auth } from "../../../../auth";
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
+import type { UserStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import UserListClient from "./UserListClient";
 import type { AdminUserRow } from "@/types/admin";
+
+function toUserStatus(status?: string | null): UserStatus {
+  if (status === "SUSPENDED") return "SUSPENDED";
+  if (status === "WITHDRAWN" || status === "INACTIVE") return "WITHDRAWN";
+  return "ACTIVE";
+}
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
   const session = await auth();
@@ -14,74 +21,74 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
 
   const resolvedParams = await searchParams;
   const filter = resolvedParams.filter || "all";
-  
+
   let usersData: AdminUserRow[] = [];
-  
-  // 조건에 따른 페칭
-  if (filter === 'employee') {
-    // 직원(알바생)의 경우 Employee 테이블 조회
+
+  if (filter === "employee") {
     const employees = await prisma.employee.findMany({
       include: {
-        user: true,
+        account: true,
         store: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: "desc" },
     });
-    // 통일된 포맷으로 매핑
-    usersData = employees.map(emp => ({
-      id: emp.user.id,
-      name: emp.user.name,
-      email: emp.user.email,
-      phoneNumber: emp.user.phoneNumber,
-      role: 'EMPLOYEE',
-      storeName: emp.store.name,
-      status: emp.user.status,
-      deletedAt: emp.user.deletedAt,
-      createdAt: emp.user.createdAt,
-    }));
+
+    usersData = employees.map((employee) => {
+      const profile = employee.account;
+
+      return {
+        id: profile?.id ?? employee.id,
+        name: profile?.name ?? null,
+        email: profile?.email ?? null,
+        phoneNumber: employee.phoneNumber ?? profile?.phoneNumber ?? null,
+        role: "EMPLOYEE",
+        storeName: employee.store.name,
+        status: toUserStatus(employee.account?.status ?? employee.status),
+        deletedAt: employee.account?.deletedAt ?? null,
+        createdAt: profile?.createdAt ?? employee.createdAt,
+      };
+    });
   } else {
-    // 일반 유저 조회 조건
     let whereCondition: Prisma.UserWhereInput = {};
-    
+
     switch (filter) {
-      case 'active':
-        whereCondition = { status: 'ACTIVE', deletedAt: null };
+      case "active":
+        whereCondition = { status: "ACTIVE", deletedAt: null };
         break;
-      case 'suspended':
-        whereCondition = { status: 'SUSPENDED' };
+      case "suspended":
+        whereCondition = { status: "SUSPENDED" };
         break;
-      case 'withdrawn':
-        whereCondition = { OR: [{ status: 'WITHDRAWN' }, { deletedAt: { not: null } }] };
+      case "withdrawn":
+        whereCondition = { OR: [{ status: "WITHDRAWN" }, { deletedAt: { not: null } }] };
         break;
-      case 'admin':
-        whereCondition = { role: 'ADMIN', deletedAt: null };
+      case "admin":
+        whereCondition = { role: "ADMIN", deletedAt: null };
         break;
-      case 'owner':
-        whereCondition = { role: 'OWNER', deletedAt: null };
+      case "owner":
+        whereCondition = { role: "OWNER", deletedAt: null };
         break;
-      case 'customer':
-        whereCondition = { role: 'CUSTOMER', deletedAt: null };
+      case "customer":
+        whereCondition = { role: "CUSTOMER", deletedAt: null };
         break;
       default:
-        // 'all'
         break;
     }
 
     const rawUsers = await prisma.user.findMany({
       where: whereCondition,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: "desc" },
     });
 
-    usersData = rawUsers.map(u => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      phoneNumber: u.phoneNumber,
-      role: u.role,
+    usersData = rawUsers.map((user) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      role: user.role,
       storeName: null,
-      status: u.status,
-      deletedAt: u.deletedAt,
-      createdAt: u.createdAt,
+      status: user.status,
+      deletedAt: user.deletedAt,
+      createdAt: user.createdAt,
     }));
   }
 

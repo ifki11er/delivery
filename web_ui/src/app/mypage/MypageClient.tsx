@@ -226,23 +226,6 @@ export default function MypageClient() {
       {/* 메뉴 목록 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
         
-        {/* 사장님 메뉴 */}
-        {!isAdmin && (
-          <>
-            <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              {t.mypage_owner_menu}
-            </div>
-            
-            <Link href="/business-apply" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center space-x-3 text-indigo-600">
-                <Store className="w-5 h-5" />
-                <span className="font-semibold">{t.mypage_apply_store}</span>
-              </div>
-              <ChevronRight className="w-5 h-5 text-indigo-400" />
-            </Link>
-          </>
-        )}
-
         {/* 최고 관리자 메뉴 */}
         {isAdmin && (
           <>

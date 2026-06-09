@@ -32,6 +32,10 @@ type BlacklistCheck = {
   reports: BlacklistReport[];
 };
 
+const activeStoreStorageKey = 'store_active_selected_store_id';
+const monitorStoreStorageKey = 'store_monitor_selected_store_id';
+const miniReceiptStoreStorageKey = 'mini_receipt_selected_store_id';
+
 function riskLabel(count: number) {
   if (count >= 3) return '매우 위험';
   if (count === 2) return '위험';
@@ -57,9 +61,32 @@ export default function SharePrintPage() {
   const [status, setStatus] = useState<'checking' | 'blocked' | 'printing' | 'done' | 'failed'>('printing');
   const [message, setMessage] = useState('출력중...');
   const [blacklist, setBlacklist] = useState<BlacklistCheck | null>(null);
+  const [selectedStoreId, setSelectedStoreId] = useState('');
+  const [storeSelectionReady, setStoreSelectionReady] = useState(false);
+  const preferredStore = stores.find((store) => store.id === selectedStoreId) || stores[0] || null;
+  const preferredStoreId = preferredStore?.id || '';
+
+  useEffect(() => {
+    if (storesLoading) return;
+
+    if (stores.length === 0) {
+      setStoreSelectionReady(true);
+      return;
+    }
+
+    const storedStoreId = localStorage.getItem(activeStoreStorageKey)
+      || localStorage.getItem(monitorStoreStorageKey)
+      || localStorage.getItem(miniReceiptStoreStorageKey);
+    const nextStoreId = storedStoreId && stores.some((store) => store.id === storedStoreId)
+      ? storedStoreId
+      : stores[0].id;
+    setSelectedStoreId(nextStoreId);
+    setStoreSelectionReady(true);
+  }, [stores, storesLoading]);
 
   const saveHistory = async (statusValue: string, parsedData: string) => {
     await addPrintHistory({
+      storeId: preferredStoreId,
       raw_text: rawText,
       parsed_data: parsedData,
       status: statusValue,
@@ -88,11 +115,10 @@ export default function SharePrintPage() {
         return;
       }
 
-      const storeId = stores[0]?.id;
-      const orderSequence = await nextDailyOrderSequence(storeId);
-      const menuLanguageSettings = await getMenuLanguageSettings(storeId);
+      const orderSequence = await nextDailyOrderSequence(preferredStoreId);
+      const menuLanguageSettings = await getMenuLanguageSettings(preferredStoreId);
       const printableOrder = applyMenuLanguageRules(order, menuLanguageSettings);
-      const receiptImage = renderDeliveryShareReceipt(printableOrder);
+      const receiptImage = renderDeliveryShareReceipt(printableOrder, { orderSequence });
       const kitchenImage = renderDeliveryKitchenOrder(printableOrder, { orderSequence });
       const success = bridge.printBitmapDataUrl(receiptImage) && bridge.printBitmapDataUrl(kitchenImage);
 
@@ -118,6 +144,7 @@ export default function SharePrintPage() {
   useEffect(() => {
     const run = async () => {
       if (storesLoading) return;
+      if (!storeSelectionReady) return;
 
       if (!order) {
         setStatus('failed');
@@ -153,7 +180,7 @@ export default function SharePrintPage() {
     };
 
     void run();
-  }, [storesLoading]);
+  }, [storeSelectionReady, storesLoading]);
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-8">

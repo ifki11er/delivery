@@ -28,19 +28,35 @@ export async function PUT(req: Request) {
       return jsonError("Cannot change your own status", 403);
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        status,
-        deletedAt: status === "WITHDRAWN" ? new Date() : null,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        status: true,
-      },
-    });
+    const existingUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+
+    const updatedUser = existingUser
+      ? await prisma.user.update({
+          where: { id: userId },
+          data: {
+            status,
+            deletedAt: status === "WITHDRAWN" ? new Date() : null,
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            status: true,
+          },
+        })
+      : await prisma.employeeAccount.update({
+          where: { id: userId },
+          data: {
+            status,
+            deletedAt: status === "WITHDRAWN" ? new Date() : null,
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            status: true,
+          },
+        });
 
     await writeAuditLog({
       actorId: session.user.id,

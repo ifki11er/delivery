@@ -31,7 +31,10 @@ export async function POST(req: Request) {
     }
 
     const employee = await prisma.employee.findFirst({
-      where: { userId: session.user.id, status: "ACTIVE" },
+      where: {
+        status: "ACTIVE",
+        accountId: session.user.id,
+      },
       include: { store: true },
       orderBy: { createdAt: "desc" },
     });
@@ -150,7 +153,9 @@ export async function GET(req: Request) {
     const includeToday = searchParams.get("includeToday") === "true";
 
     const employee = await prisma.employee.findFirst({
-      where: { userId: session.user.id },
+      where: {
+        accountId: session.user.id,
+      },
       include: { store: true },
       orderBy: { createdAt: "desc" },
     });
@@ -179,7 +184,9 @@ export async function GET(req: Request) {
       where: whereClause,
       include: {
         employee: {
-          include: { user: { select: { name: true, email: true } } },
+          include: {
+            account: { select: { name: true, email: true } },
+          },
         },
       },
       orderBy: { date: "desc" },

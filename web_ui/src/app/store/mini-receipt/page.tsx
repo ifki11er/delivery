@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Edit3,
   Eye,
@@ -102,6 +102,8 @@ const currency = '₫';
 const draftStoragePrefix = 'mini_receipt_drafts_v1';
 const receiptSettingsStoragePrefix = 'mini_receipt_receipt_settings_v1';
 const payloadCachePrefix = 'mini_receipt_payload_v1';
+const activeStoreStorageKey = 'store_active_selected_store_id';
+const selectedStoreStorageKey = 'mini_receipt_selected_store_id';
 const miniReceiptMemoryCache = new Map<string, PosPayload>();
 const defaultReceiptPrintSettings: ReceiptPrintSettings = {
   businessRegNo: true,
@@ -192,6 +194,8 @@ export default function MiniReceiptPage() {
   const [menuCode, setMenuCode] = useState('');
   const [menuName, setMenuName] = useState('');
   const [menuPrice, setMenuPrice] = useState('');
+  const [editingMenu, setEditingMenu] = useState<PosMenu | null>(null);
+  const [editMenuForm, setEditMenuForm] = useState({ menuCode: '', name: '', price: '' });
   const [menuCategoryId, setMenuCategoryId] = useState('');
   const [customItemName, setCustomItemName] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState('');
@@ -199,12 +203,46 @@ export default function MiniReceiptPage() {
   const [orderNote, setOrderNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('현금');
   const [showReceiptConfirm, setShowReceiptConfirm] = useState(false);
+  const [showExtraInfo, setShowExtraInfo] = useState(false);
+  const [showMoveTableModal, setShowMoveTableModal] = useState(false);
   const [draftOrders, setDraftOrders] = useState<DraftOrders>({});
   const [receiptSettings, setReceiptSettings] = useState<ReceiptPrintSettings>(defaultReceiptPrintSettings);
   const [expandedHistoryId, setExpandedHistoryId] = useState('');
   const [historyDate, setHistoryDate] = useState(getTodayInputDate);
-  const preferredStore = stores[0] || null;
+  const [selectedStoreId, setSelectedStoreId] = useState('');
+  const manageMenuRef = useRef<HTMLDivElement | null>(null);
+  const preferredStore = stores.find((store) => store.id === selectedStoreId) || stores[0] || null;
   const preferredStoreId = preferredStore?.id || '';
+
+  useEffect(() => {
+    if (storesLoading || stores.length === 0 || selectedStoreId) return;
+
+    const storedStoreId = localStorage.getItem(activeStoreStorageKey) || localStorage.getItem(selectedStoreStorageKey);
+    const nextStoreId = storedStoreId && stores.some((store) => store.id === storedStoreId)
+      ? storedStoreId
+      : stores[0].id;
+    setSelectedStoreId(nextStoreId);
+  }, [selectedStoreId, stores, storesLoading]);
+
+  useEffect(() => {
+    if (selectedStoreId) {
+      localStorage.setItem(activeStoreStorageKey, selectedStoreId);
+      localStorage.setItem(selectedStoreStorageKey, selectedStoreId);
+    }
+  }, [selectedStoreId]);
+
+  useEffect(() => {
+    if (!showManageMenu) return undefined;
+
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!manageMenuRef.current?.contains(event.target as Node)) {
+        setShowManageMenu(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [showManageMenu]);
 
   const applyPayload = (data: PosPayload) => {
     setPayload(data);
@@ -278,7 +316,6 @@ export default function MiniReceiptPage() {
         if (!memoryCached) miniReceiptMemoryCache.set(cacheKey, cachedPayload);
         applyPayload(cachedPayload);
         setLoading(false);
-        return;
       } else if (preferredStore && !payload) {
         applyPayload(createEmptyPayload({
           id: preferredStore.id,
@@ -495,6 +532,49 @@ export default function MiniReceiptPage() {
     });
   };
 
+  const moveOrMergeCurrentOrder = (targetTable: PosTable) => {
+    if (!payload || !currentOrder || currentOrder.items.length === 0) return;
+    if (targetTable.id === selectedTableId) {
+      return;
+    }
+
+    setDraftOrders((current) => {
+      const sourceOrder = current[selectedTableId] ?? currentOrder;
+      const targetOrder = current[targetTable.id] ?? createDraftOrder(targetTable.id);
+      const mergedItems = [...targetOrder.items];
+      sourceOrder.items.forEach((item) => {
+        const foundIndex = mergedItems.findIndex((targetItem) => (
+          targetItem.menu_id === item.menu_id
+          && targetItem.name === item.name
+          && targetItem.price === item.price
+          && targetItem.item_type === item.item_type
+        ));
+        if (foundIndex >= 0) {
+          mergedItems[foundIndex] = {
+            ...mergedItems[foundIndex],
+            quantity: mergedItems[foundIndex].quantity + item.quantity,
+          };
+        } else {
+          mergedItems.push(item);
+        }
+      });
+      const rest = { ...current };
+      delete rest[selectedTableId];
+      const total = mergedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      return {
+        ...rest,
+        [targetTable.id]: {
+          ...targetOrder,
+          items: mergedItems,
+          total,
+          note: [targetOrder.note, sourceOrder.note].filter(Boolean).join(' / ') || null,
+        },
+      };
+    });
+    setSelectedTableId(targetTable.id);
+    setShowMoveTableModal(false);
+  };
+
   const assignDailyOrderSequence = async (order: PosOrder) => {
     if (order.order_sequence) return order;
     if (!payload?.store.id) return order;
@@ -669,32 +749,35 @@ export default function MiniReceiptPage() {
     await postAction({ action: 'category.update', categoryId: category.id, name });
   };
 
-  const editMenu = async (menu: PosMenu) => {
-    const nextMenuCode = (await prompt({
-      message: t.mini_menu_code_prompt,
-      defaultValue: menu.menu_code,
-      inputMode: 'numeric',
-    }))?.replace(/[^0-9]/g, '').trim();
-    if (!nextMenuCode) return;
-    const name = (await prompt({
-      message: t.mini_menu_name_prompt,
-      defaultValue: menu.name,
-    }))?.trim();
-    if (!name) return;
-    const priceText = (await prompt({
-      message: t.mini_price_prompt,
-      defaultValue: String(menu.price),
-      inputMode: 'numeric',
-    }))?.replace(/[^0-9]/g, '');
-    if (priceText === undefined) return;
+  const openEditMenu = (menu: PosMenu) => {
+    setEditingMenu(menu);
+    setEditMenuForm({
+      menuCode: menu.menu_code,
+      name: menu.name,
+      price: String(menu.price),
+    });
+  };
+
+  const closeEditMenu = () => {
+    setEditingMenu(null);
+    setEditMenuForm({ menuCode: '', name: '', price: '' });
+  };
+
+  const submitEditMenu = async () => {
+    if (!editingMenu) return;
+    const nextMenuCode = editMenuForm.menuCode.replace(/[^0-9]/g, '').trim();
+    const name = editMenuForm.name.trim();
+    const price = Number(editMenuForm.price.replace(/[^0-9]/g, '') || 0);
+    if (!nextMenuCode || !name) return;
     await postAction({
       action: 'menu.update',
-      menuId: menu.id,
+      menuId: editingMenu.id,
       menuCode: nextMenuCode,
       name,
-      price: Number(priceText || 0),
-      isActive: menu.is_active,
+      price,
+      isActive: editingMenu.is_active,
     });
+    closeEditMenu();
   };
 
   if (!storesLoading && !payload) {
@@ -721,7 +804,7 @@ export default function MiniReceiptPage() {
                 {t.mini_order_screen}
               </button>
             )}
-            <div className="relative">
+            <div ref={manageMenuRef} className="relative">
               <button
                 type="button"
                 onClick={() => setShowManageMenu((current) => !current)}
@@ -731,7 +814,25 @@ export default function MiniReceiptPage() {
                 <MoreVertical className="w-5 h-5" />
               </button>
               {showManageMenu && (
-                <div className="absolute right-0 top-12 z-50 w-44 rounded-xl border border-gray-100 bg-white shadow-lg p-1">
+                <div className="absolute right-0 top-12 z-50 w-56 rounded-xl border border-gray-100 bg-white shadow-lg p-1">
+                  {stores.length > 1 && (
+                    <div className="border-b border-gray-100 p-2">
+                      <label className="mb-1 block text-[11px] font-black text-gray-500">상점 선택</label>
+                      <select
+                        value={preferredStoreId}
+                        onChange={(event) => {
+                          setSelectedStoreId(event.target.value);
+                          setPayload(null);
+                          setShowManageMenu(false);
+                        }}
+                        className="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs font-bold"
+                      >
+                        {stores.map((store) => (
+                          <option key={store.id} value={store.id}>{store.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => openManageTab('tables')}
@@ -774,10 +875,26 @@ export default function MiniReceiptPage() {
       <div className="max-w-6xl mx-auto px-4 mt-4">
         {activeTab === 'order' && (
           <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr_340px] gap-4">
-            <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
-              <div className="flex items-center justify-between mb-3">
+            <section className="rounded-xl border border-gray-200 bg-white shadow-sm p-3">
+              <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="font-bold text-gray-900">{t.mini_tables}</h2>
-                <span className="text-xs text-gray-400">{payload.tables.length}{t.mini_count_suffix}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={!currentOrder || currentOrder.items.length === 0}
+                    onClick={() => setShowMoveTableModal(true)}
+                    className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-black text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    이동합석
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('tables')}
+                    className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-black text-indigo-600 hover:bg-gray-50"
+                  >
+                    테이블 관리
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
                 {payload.tables.length === 0 ? (
@@ -799,7 +916,7 @@ export default function MiniReceiptPage() {
                           isActive ? 'border-indigo-500 bg-indigo-50' : 'border-gray-100 bg-gray-50 hover:bg-gray-100'
                         }`}
                       >
-                        <span className="block font-bold text-gray-900">{table.name}</span>
+                        <span className="block break-words font-bold text-gray-900">{table.name}</span>
                         <span className={`mt-2 inline-flex text-[11px] font-bold px-2 py-0.5 rounded-full ${
                           order ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'
                         }`}>
@@ -812,10 +929,16 @@ export default function MiniReceiptPage() {
               </div>
             </section>
 
-            <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
+            <section className="rounded-xl border border-gray-200 bg-white shadow-sm p-3">
               <div className="flex items-center justify-between mb-3 gap-2">
                 <h2 className="font-bold text-gray-900">{t.mini_menu}</h2>
-                <button onClick={() => setActiveTab('menus')} className="text-xs font-bold text-indigo-600">{t.mini_menu_manage}</button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('menus')}
+                  className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-black text-indigo-600 hover:bg-gray-50"
+                >
+                  {t.mini_menu_manage}
+                </button>
               </div>
 
               <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
@@ -862,7 +985,7 @@ export default function MiniReceiptPage() {
                             x{selectedQuantity}
                           </span>
                         )}
-                        <span className={`block text-sm font-bold text-gray-900 leading-snug ${selectedQuantity > 0 ? 'pr-10' : ''}`}>
+                        <span className={`block min-w-0 whitespace-normal break-words text-sm font-bold leading-snug text-gray-900 ${selectedQuantity > 0 ? 'pr-10' : ''}`}>
                           {menu.name}
                         </span>
                         <span className="block text-xs font-bold text-indigo-600 mt-2">{formatMoney(menu.price)}</span>
@@ -873,7 +996,7 @@ export default function MiniReceiptPage() {
               </div>
             </section>
 
-            <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 lg:sticky lg:top-32 h-fit">
+            <section className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 lg:sticky lg:top-32 h-fit">
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
                   <h2 className="font-bold text-gray-900">{selectedTable?.name || t.mini_select_table}</h2>
@@ -892,13 +1015,13 @@ export default function MiniReceiptPage() {
                   </div>
                 ) : (
                   currentOrder.items.map((item) => (
-                    <div key={item.id} className="rounded-xl bg-gray-50 p-3">
-                      <div className="flex justify-between gap-2">
-                        <div>
-                          <p className="font-bold text-sm text-gray-900">{item.name}</p>
+                    <div key={item.id} className="min-w-0 rounded-xl bg-gray-50 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="whitespace-normal break-words text-sm font-bold text-gray-900">{item.name}</p>
                           <p className="text-xs text-gray-500">{formatMoney(item.price)}</p>
                         </div>
-                        <p className="font-black text-sm text-gray-900">{formatMoney(item.price * item.quantity)}</p>
+                        <p className="shrink-0 text-sm font-black text-gray-900">{formatMoney(item.price * item.quantity)}</p>
                       </div>
                       <div className="flex items-center justify-end gap-2 mt-3">
                         <button
@@ -920,7 +1043,17 @@ export default function MiniReceiptPage() {
                 )}
               </div>
 
-              <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-3">
+              <div className="mt-4 rounded-xl border border-gray-200 bg-white p-3">
+                <button
+                  type="button"
+                  onClick={() => setShowExtraInfo((current) => !current)}
+                  className="flex w-full items-center justify-between text-sm font-black text-gray-800"
+                >
+                  <span>추가정보</span>
+                  <span>{showExtraInfo ? '접기' : '펼치기'}</span>
+                </button>
+                {showExtraInfo && (
+                  <div className="mt-3 space-y-3">
                 <div className="grid grid-cols-[minmax(0,1fr)_88px_92px] gap-2">
                   <input
                     value={customItemName}
@@ -981,10 +1114,12 @@ export default function MiniReceiptPage() {
                   rows={2}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm resize-none"
                 />
+                  </div>
+                )}
               </div>
 
-              <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 flex items-center justify-between">
-                <span className="text-sm font-black text-indigo-900">{t.mini_final_amount}</span>
+              <div className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between">
+                <span className="text-sm font-black text-gray-800">{t.mini_final_amount}</span>
                 <span className="text-2xl font-black text-indigo-700">{formatMoney(total)}</span>
               </div>
 
@@ -997,7 +1132,7 @@ export default function MiniReceiptPage() {
                     onClick={printOrder}
                     icon={<Printer className="w-5 h-5" />}
                   >
-                    {t.mini_print_order_sheet}
+                    주방주문서 출력
                   </Button>
                   <button
                     type="button"
@@ -1022,11 +1157,11 @@ export default function MiniReceiptPage() {
                 <Button
                   type="button"
                   variant="success"
-                  className="w-full h-16 text-base"
+                  className="h-16 w-full text-lg"
                   disabled={!currentOrder || currentOrder.items.length === 0 || saving}
                   onClick={() => setShowReceiptConfirm(true)}
                 >
-                  {t.mini_checkout}
+                  메인영수증 출력
                 </Button>
               </div>
             </section>
@@ -1210,18 +1345,18 @@ export default function MiniReceiptPage() {
                         <div className="text-sm text-gray-400 py-4">{t.mini_no_menu}</div>
                       ) : (
                         category.menus.map((menu) => (
-                          <div key={menu.id} className={`rounded-xl p-3 flex items-center justify-between gap-2 ${menu.is_active ? 'bg-gray-50' : 'bg-gray-100 opacity-60'}`}>
-                            <div>
-                              <p className="font-bold text-gray-900">
+                          <div key={menu.id} className={`flex items-start justify-between gap-2 rounded-xl p-3 ${menu.is_active ? 'bg-gray-50' : 'bg-gray-100 opacity-60'}`}>
+                            <div className="min-w-0 flex-1">
+                              <p className="whitespace-normal break-words font-bold text-gray-900">
                                 <span className="text-indigo-600">{menu.menu_code}</span> {menu.name}
                               </p>
                               <p className="text-xs text-gray-500">
                                 {formatMoney(menu.price)} {menu.is_active ? '' : `· ${t.mini_hidden}`}
                               </p>
                             </div>
-                            <div className="flex gap-1">
+                            <div className="flex shrink-0 gap-1">
                               <button
-                                onClick={() => editMenu(menu)}
+                                onClick={() => openEditMenu(menu)}
                                 className="h-9 w-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500"
                               >
                                 <Edit3 className="w-4 h-4" />
@@ -1305,7 +1440,7 @@ export default function MiniReceiptPage() {
                       >
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-bold text-gray-900">{table?.name || t.mini_tables}</p>
+                            <p className="break-words font-bold text-gray-900">{table?.name || t.mini_tables}</p>
                             {isReturned ? (
                               <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-600">{t.mini_return}</span>
                             ) : null}
@@ -1326,7 +1461,7 @@ export default function MiniReceiptPage() {
                             {order.items.map((item) => (
                               <div key={item.id} className="flex items-start justify-between gap-3 rounded-lg bg-white px-3 py-2">
                                 <div className="min-w-0">
-                                  <p className="truncate text-sm font-bold text-gray-900">
+                                  <p className="min-w-0 whitespace-normal break-words text-sm font-bold text-gray-900">
                                     {item.menu_code ? `${item.menu_code}.` : ''}{item.name}
                                   </p>
                                   <p className="text-xs text-gray-500">
@@ -1399,6 +1534,113 @@ export default function MiniReceiptPage() {
           </section>
         )}
       </div>
+      {showMoveTableModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-gray-900">이동합석</h2>
+                <p className="mt-1 text-xs font-semibold text-gray-500">이동하거나 합석할 테이블을 선택해주세요.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMoveTableModal(false)}
+                className="h-9 w-9 rounded-lg border border-gray-200 text-sm font-black text-gray-500"
+              >
+                X
+              </button>
+            </div>
+            <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+              {payload.tables.filter((table) => table.id !== selectedTableId).length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm font-bold text-gray-400">
+                  이동할 다른 테이블이 없습니다.
+                </div>
+              ) : (
+                payload.tables
+                  .filter((table) => table.id !== selectedTableId)
+                  .map((table) => {
+                    const targetOrder = draftOrders[table.id];
+                    return (
+                      <button
+                        key={table.id}
+                        type="button"
+                        onClick={() => moveOrMergeCurrentOrder(table)}
+                        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-left transition-colors hover:bg-gray-50"
+                      >
+                        <span className="min-w-0 break-words text-sm font-black text-gray-900">{table.name}</span>
+                        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black ${
+                          targetOrder ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {targetOrder ? `합석 ${formatMoney(targetOrder.total)}` : '이동'}
+                        </span>
+                      </button>
+                    );
+                  })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {editingMenu && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-gray-900">{t.mini_edit}</h2>
+                <p className="mt-1 text-xs font-semibold text-gray-500">메뉴번호, 메뉴명, 가격을 한 번에 수정합니다.</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditMenu}
+                className="h-9 w-9 rounded-lg border border-gray-200 text-sm font-black text-gray-500"
+              >
+                X
+              </button>
+            </div>
+            <div className="space-y-3">
+              <label className="block">
+                <span className="mb-1 block text-xs font-black text-gray-600">메뉴번호</span>
+                <input
+                  value={editMenuForm.menuCode}
+                  onChange={(event) => setEditMenuForm((prev) => ({ ...prev, menuCode: event.target.value.replace(/[^0-9]/g, '') }))}
+                  inputMode="numeric"
+                  className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm font-bold outline-none focus:border-indigo-500"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-black text-gray-600">메뉴명</span>
+                <textarea
+                  value={editMenuForm.name}
+                  onChange={(event) => setEditMenuForm((prev) => ({ ...prev, name: event.target.value }))}
+                  rows={3}
+                  className="w-full resize-none rounded-xl border border-gray-200 px-3 py-3 text-sm font-bold outline-none focus:border-indigo-500"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-black text-gray-600">가격</span>
+                <input
+                  value={editMenuForm.price}
+                  onChange={(event) => setEditMenuForm((prev) => ({ ...prev, price: event.target.value.replace(/[^0-9]/g, '') }))}
+                  inputMode="numeric"
+                  className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm font-bold outline-none focus:border-indigo-500"
+                />
+              </label>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <Button type="button" variant="secondary" onClick={closeEditMenu}>
+                {t.mini_no}
+              </Button>
+              <Button
+                type="button"
+                disabled={!editMenuForm.menuCode.trim() || !editMenuForm.name.trim() || saving}
+                onClick={submitEditMenu}
+              >
+                {saving ? '저장중' : t.mini_edit}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {showReceiptConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl">

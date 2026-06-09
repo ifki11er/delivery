@@ -35,6 +35,27 @@ export async function POST(req: Request) {
     });
 
     if (!user || user.deletedAt || user.status === "WITHDRAWN") {
+      const employeeAccount = await prisma.employeeAccount.findUnique({
+        where: { email },
+        select: {
+          password: true,
+          deletedAt: true,
+          status: true,
+          employee: {
+            select: { status: true },
+          },
+        },
+      });
+
+      if (
+        employeeAccount &&
+        !employeeAccount.deletedAt &&
+        employeeAccount.status === "ACTIVE" &&
+        employeeAccount.employee?.status === "ACTIVE"
+      ) {
+        return NextResponse.json({ exists: true, hasPassword: true });
+      }
+
       return NextResponse.json(
         {
           exists: false,

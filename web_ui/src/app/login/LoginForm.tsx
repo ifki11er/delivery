@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { signIn as clientSignIn } from 'next-auth/react';
-import { LoaderCircle, Lock, Mail } from 'lucide-react';
+import { Eye, EyeOff, LoaderCircle, Lock, Mail } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useI18n } from '@/i18n/I18nProvider';
 import { signInWithGoogle, signInWithKakao } from '@/app/actions/auth';
@@ -30,6 +30,7 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
   const [loading, setLoading] = useState(false);
   const [nativeGoogleLoading, setNativeGoogleLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'kakao' | 'google' | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const isRegister = mode === 'register';
   const submitText = isRegister
     ? (t.register_email_continue || '이메일로 회원가입')
@@ -183,11 +184,20 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
             <input
               id="password"
               name="password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="********"
               required
-              className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-indigo-200/50 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
+              className="w-full pl-10 pr-12 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-indigo-200/50 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword((value) => !value)}
+              className="absolute inset-y-0 right-0 flex items-center pr-3 text-indigo-200 transition-colors hover:text-white"
+              aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+              title={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+            >
+              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+            </button>
           </div>
         </div>
 

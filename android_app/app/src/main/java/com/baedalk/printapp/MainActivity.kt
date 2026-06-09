@@ -79,7 +79,11 @@ class MainActivity : AppCompatActivity() {
         // [옵션 B: 개발 모드] 사용자 컴퓨터의 Next.js 로컬 서버 로드
         // 안드로이드 에뮬레이터에서는 10.0.2.2 가 컴퓨터의 localhost를 의미합니다.
         // 현재는 local.properties 파일의 DEV_WEB_URL 값을 읽어옵니다. (기본값 세팅됨)
-        webView.loadUrl(resolveStartUrl(intent))
+        if (savedInstanceState == null) {
+            webView.loadUrl(resolveStartUrl(intent))
+        } else {
+            webView.restoreState(savedInstanceState)
+        }
         
         // 블루투스 권한 요청 (Android 12 이상)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -97,8 +101,20 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (::webView.isInitialized) {
-            webView.loadUrl(resolveStartUrl(intent))
+            loadUrlIfChanged(resolveStartUrl(intent))
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        if (::webView.isInitialized) {
+            webView.saveState(outState)
+        }
+    }
+
+    private fun loadUrlIfChanged(url: String) {
+        if (webView.url == url) return
+        webView.loadUrl(url)
     }
 
     private fun resolveStartUrl(intent: Intent?): String {

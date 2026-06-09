@@ -16,7 +16,6 @@ export async function POST() {
       where: { id: userId },
       include: {
         stores: true,
-        employments: true,
       },
     });
 
@@ -26,11 +25,6 @@ export async function POST() {
     const activeStores = user.stores.filter((store) => store.status !== "CLOSED");
     if (activeStores.length > 0) {
       return jsonError("Close or transfer active stores before deleting your account.", 400);
-    }
-
-    const activeEmployments = user.employments.filter((employment) => employment.status === "ACTIVE");
-    if (activeEmployments.length > 0) {
-      return jsonError("Leave active stores before deleting your account.", 400);
     }
 
     const uniqueSuffix = Date.now().toString();

@@ -1,10 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import { useI18n, useLocale } from '@/i18n/I18nProvider';
-import { MapPin, Clock, LogIn, LogOut, CheckCircle2, ChevronLeft } from 'lucide-react';
+import { MapPin, Clock, LogIn, LogOut, CheckCircle2, Power, UserX } from 'lucide-react';
 
 type AttendanceRecord = {
   id: string;
@@ -21,7 +20,6 @@ type AttendanceResponse = {
 };
 
 export default function EmployeeDashboardPage() {
-  const router = useRouter();
   const t = useI18n();
   const locale = useLocale();
   const { data: session } = useSession();
@@ -81,6 +79,31 @@ export default function EmployeeDashboardPage() {
     }
   };
 
+  const handleResign = async () => {
+    if (!window.confirm(t.emp_self_resign_confirm)) return;
+
+    try {
+      const res = await fetch('/api/store/employees', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: '직원 본인 요청',
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || '퇴사 처리에 실패했습니다.');
+        return;
+      }
+
+      alert(t.emp_resign_success);
+      await signOut({ callbackUrl: '/login' });
+    } catch {
+      alert('퇴사 처리 중 오류가 발생했습니다.');
+    }
+  };
+
   if (loading && attendances.length === 0) {
     return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
   }
@@ -88,10 +111,7 @@ export default function EmployeeDashboardPage() {
   return (
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
       <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center space-x-2">
-          <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
-            <ChevronLeft className="w-6 h-6 text-gray-600" />
-          </button>
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center">
           <h1 className="font-bold text-lg text-gray-900">{t.mypage_emp_dash}</h1>
         </div>
       </div>
@@ -183,6 +203,25 @@ export default function EmployeeDashboardPage() {
               ))
             )}
           </div>
+        </div>
+
+        <div className="space-y-3 pt-2">
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+          >
+            <Power className="h-4 w-4" />
+            {t.logout}
+          </button>
+          <button
+            type="button"
+            onClick={handleResign}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-600 shadow-sm transition-colors hover:bg-red-50"
+          >
+            <UserX className="h-4 w-4" />
+            퇴사
+          </button>
         </div>
       </div>
     </div>
