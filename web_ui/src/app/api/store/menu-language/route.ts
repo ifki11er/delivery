@@ -21,16 +21,26 @@ async function getAccessibleStore(userId: string, role: string | undefined, stor
 
 function serializeRule(rule: {
   id: string;
+  scope: string;
   matchText: string;
   replacementText: string;
   createdAt: Date;
 }) {
   return {
     id: rule.id,
+    scope: rule.scope,
     matchText: rule.matchText,
     replacementText: rule.replacementText,
     createdAt: rule.createdAt.toISOString(),
   };
+}
+
+function normalizeMode(value: unknown) {
+  return value === 'FOREIGN_ONLY' || value === 'BOTH' ? value : 'KOREAN_ONLY';
+}
+
+function normalizeScope(value: unknown) {
+  return value === 'MINI_RECEIPT' ? 'MINI_RECEIPT' : 'DELIVERY';
 }
 
 export async function GET(req: Request) {
@@ -38,17 +48,21 @@ export async function GET(req: Request) {
   if (!session?.user?.id) return jsonError('Unauthorized', 401);
 
   const { searchParams } = new URL(req.url);
+  const scope = normalizeScope(searchParams.get('scope'));
   const store = await getAccessibleStore(session.user.id, session.user.role, searchParams.get('storeId'));
   if (!store) return NextResponse.json({ enabled: false, rules: [] });
 
   const rules = await prisma.storeMenuLanguageRule.findMany({
-    where: { storeId: store.id },
+    where: { storeId: store.id, scope },
     orderBy: { createdAt: 'asc' },
   });
 
+  const mode = scope === 'MINI_RECEIPT' ? store.miniReceiptLanguageMode : store.menuLanguageMode;
+
   return NextResponse.json({
-    enabled: store.menuLanguageMode !== 'KOREAN_ONLY',
-    mode: store.menuLanguageMode,
+    enabled: mode !== 'KOREAN_ONLY',
+    mode,
+    scope,
     rules: rules.map(serializeRule),
   });
 }
@@ -57,21 +71,23 @@ export async function PUT(req: Request) {
   const session = await auth();
   if (!session?.user?.id) return jsonError('Unauthorized', 401);
 
-  const body = await readJson<{ storeId?: unknown; enabled?: unknown; mode?: unknown }>(req);
+  const body = await readJson<{ storeId?: unknown; enabled?: unknown; mode?: unknown; scope?: unknown }>(req);
   const storeId = typeof body?.storeId === 'string' ? body.storeId : null;
+  const scope = normalizeScope(body?.scope);
   const store = await getAccessibleStore(session.user.id, session.user.role, storeId);
   if (!store) return jsonError('No store found', 404);
 
-  const mode = body?.mode === 'FOREIGN_ONLY' || body?.mode === 'BOTH' ? body.mode : 'KOREAN_ONLY';
+  const mode = normalizeMode(body?.mode);
   const updated = await prisma.store.update({
     where: { id: store.id },
-    data: {
-      menuLanguageMode: mode,
-    },
-    select: { menuLanguageMode: true },
+    data: scope === 'MINI_RECEIPT'
+      ? { miniReceiptLanguageMode: mode }
+      : { menuLanguageMode: mode },
+    select: { menuLanguageMode: true, miniReceiptLanguageMode: true },
   });
+  const updatedMode = scope === 'MINI_RECEIPT' ? updated.miniReceiptLanguageMode : updated.menuLanguageMode;
 
-  return NextResponse.json({ enabled: updated.menuLanguageMode !== 'KOREAN_ONLY', mode: updated.menuLanguageMode });
+  return NextResponse.json({ enabled: updatedMode !== 'KOREAN_ONLY', mode: updatedMode, scope });
 }
 
 export async function POST(req: Request) {
@@ -80,10 +96,12 @@ export async function POST(req: Request) {
 
   const body = await readJson<{
     storeId?: unknown;
+    scope?: unknown;
     matchText?: unknown;
     replacementText?: unknown;
   }>(req);
   const storeId = typeof body?.storeId === 'string' ? body.storeId : null;
+  const scope = normalizeScope(body?.scope);
   const store = await getAccessibleStore(session.user.id, session.user.role, storeId);
   if (!store) return jsonError('No store found', 404);
 
@@ -96,14 +114,16 @@ export async function POST(req: Request) {
 
   const rule = await prisma.storeMenuLanguageRule.upsert({
     where: {
-      storeId_matchText: {
+      storeId_scope_matchText: {
         storeId: store.id,
+        scope,
         matchText,
       },
     },
     update: { replacementText },
     create: {
       storeId: store.id,
+      scope,
       matchText,
       replacementText,
     },
@@ -118,11 +138,13 @@ export async function PATCH(req: Request) {
 
   const body = await readJson<{
     storeId?: unknown;
+    scope?: unknown;
     id?: unknown;
     matchText?: unknown;
     replacementText?: unknown;
   }>(req);
   const storeId = typeof body?.storeId === 'string' ? body.storeId : null;
+  const scope = normalizeScope(body?.scope);
   const store = await getAccessibleStore(session.user.id, session.user.role, storeId);
   if (!store) return jsonError('No store found', 404);
 
@@ -137,6 +159,7 @@ export async function PATCH(req: Request) {
   const duplicate = await prisma.storeMenuLanguageRule.findFirst({
     where: {
       storeId: store.id,
+      scope,
       matchText,
       NOT: { id },
     },
@@ -149,6 +172,7 @@ export async function PATCH(req: Request) {
     where: {
       id,
       storeId: store.id,
+      scope,
     },
     data: {
       matchText,
@@ -168,6 +192,7 @@ export async function DELETE(req: Request) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id') || '';
   const storeId = searchParams.get('storeId');
+  const scope = normalizeScope(searchParams.get('scope'));
   const store = await getAccessibleStore(session.user.id, session.user.role, storeId);
   if (!store) return jsonError('No store found', 404);
   if (!id) return jsonError('Rule ID is required', 400);
@@ -176,6 +201,7 @@ export async function DELETE(req: Request) {
     where: {
       id,
       storeId: store.id,
+      scope,
     },
   });
 

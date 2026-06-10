@@ -109,6 +109,8 @@ model Store {
   printJobs          PrintJob[]
   dailySequences     StoreDailySequence[]
   menuLanguageMode    String    @default("KOREAN_ONLY") @map("menu_language_mode")
+  miniReceiptLanguageMode String @default("KOREAN_ONLY") @map("mini_receipt_language_mode")
+  deliveryBlacklistCheckEnabled Boolean @default(true) @map("delivery_blacklist_check_enabled")
   menuLanguageRules   StoreMenuLanguageRule[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
@@ -328,12 +330,13 @@ model StoreMenuLanguageRule {
   id              String   @id @default(cuid())
   storeId          String   @map("store_id")
   store            Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  scope            String   @default("DELIVERY") @map("scope")
   matchText        String   @map("match_text")
   replacementText  String   @map("replacement_text")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  @@unique([storeId, matchText])
+  @@unique([storeId, scope, matchText])
   @@index([storeId])
   @@map("store_menu_language_rules")
 }

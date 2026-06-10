@@ -103,10 +103,10 @@ export function renderMiniKitchenOrder(params: {
   items: MiniReceiptItem[];
 }) {
   const measure = makeCanvas(1).ctx;
-  setFont(measure, 31, false, true);
+  setFont(measure, 35, false, true);
   const itemHeight = params.items.reduce((sum, item) => {
     const name = `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}`;
-    return sum + Math.max(1, wrapText(measure, name, 330).length) * 38;
+    return sum + Math.max(1, wrapText(measure, name, 330).length) * 42;
   }, 0);
   const height = 440 + itemHeight + (params.note ? 48 : 0);
   const { canvas, ctx } = makeCanvas(height);
@@ -127,15 +127,15 @@ export function renderMiniKitchenOrder(params: {
 
   params.items.forEach((item) => {
     const name = `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}`;
-    setFont(ctx, 31, false, true);
+    setFont(ctx, 35, false, true);
     const lines = wrapText(ctx, name, 330);
     lines.forEach((text, index) => {
-      drawText(ctx, index === 0 ? text : `   ${text}`, 28, y, { size: 31, condensed: true });
+      drawText(ctx, index === 0 ? text : `   ${text}`, 28, y, { size: 35, condensed: true });
       if (index === 0) {
-        drawText(ctx, String(item.quantity), 430, y, { size: 31, align: 'center', condensed: true });
-        drawText(ctx, '신규', 542, y, { size: 31, align: 'right', condensed: true });
+        drawText(ctx, String(item.quantity), 430, y, { size: 35, align: 'center', condensed: true });
+        drawText(ctx, '신규', 542, y, { size: 35, align: 'right', condensed: true });
       }
-      y += 38;
+      y += 42;
     });
   });
 
@@ -168,10 +168,10 @@ export function renderMiniPaymentReceipt(params: {
     params.settings.contact ? `전화 : ${params.store.contact || ''}` : '',
   ].filter(Boolean);
   const measure = makeCanvas(1).ctx;
-  setFont(measure, 24, false, true);
+  setFont(measure, 29, false, true);
   const itemHeight = params.items.reduce((sum, item) => {
     const name = `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}`;
-    return sum + Math.max(1, wrapText(measure, name, 260).length) * 32 + 4;
+    return sum + Math.max(1, wrapText(measure, name, 260).length) * 37 + 4;
   }, 0);
   const height = 700 + infoRows.length * 32 + itemHeight;
   const { canvas, ctx } = makeCanvas(height);
@@ -204,17 +204,17 @@ export function renderMiniPaymentReceipt(params: {
   params.items.forEach((item) => {
     const amount = item.price * item.quantity;
     const name = `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}`;
-    setFont(ctx, 24, false, true);
+    setFont(ctx, 29, false, true);
     const lines = wrapText(ctx, name, 260);
 
     lines.forEach((text, index) => {
-      drawText(ctx, index === 0 ? text : `   ${text}`, 28, y, { size: 24, condensed: true });
+      drawText(ctx, index === 0 ? text : `   ${text}`, 28, y, { size: 29, condensed: true });
       if (index === 0) {
-        drawRightFit(ctx, moneyK(item.price), 374, y, 62, 23);
-        drawText(ctx, String(item.quantity), 438, y, { size: 24, align: 'center', condensed: true });
-        drawRightFit(ctx, moneyK(amount), 542, y, 86, 23);
+        drawRightFit(ctx, moneyK(item.price), 374, y, 62, 26);
+        drawText(ctx, String(item.quantity), 438, y, { size: 29, align: 'center', condensed: true });
+        drawRightFit(ctx, moneyK(amount), 542, y, 86, 26);
       }
-      y += 32;
+      y += 37;
     });
     y += 4;
   });

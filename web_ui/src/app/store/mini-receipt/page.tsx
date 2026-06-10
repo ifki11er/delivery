@@ -27,12 +27,13 @@ import { nextDailyOrderSequence } from '@/lib/daily-order-sequence';
 import { getCachedPrintHistory, getPrintHistory, type PrintHistoryItem } from '@/lib/print-history';
 import {
   getDeliveryPrintHistorySequence,
-  getDeliveryPrintHistorySummary,
+  getDeliveryPrintHistoryDetail,
+  getDeliveryPaymentMethodLabel,
   parseDeliveryShareOrder,
   renderDeliveryKitchenOrder,
   renderDeliveryShareReceipt,
 } from '@/lib/delivery-share';
-import { applyMenuLanguageRules, getMenuLanguageSettings } from '@/lib/menu-language';
+import { applyMenuLanguageRules, getMenuLanguageSettings, type MenuLanguageSettings, updateMenuLanguageMode } from '@/lib/menu-language';
 
 type PosTable = {
   id: string;
@@ -131,6 +132,10 @@ function formatMoney(amount: number) {
   return `${amount.toLocaleString()} ${currency}`;
 }
 
+function formatDeliveryMoney(amount: number | null) {
+  return amount == null ? '-' : `${amount.toLocaleString()} ₫`;
+}
+
 function textTemplate(template: string, values: Record<string, string | number>) {
   return Object.entries(values).reduce(
     (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
@@ -154,9 +159,7 @@ function getPayloadCacheKey(storeId: string, historyDate: string) {
 
 function formatDate(value?: string | null) {
   if (!value) return '';
-  return new Date(value).toLocaleString('ko-KR', {
-    month: '2-digit',
-    day: '2-digit',
+  return new Date(value).toLocaleTimeString('ko-KR', {
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -252,6 +255,8 @@ export default function MiniReceiptPage() {
   const [discountAmount, setDiscountAmount] = useState('');
   const [orderNote, setOrderNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('현금');
+  const [miniLanguageMode, setMiniLanguageMode] = useState<MenuLanguageSettings['mode']>('KOREAN_ONLY');
+  const [miniLanguageRules, setMiniLanguageRules] = useState<MenuLanguageSettings['rules']>([]);
   const [showReceiptConfirm, setShowReceiptConfirm] = useState(false);
   const [showExtraInfo, setShowExtraInfo] = useState(false);
   const [showMoveTableModal, setShowMoveTableModal] = useState(false);
@@ -280,6 +285,20 @@ export default function MiniReceiptPage() {
       localStorage.setItem(selectedStoreStorageKey, selectedStoreId);
     }
   }, [selectedStoreId]);
+
+  useEffect(() => {
+    if (!preferredStoreId) return;
+
+    getMenuLanguageSettings(preferredStoreId, { scope: 'MINI_RECEIPT' })
+      .then((settings) => {
+        setMiniLanguageMode(settings.mode);
+        setMiniLanguageRules(settings.rules);
+      })
+      .catch(() => {
+        setMiniLanguageMode('KOREAN_ONLY');
+        setMiniLanguageRules([]);
+      });
+  }, [preferredStoreId]);
 
   useEffect(() => {
     if (!showManageMenu) return undefined;
@@ -334,6 +353,8 @@ export default function MiniReceiptPage() {
     try {
       const params = new URLSearchParams({ storeId: preferredStoreId, historyDate: nextHistoryDate });
       const range = getDateRangeIso(nextHistoryDate);
+      params.set('historyFrom', range.from);
+      params.set('historyTo', range.to);
       const [res, nextDeliveryHistory] = await Promise.all([
         fetch(`/api/store/mini-receipt?${params.toString()}`),
         getPrintHistory({ storeId: preferredStoreId, from: range.from, to: range.to, force: options?.force }),
@@ -402,7 +423,7 @@ export default function MiniReceiptPage() {
   }, [historyDate, preferredStoreId, storesLoading]);
 
   const { refreshing } = usePullToRefresh({
-    disabled: storesLoading || !preferredStoreId || activeTab !== 'history',
+    disabled: storesLoading || !preferredStoreId,
     onRefresh: async () => {
       await loadData(historyDate, { force: true });
     },
@@ -422,10 +443,18 @@ export default function MiniReceiptPage() {
     if (!payload?.store.id || saving) return;
     setSaving(true);
     try {
+      const nextHistoryDate = typeof body.historyDate === 'string' ? body.historyDate : historyDate;
+      const range = getDateRangeIso(nextHistoryDate);
       const res = await fetch('/api/store/mini-receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeId: payload.store.id, historyDate, ...body }),
+        body: JSON.stringify({
+          storeId: payload.store.id,
+          historyDate: nextHistoryDate,
+          historyFrom: range.from,
+          historyTo: range.to,
+          ...body,
+        }),
       });
       if (!res.ok) {
         const error = await res.json();
@@ -435,7 +464,7 @@ export default function MiniReceiptPage() {
 
       const data = (await res.json()) as PosPayload;
       applyPayload(data);
-      cachePayload(data);
+      cachePayload(data, nextHistoryDate);
       setSelectedTableId((current) => (
         data.tables.some((table) => table.id === current) ? current : data.tables[0]?.id || ''
       ));
@@ -471,6 +500,28 @@ export default function MiniReceiptPage() {
       ...deliveryHistory.map((job) => ({ type: 'delivery' as const, job })),
     ].sort((a, b) => getHistoryEntryTime(b) - getHistoryEntryTime(a));
   }, [deliveryHistory, payload?.history]);
+
+  const applyMiniMenuLanguage = (order: PosOrder): PosOrder => {
+    if (miniLanguageMode === 'KOREAN_ONLY' || miniLanguageRules.length === 0) return order;
+
+    const replaceName = (name: string) => miniLanguageRules.reduce((current, rule) => {
+      if (!rule.matchText.trim()) return current;
+      return current.split(rule.matchText).join(rule.replacementText);
+    }, name);
+
+    return {
+      ...order,
+      items: order.items.map((item) => {
+        const translatedName = replaceName(item.name);
+        return {
+          ...item,
+          name: miniLanguageMode === 'BOTH' && translatedName !== item.name
+            ? `${item.name} / ${translatedName}`
+            : translatedName,
+        };
+      }),
+    };
+  };
 
   const menuQuantityMap = useMemo(() => {
     const quantities: Record<string, number> = {};
@@ -595,6 +646,18 @@ export default function MiniReceiptPage() {
     setReceiptSettings((current) => ({ ...current, [key]: value }));
   };
 
+  const handleMiniLanguageModeChange = async (nextMode: MenuLanguageSettings['mode']) => {
+    if (!preferredStoreId || nextMode === miniLanguageMode) return;
+    const prevMode = miniLanguageMode;
+    setMiniLanguageMode(nextMode);
+    try {
+      await updateMenuLanguageMode(preferredStoreId, nextMode, 'MINI_RECEIPT');
+    } catch {
+      setMiniLanguageMode(prevMode);
+      alert('출력언어 설정 저장에 실패했습니다.');
+    }
+  };
+
   const clearDraftOrder = () => {
     if (!selectedTableId) return;
     setDraftOrders((current) => {
@@ -668,6 +731,7 @@ export default function MiniReceiptPage() {
     return nextOrder;
   };
   const printKitchenOrderSheet = (order: PosOrder) => {
+    const printableOrder = applyMiniMenuLanguage(order);
     const table = payload?.tables.find((item) => item.id === order.table_id);
 
     if (!window.AndroidBridge?.printBitmapDataUrl) {
@@ -676,15 +740,16 @@ export default function MiniReceiptPage() {
 
     return window.AndroidBridge.printBitmapDataUrl(renderMiniKitchenOrder({
       tableName: table?.name || t.mini_table_fallback,
-      orderSequence: order.order_sequence || 1,
+      orderSequence: printableOrder.order_sequence || 1,
       printedAt: formatKitchenPrintedAt(),
-      note: order.note,
-      items: order.items,
+      note: printableOrder.note,
+      items: printableOrder.items,
     }));
   };
   const printPaymentReceipt = (order: PosOrder) => {
+    const printableOrder = applyMiniMenuLanguage(order);
     const table = payload?.tables.find((item) => item.id === order.table_id);
-    const method = order.payment_method || paymentMethod;
+    const method = printableOrder.payment_method || paymentMethod;
 
     if (!window.AndroidBridge?.printBitmapDataUrl || !payload?.store) {
       return false;
@@ -696,7 +761,7 @@ export default function MiniReceiptPage() {
       printedAt: formatReceiptPrintedAt(),
       paymentMethod: method,
       settings: receiptSettings,
-      items: order.items,
+      items: printableOrder.items,
     }));
   };
 
@@ -816,8 +881,11 @@ export default function MiniReceiptPage() {
     }
 
     setShowReceiptConfirm(false);
+    const checkoutHistoryDate = getTodayInputDate();
+    setHistoryDate(checkoutHistoryDate);
     await postAction({
       action: 'order.checkoutSnapshot',
+      historyDate: checkoutHistoryDate,
       tableId: currentOrder.table_id,
       orderSequence: orderForCheckout.order_sequence,
       paymentMethod,
@@ -976,6 +1044,12 @@ export default function MiniReceiptPage() {
       />
 
       <div className="max-w-6xl mx-auto px-4 mt-4">
+        {refreshing && (
+          <div className="mb-3 rounded-xl bg-indigo-50 px-4 py-2 text-center text-xs font-bold text-indigo-600">
+            {t.mini_history_refreshing}
+          </div>
+        )}
+
         {activeTab === 'order' && (
           <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr_340px] gap-4">
             <section className="rounded-xl border border-gray-200 bg-white shadow-sm p-3">
@@ -1252,6 +1326,26 @@ export default function MiniReceiptPage() {
                 >
                   메인영수증 출력
                 </Button>
+                <div className="grid grid-cols-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                  {[
+                    { value: 'KOREAN_ONLY' as const, label: '한글만' },
+                    { value: 'FOREIGN_ONLY' as const, label: '외국어만' },
+                    { value: 'BOTH' as const, label: '한글+외국어' },
+                  ].map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => void handleMiniLanguageModeChange(item.value)}
+                      className={`h-11 text-xs font-black transition-colors ${
+                        miniLanguageMode === item.value
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white text-gray-700 hover:bg-indigo-50'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </section>
           </div>
@@ -1490,11 +1584,6 @@ export default function MiniReceiptPage() {
 
         {activeTab === 'history' && (
           <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-            {refreshing && (
-              <div className="mb-3 rounded-xl bg-indigo-50 px-4 py-2 text-center text-xs font-bold text-indigo-600">
-                {t.mini_history_refreshing}
-              </div>
-            )}
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="font-bold text-gray-900">{t.mini_paid_history}</h2>
               <input
@@ -1517,6 +1606,7 @@ export default function MiniReceiptPage() {
                     const job = entry.job;
                     const isExpanded = expandedHistoryId === job.id;
                     const sequence = getHistoryEntrySequence(entry, historyEntries, index);
+                    const detail = getDeliveryPrintHistoryDetail(job.parsed_data);
                     return (
                       <div key={`delivery_${job.id}`} className="rounded-xl bg-gray-50 p-3">
                         <button
@@ -1526,15 +1616,15 @@ export default function MiniReceiptPage() {
                         >
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="break-words font-bold text-gray-900">#{sequence} 배달</p>
+                              <p className="break-words font-bold text-gray-900">#{sequence} {formatDate(job.timestamp)}</p>
                               <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-600">배달K</span>
                             </div>
                             <p className="text-xs text-gray-500">
-                              {formatDate(job.timestamp)} {job.parsed_data ? `· ${getDeliveryPrintHistorySummary(job.parsed_data)}` : ''}
+                              배달 · {detail.paymentMethod}
                             </p>
                           </div>
                           <div className="shrink-0 text-right">
-                            <p className="font-black text-indigo-600">출력완료</p>
+                            <p className="font-black text-blue-600">{formatDeliveryMoney(detail.totalAmount)}</p>
                             <p className="mt-1 text-xs font-bold text-gray-400">{isExpanded ? t.mini_collapse : t.mini_detail}</p>
                           </div>
                         </button>
@@ -1566,7 +1656,7 @@ export default function MiniReceiptPage() {
                   const hasReturnRecord = payload.history.some((item) => (
                     item.status === 'RETURNED' && item.note === `반품: ${order.id}`
                   ));
-                  const title = `#${getHistoryEntrySequence(entry, historyEntries, index)} ${table?.name || t.mini_tables}`;
+                  const sequence = getHistoryEntrySequence(entry, historyEntries, index);
                   return (
                     <div key={order.id} className="rounded-xl bg-gray-50 p-3">
                       <button
@@ -1577,18 +1667,18 @@ export default function MiniReceiptPage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="break-words font-bold text-gray-900">
-                              {title}
+                              #{sequence} {formatDate(order.closed_at)}
                             </p>
                             {isReturned ? (
                               <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-600">{t.mini_return}</span>
                             ) : null}
                           </div>
                           <p className="text-xs text-gray-500">
-                            {formatDate(order.closed_at)} {order.payment_method ? `· ${order.payment_method}` : ''}
+                            {table?.name || t.mini_tables} {order.payment_method ? `· ${getDeliveryPaymentMethodLabel(order.payment_method)}` : ''}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className={`font-black ${isReturned ? 'text-red-600' : 'text-indigo-600'}`}>{formatMoney(order.total)}</p>
+                          <p className={`font-black ${isReturned ? 'text-red-600' : 'text-orange-600'}`}>{formatMoney(order.total)}</p>
                           <p className="mt-1 text-xs font-bold text-gray-400">{isExpanded ? t.mini_collapse : t.mini_detail}</p>
                         </div>
                       </button>

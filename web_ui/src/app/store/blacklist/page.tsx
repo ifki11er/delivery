@@ -28,8 +28,10 @@ export default function BlacklistPage() {
   const t = useI18n();
   const { confirm } = useFeedback();
   const { data: session } = useSession();
-  const { loading: storesLoading, hasStore } = useStores();
+  const { stores, loading: storesLoading, hasStore } = useStores();
+  const storeId = stores[0]?.id || '';
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
+  const [blacklistCheckEnabled, setBlacklistCheckEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
@@ -75,6 +77,36 @@ export default function BlacklistPage() {
     void fetchBlacklist();
   }, [hasStore, storesLoading]);
 
+  useEffect(() => {
+    if (!storeId) return;
+
+    fetch(`/api/store/blacklist-check-setting?storeId=${encodeURIComponent(storeId)}`)
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json() as { enabled?: boolean };
+        setBlacklistCheckEnabled(data.enabled !== false);
+      })
+      .catch(() => undefined);
+  }, [storeId]);
+
+  const updateBlacklistCheckEnabled = async (enabled: boolean) => {
+    if (!storeId) return;
+
+    const previous = blacklistCheckEnabled;
+    setBlacklistCheckEnabled(enabled);
+    try {
+      const res = await fetch('/api/store/blacklist-check-setting', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, enabled }),
+      });
+      if (!res.ok) throw new Error('Failed to update setting');
+    } catch {
+      setBlacklistCheckEnabled(previous);
+      alert('저장에 실패했습니다.');
+    }
+  };
+
   const { refreshing } = usePullToRefresh({
     disabled: storesLoading || !hasStore,
     onRefresh: async () => {
@@ -111,8 +143,8 @@ export default function BlacklistPage() {
 
   const handleDelete = async (reportId: string) => {
     if (!(await confirm({
-      title: '블랙리스트 삭제',
-      message: '정말로 이 블랙리스트 제보를 삭제하시겠습니까?',
+      title: '비매너고객 제보 삭제',
+      message: '정말로 이 비매너고객 제보를 삭제하시겠습니까?',
       danger: true,
       confirmText: '삭제',
     }))) return;
@@ -193,6 +225,16 @@ export default function BlacklistPage() {
         <p className="rounded-xl border border-gray-100 bg-white px-4 py-3 text-xs font-semibold leading-5 text-gray-500 shadow-sm">
           현재 리스트는 내가 제보한 리스트만 나옵니다. 검색을 하면 내가 제보하지 않은 리스트도 확인 가능합니다.
         </p>
+
+        <label className="flex items-start gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm">
+          <input
+            type="checkbox"
+            checked={blacklistCheckEnabled}
+            onChange={(event) => void updateBlacklistCheckEnabled(event.target.checked)}
+            className="mt-1 h-4 w-4 rounded border-gray-300"
+          />
+          <span>배달K 공유 주문 출력 전에 비매너고객을 확인합니다.</span>
+        </label>
 
         {refreshing && (
           <div className="rounded-xl bg-red-50 px-4 py-2 text-center text-xs font-bold text-red-600">

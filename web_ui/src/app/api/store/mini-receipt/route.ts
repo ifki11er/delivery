@@ -100,7 +100,13 @@ async function getAccessibleStore(userId: string, role: string | undefined, stor
   return stores[0] ?? null;
 }
 
-function getHistoryDateRange(historyDate?: string | null) {
+function getHistoryDateRange(historyDate?: string | null, from?: string | null, to?: string | null) {
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
+  if (fromDate && toDate && !Number.isNaN(fromDate.getTime()) && !Number.isNaN(toDate.getTime())) {
+    return { start: fromDate, end: toDate };
+  }
+
   if (!historyDate || !/^\d{4}-\d{2}-\d{2}$/.test(historyDate)) return null;
 
   const start = new Date(`${historyDate}T00:00:00`);
@@ -110,8 +116,8 @@ function getHistoryDateRange(historyDate?: string | null) {
   return { start, end };
 }
 
-async function buildPayload(storeId: string, historyDate?: string | null) {
-  const historyRange = getHistoryDateRange(historyDate);
+async function buildPayload(storeId: string, historyDate?: string | null, historyFrom?: string | null, historyTo?: string | null) {
+  const historyRange = getHistoryDateRange(historyDate, historyFrom, historyTo);
   const [tables, categories, openOrders, closedOrders] = await Promise.all([
     prisma.posTable.findMany({
       where: { storeId },
@@ -186,7 +192,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'No store found' }, { status: 404 });
   }
 
-  const payload = await buildPayload(store.id, searchParams.get('historyDate'));
+  const payload = await buildPayload(
+    store.id,
+    searchParams.get('historyDate'),
+    searchParams.get('historyFrom'),
+    searchParams.get('historyTo'),
+  );
   return NextResponse.json({
     store: {
       id: store.id,
@@ -400,7 +411,12 @@ export async function POST(req: Request) {
 
     }
 
-    const payload = await buildPayload(store.id, String(body.historyDate || ''));
+    const payload = await buildPayload(
+      store.id,
+      String(body.historyDate || ''),
+      typeof body.historyFrom === 'string' ? body.historyFrom : null,
+      typeof body.historyTo === 'string' ? body.historyTo : null,
+    );
     return NextResponse.json({
       store: {
         id: store.id,

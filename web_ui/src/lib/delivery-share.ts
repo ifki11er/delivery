@@ -54,7 +54,7 @@ export function normalizePaymentMethod(rawMethod: string) {
     /bank|transfer/i.test(rawMethod) ||
     rawMethod.toLowerCase().includes('chuyển khoản') ||
     rawMethod.includes('โอน')
-  ) return 'Banking';
+  ) return '계좌이체';
 
   if (
     rawMethod.includes('현금') ||
@@ -62,7 +62,7 @@ export function normalizePaymentMethod(rawMethod: string) {
     rawMethod.toLowerCase().includes('tiền mặt') ||
     rawMethod.includes('現金') ||
     rawMethod.includes('เงินสด')
-  ) return 'Cash';
+  ) return '현금';
 
   if (
     rawMethod.includes('카드') ||
@@ -70,7 +70,7 @@ export function normalizePaymentMethod(rawMethod: string) {
     rawMethod.toLowerCase().includes('thẻ') ||
     rawMethod.includes('カード') ||
     rawMethod.includes('บัตร')
-  ) return 'Card';
+  ) return '카드';
 
   return rawMethod.trim() || 'Unknown';
 }
@@ -130,7 +130,45 @@ export function createDeliveryPrintHistoryData(order: DeliveryShareOrder, orderS
   return JSON.stringify({
     summary: `${order.paymentMethod} ${order.totalAmount.toLocaleString()}₫`,
     orderSequence,
+    paymentMethod: order.paymentMethod,
+    totalAmount: order.totalAmount,
   });
+}
+
+export function getDeliveryPaymentMethodLabel(method?: string) {
+  if (!method) return '미기록';
+  if (/cash/i.test(method) || method.includes('현금')) return '현금';
+  if (/bank|banking|transfer/i.test(method) || method.includes('계좌') || method.includes('이체')) return '계좌이체';
+  if (/card/i.test(method) || method.includes('카드')) return '카드';
+  return method;
+}
+
+export function getDeliveryPrintHistoryDetail(parsedData?: string) {
+  if (!parsedData) return { paymentMethod: '미기록', totalAmount: null as number | null };
+  try {
+    const parsed = JSON.parse(parsedData) as {
+      summary?: unknown;
+      paymentMethod?: unknown;
+      totalAmount?: unknown;
+    };
+    const summary = typeof parsed.summary === 'string' ? parsed.summary : '';
+    const summaryAmount = summary.match(/([\d,]+)\s*₫/)?.[1];
+    const summaryMethod = summary.replace(/[\d,]+\s*₫.*/, '').trim();
+    const totalAmount = typeof parsed.totalAmount === 'number'
+      ? parsed.totalAmount
+      : summaryAmount
+        ? Number(summaryAmount.replace(/,/g, ''))
+        : null;
+    const paymentMethod = typeof parsed.paymentMethod === 'string' ? parsed.paymentMethod : summaryMethod;
+    return { paymentMethod: getDeliveryPaymentMethodLabel(paymentMethod), totalAmount };
+  } catch {
+    const amount = parsedData.match(/([\d,]+)\s*₫/)?.[1];
+    const method = parsedData.replace(/[\d,]+\s*₫.*/, '').trim();
+    return {
+      paymentMethod: getDeliveryPaymentMethodLabel(method),
+      totalAmount: amount ? Number(amount.replace(/,/g, '')) : null,
+    };
+  }
 }
 
 export function getDeliveryPrintHistorySummary(parsedData?: string) {

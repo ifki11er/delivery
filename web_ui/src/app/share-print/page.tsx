@@ -157,22 +157,26 @@ export default function SharePrintPage() {
       }
 
       try {
-        const phone = getDeliverySharePhoneDigits(order);
-        const res = await fetch(`/api/blacklist/check?phone=${encodeURIComponent(phone)}`);
-        if (res.ok) {
-          const data = (await res.json()) as BlacklistCheck;
-          if (data.isBlacklisted) {
-            setBlacklist({
-              ...data,
-              reports: [...(data.reports || [])].sort((a, b) => {
-                if (a.isMine) return -1;
-                if (b.isMine) return 1;
-                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-              }),
-            });
-            setStatus('blocked');
-            setMessage('블랙리스트에 등록된 고객입니다.');
-            return;
+        const settingRes = await fetch(`/api/store/blacklist-check-setting?storeId=${encodeURIComponent(preferredStoreId)}`);
+        const setting = settingRes.ok ? await settingRes.json() as { enabled?: boolean } : { enabled: true };
+        if (setting.enabled !== false) {
+          const phone = getDeliverySharePhoneDigits(order);
+          const res = await fetch(`/api/blacklist/check?phone=${encodeURIComponent(phone)}`);
+          if (res.ok) {
+            const data = (await res.json()) as BlacklistCheck;
+            if (data.isBlacklisted) {
+              setBlacklist({
+                ...data,
+                reports: [...(data.reports || [])].sort((a, b) => {
+                  if (a.isMine) return -1;
+                  if (b.isMine) return 1;
+                  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                }),
+              });
+              setStatus('blocked');
+              setMessage('비매너고객에 등록된 고객입니다.');
+              return;
+            }
           }
         }
       } catch (error) {

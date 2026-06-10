@@ -219,8 +219,8 @@ export default function PrinterSettingsPage() {
               </Button>
             </div>
 
-            <p className="text-xs text-center text-gray-500 mt-1">
-              {t.monitor_status_label}: <span className="font-medium text-gray-700">{connectionStatusText}</span>
+            <p className="text-xl text-center text-gray-700 mt-3 font-black">
+              {t.monitor_status_label}: <span className="text-2xl text-gray-900">{connectionStatusText}</span>
             </p>
           </div>
         </Panel>
