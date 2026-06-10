@@ -20,7 +20,6 @@ import { nextDailyOrderSequence } from "@/lib/daily-order-sequence";
 import { applyMenuLanguageRules, getMenuLanguageSettings } from "@/lib/menu-language";
 
 type ConnectionStatus = "idle" | "ready" | "connecting" | "success" | "failed" | "error";
-const activeStoreStorageKey = "store_active_selected_store_id";
 const monitorStoreStorageKey = "store_monitor_selected_store_id";
 
 function getTodayInputDate() {
@@ -59,7 +58,7 @@ export default function MonitorPage() {
   useEffect(() => {
     if (isStoreLoading || stores.length === 0 || selectedStoreId) return;
 
-    const storedStoreId = localStorage.getItem(activeStoreStorageKey) || localStorage.getItem(monitorStoreStorageKey);
+    const storedStoreId = localStorage.getItem(monitorStoreStorageKey);
     const nextStoreId = storedStoreId && stores.some((store) => store.id === storedStoreId)
       ? storedStoreId
       : stores[0].id;
@@ -68,7 +67,6 @@ export default function MonitorPage() {
 
   useEffect(() => {
     if (selectedStoreId) {
-      localStorage.setItem(activeStoreStorageKey, selectedStoreId);
       localStorage.setItem(monitorStoreStorageKey, selectedStoreId);
     }
   }, [selectedStoreId]);

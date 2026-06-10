@@ -20,9 +20,7 @@ const MODE_OPTIONS: Array<{ value: MenuLanguageSettings['mode']; label: string }
   { value: 'FOREIGN_ONLY', label: '외국어만' },
   { value: 'BOTH', label: '한글+외국어' },
 ];
-const activeStoreStorageKey = 'store_active_selected_store_id';
-const monitorStoreStorageKey = 'store_monitor_selected_store_id';
-const miniReceiptStoreStorageKey = 'mini_receipt_selected_store_id';
+const menuLanguageStoreStorageKey = 'menu_language_selected_store_id';
 
 export default function MenuLanguagePage() {
   const { stores, loading: storesLoading } = useStores();
@@ -60,9 +58,7 @@ export default function MenuLanguagePage() {
   useEffect(() => {
     if (storesLoading || stores.length === 0 || selectedStoreId) return;
 
-    const storedStoreId = localStorage.getItem(activeStoreStorageKey)
-      || localStorage.getItem(monitorStoreStorageKey)
-      || localStorage.getItem(miniReceiptStoreStorageKey);
+    const storedStoreId = localStorage.getItem(menuLanguageStoreStorageKey);
     const nextStoreId = storedStoreId && stores.some((store) => store.id === storedStoreId)
       ? storedStoreId
       : stores[0].id;
@@ -71,9 +67,7 @@ export default function MenuLanguagePage() {
 
   useEffect(() => {
     if (selectedStoreId) {
-      localStorage.setItem(activeStoreStorageKey, selectedStoreId);
-      localStorage.setItem(monitorStoreStorageKey, selectedStoreId);
-      localStorage.setItem(miniReceiptStoreStorageKey, selectedStoreId);
+      localStorage.setItem(menuLanguageStoreStorageKey, selectedStoreId);
     }
   }, [selectedStoreId]);
 

@@ -32,9 +32,7 @@ type BlacklistCheck = {
   reports: BlacklistReport[];
 };
 
-const activeStoreStorageKey = 'store_active_selected_store_id';
 const monitorStoreStorageKey = 'store_monitor_selected_store_id';
-const miniReceiptStoreStorageKey = 'mini_receipt_selected_store_id';
 
 function riskLabel(count: number) {
   if (count >= 3) return '매우 위험';
@@ -81,9 +79,7 @@ export default function SharePrintPage() {
       return;
     }
 
-    const storedStoreId = localStorage.getItem(activeStoreStorageKey)
-      || localStorage.getItem(monitorStoreStorageKey)
-      || localStorage.getItem(miniReceiptStoreStorageKey);
+    const storedStoreId = localStorage.getItem(monitorStoreStorageKey);
     const nextStoreId = storedStoreId && stores.some((store) => store.id === storedStoreId)
       ? storedStoreId
       : stores[0].id;

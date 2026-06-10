@@ -8,11 +8,12 @@ type StoreContextValue = {
   stores: StoreSummary[];
   loading: boolean;
   hasStore: boolean;
-  refreshStores: () => Promise<void>;
+  refreshStores: (options?: { force?: boolean }) => Promise<void>;
 };
 
 const StoreContext = createContext<StoreContextValue | null>(null);
 const STORE_CACHE_PREFIX = 'worklink_store_cache';
+const storeMemoryCache = new Map<string, StoreSummary[]>();
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
@@ -21,26 +22,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const cacheKey = session?.user?.id ? `${STORE_CACHE_PREFIX}_${session.user.id}` : '';
 
-  useEffect(() => {
-    if (!cacheKey) return;
-
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        setStores(JSON.parse(cached) as StoreSummary[]);
-        setLoading(false);
-      }
-    } catch {
-      localStorage.removeItem(cacheKey);
-    }
-  }, [cacheKey]);
-
-  const refreshStores = useCallback(async () => {
+  const refreshStores = useCallback(async (options?: { force?: boolean }) => {
     if (status === 'loading') return;
     if (status !== 'authenticated' || !cacheKey) {
       setStores([]);
       setLoading(false);
       return;
+    }
+
+    if (!options?.force) {
+      const memoryCached = storeMemoryCache.get(cacheKey);
+      if (memoryCached) {
+        setStores(memoryCached);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const data = JSON.parse(cached) as StoreSummary[];
+          storeMemoryCache.set(cacheKey, data);
+          setStores(data);
+          setLoading(false);
+          return;
+        }
+      } catch {
+        localStorage.removeItem(cacheKey);
+      }
     }
 
     try {
@@ -51,6 +60,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
 
       const data = (await res.json()) as StoreSummary[];
+      storeMemoryCache.set(cacheKey, data);
       setStores(data);
       localStorage.setItem(cacheKey, JSON.stringify(data));
     } catch (error) {

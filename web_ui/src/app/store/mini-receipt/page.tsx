@@ -24,7 +24,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { useFeedback } from '@/components/providers/FeedbackProvider';
 import { renderMiniKitchenOrder, renderMiniPaymentReceipt } from '@/lib/mini-receipt-print';
 import { nextDailyOrderSequence } from '@/lib/daily-order-sequence';
-import { getPrintHistory, type PrintHistoryItem } from '@/lib/print-history';
+import { getCachedPrintHistory, getPrintHistory, type PrintHistoryItem } from '@/lib/print-history';
 import {
   getDeliveryPrintHistorySequence,
   getDeliveryPrintHistorySummary,
@@ -118,7 +118,6 @@ const currency = '₫';
 const draftStoragePrefix = 'mini_receipt_drafts_v1';
 const receiptSettingsStoragePrefix = 'mini_receipt_receipt_settings_v1';
 const payloadCachePrefix = 'mini_receipt_payload_v1';
-const activeStoreStorageKey = 'store_active_selected_store_id';
 const selectedStoreStorageKey = 'mini_receipt_selected_store_id';
 const miniReceiptMemoryCache = new Map<string, PosPayload>();
 const defaultReceiptPrintSettings: ReceiptPrintSettings = {
@@ -269,7 +268,7 @@ export default function MiniReceiptPage() {
   useEffect(() => {
     if (storesLoading || stores.length === 0 || selectedStoreId) return;
 
-    const storedStoreId = localStorage.getItem(activeStoreStorageKey) || localStorage.getItem(selectedStoreStorageKey);
+    const storedStoreId = localStorage.getItem(selectedStoreStorageKey);
     const nextStoreId = storedStoreId && stores.some((store) => store.id === storedStoreId)
       ? storedStoreId
       : stores[0].id;
@@ -278,7 +277,6 @@ export default function MiniReceiptPage() {
 
   useEffect(() => {
     if (selectedStoreId) {
-      localStorage.setItem(activeStoreStorageKey, selectedStoreId);
       localStorage.setItem(selectedStoreStorageKey, selectedStoreId);
     }
   }, [selectedStoreId]);
@@ -325,7 +323,7 @@ export default function MiniReceiptPage() {
     localStorage.setItem(`${payloadCachePrefix}_${cacheKey}`, JSON.stringify(data));
   };
 
-  const loadData = async (nextHistoryDate = historyDate) => {
+  const loadData = async (nextHistoryDate = historyDate, options?: { force?: boolean }) => {
     if (!preferredStoreId) {
       setPayload(null);
       setDeliveryHistory([]);
@@ -338,7 +336,7 @@ export default function MiniReceiptPage() {
       const range = getDateRangeIso(nextHistoryDate);
       const [res, nextDeliveryHistory] = await Promise.all([
         fetch(`/api/store/mini-receipt?${params.toString()}`),
-        getPrintHistory({ storeId: preferredStoreId, from: range.from, to: range.to, force: true }),
+        getPrintHistory({ storeId: preferredStoreId, from: range.from, to: range.to, force: options?.force }),
       ]);
       if (!res.ok) {
         setPayload(null);
@@ -375,7 +373,14 @@ export default function MiniReceiptPage() {
         const cachedPayload = memoryCached ?? JSON.parse(localCached || '') as PosPayload;
         if (!memoryCached) miniReceiptMemoryCache.set(cacheKey, cachedPayload);
         applyPayload(cachedPayload);
+        const range = getDateRangeIso(historyDate);
+        setDeliveryHistory((getCachedPrintHistory({
+          storeId: preferredStoreId,
+          from: range.from,
+          to: range.to,
+        }) ?? []).filter((item) => item.status === 'PRINTED'));
         setLoading(false);
+        return;
       } else if (preferredStore && !payload) {
         applyPayload(createEmptyPayload({
           id: preferredStore.id,
@@ -399,7 +404,7 @@ export default function MiniReceiptPage() {
   const { refreshing } = usePullToRefresh({
     disabled: storesLoading || !preferredStoreId || activeTab !== 'history',
     onRefresh: async () => {
-      await loadData(historyDate);
+      await loadData(historyDate, { force: true });
     },
   });
 
@@ -1507,7 +1512,6 @@ export default function MiniReceiptPage() {
                   const nextDate = event.target.value || getTodayInputDate();
                   setHistoryDate(nextDate);
                   setExpandedHistoryId('');
-                  void loadData(nextDate);
                 }}
                 className="h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-bold text-gray-700"
               />
