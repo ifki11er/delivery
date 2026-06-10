@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import Link from 'next/link';
 import { AlertTriangle, Search, Plus, Edit3, Save, X, Trash2 } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 import { StoreRequiredNotice } from '@/components/store/StoreRequiredNotice';
@@ -179,13 +178,14 @@ export default function BlacklistPage() {
         title={t.mypage_blacklist}
         icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
         actions={(
-          <Link
-            href="/store/blacklist/new"
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('worklink-app-navigate', { detail: { tab: 'blacklistNew' } }))}
             className="text-red-600 bg-red-50 p-2 rounded-lg font-bold flex items-center text-sm"
           >
             <Plus className="w-4 h-4 mr-1" />
             {t.blacklist_add}
-          </Link>
+          </button>
         )}
       />
 

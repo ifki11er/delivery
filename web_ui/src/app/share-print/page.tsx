@@ -53,7 +53,7 @@ function formatDateOnly(value?: string | null) {
 function finishSharePrintOrNavigate(router: ReturnType<typeof useRouter>) {
   const closedByApp = window.AndroidBridge?.finishSharePrint?.() ?? false;
   if (!closedByApp) {
-    router.replace('/store/monitor');
+    router.replace('/app#monitor');
   }
 }
 
@@ -208,7 +208,7 @@ export default function SharePrintPage() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => router.replace('/store/monitor')}
+                onClick={() => router.replace('/app#monitor')}
                 className="h-12 flex-1 rounded-xl border border-red-200 bg-white text-sm font-black text-red-700"
               >
                 취소
@@ -255,7 +255,7 @@ export default function SharePrintPage() {
         {status === 'failed' ? (
           <button
             type="button"
-            onClick={() => router.replace('/store/monitor')}
+            onClick={() => router.replace('/app#monitor')}
             className="h-12 w-full rounded-xl bg-gray-900 text-sm font-black text-white"
           >
             프린트 관리로 이동

@@ -5,14 +5,20 @@ import { authConfig } from '../auth.config'
 const { auth } = NextAuth(authConfig)
 
 export default auth((req) => {
-  if (req.nextUrl.pathname === '/store/monitor') {
-    console.log('[store-monitor-page-hit]', {
-      at: new Date().toISOString(),
-      ip: req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip'),
-      userAgent: req.headers.get('user-agent'),
-      referer: req.headers.get('referer'),
-      secFetchMode: req.headers.get('sec-fetch-mode'),
-    })
+  const legacyAppRoutes: Record<string, string> = {
+    '/store/monitor': '/app#monitor',
+    '/store/employees': '/app#employees',
+    '/store/mini-receipt': '/app#miniReceipt',
+    '/mypage': '/app#mypage',
+    '/settings': '/app#settings',
+    '/store/manage': '/app#storeManage',
+    '/store/menu-language': '/app#menuLanguage',
+    '/store/blacklist': '/app#blacklist',
+  }
+
+  const nextPath = legacyAppRoutes[req.nextUrl.pathname]
+  if (nextPath) {
+    return NextResponse.redirect(new URL(nextPath, req.url))
   }
 
   return NextResponse.next()

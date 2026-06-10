@@ -202,6 +202,7 @@ export default function StoreEmployeesPage() {
             <div className="shrink-0 flex items-center gap-1">
               <Link
                 href={`/store/employees/${employee.id}/edit?storeId=${selectedStoreId}`}
+                prefetch={false}
                 className="p-2 text-gray-500 hover:text-indigo-600 rounded-lg hover:bg-indigo-50"
                 title={t.mypage_edit}
               >
@@ -209,6 +210,7 @@ export default function StoreEmployeesPage() {
               </Link>
               <Link
                 href={`/store/employees/${employee.id}/resign?storeId=${selectedStoreId}`}
+                prefetch={false}
                 className="p-2 text-red-500 hover:text-red-700 rounded-lg hover:bg-red-50"
                 title={t.mypage_withdraw}
               >
@@ -324,6 +326,7 @@ export default function StoreEmployeesPage() {
             </button>
             <Link
               href={`/store/employees/new${selectedStoreId ? `?storeId=${selectedStoreId}` : ''}`}
+              prefetch={false}
               className="text-indigo-600 p-2 rounded-lg hover:bg-indigo-50 transition-colors"
               title="직원 추가"
             >
@@ -423,6 +426,7 @@ export default function StoreEmployeesPage() {
                       <div className="shrink-0 flex items-center gap-1">
                         <Link
                           href={`/store/employees/${employee.id}/edit?storeId=${selectedStoreId}`}
+                          prefetch={false}
                           className="p-2 text-gray-500 hover:text-indigo-600 rounded-lg hover:bg-indigo-50"
                           title={t.mypage_edit}
                         >
@@ -430,6 +434,7 @@ export default function StoreEmployeesPage() {
                         </Link>
                         <Link
                           href={`/store/employees/${employee.id}/resign?storeId=${selectedStoreId}`}
+                          prefetch={false}
                           className="p-2 text-red-500 hover:text-red-700 rounded-lg hover:bg-red-50"
                           title={t.mypage_withdraw}
                         >

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
-export default function BusinessApplyPage() {
+export default function MypageAppRedirectPage() {
   redirect('/app#mypage');
 }

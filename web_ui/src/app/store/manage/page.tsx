@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Store, Wifi, Save, Send, ChevronLeft, Search, User, Trash2 } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useFeedback } from '@/components/providers/FeedbackProvider';
@@ -30,6 +30,7 @@ function resolveStoreTimeZone(timeZone?: string | null) {
 
 export default function StoreManagePage() {
   const router = useRouter();
+  const pathname = usePathname();
   const t = useI18n();
   const { confirm, prompt } = useFeedback();
   const [stores, setStores] = useState<StoreSummary[]>([]);
@@ -208,6 +209,15 @@ export default function StoreManagePage() {
     }
   };
 
+  const handleBack = () => {
+    if (pathname === '/app') {
+      window.dispatchEvent(new CustomEvent('worklink-app-navigate', { detail: { tab: 'mypage' } }));
+      return;
+    }
+
+    router.back();
+  };
+
   const handleDeleteStore = async () => {
     if (!(await confirm({
       title: t.store_management,
@@ -233,7 +243,7 @@ export default function StoreManagePage() {
         const data = await res.json();
         alert(t.manage_close_success);
         if (data.remainingStores === 0) {
-          router.push('/mypage');
+          router.push('/app#mypage');
         } else {
           fetchStores(); // Reload
         }
@@ -252,7 +262,7 @@ export default function StoreManagePage() {
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
       <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center space-x-4">
-          <button onClick={() => router.back()} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+          <button onClick={handleBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
             <ChevronLeft className="w-6 h-6 text-gray-600" />
           </button>
           <h1 className="font-bold text-lg text-gray-900">{t.store_management}</h1>

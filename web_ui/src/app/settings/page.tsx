@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 
 export default function SettingsPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const t = useI18n();
   const [locale, setLocale] = useState('ko');
 
@@ -26,11 +27,20 @@ export default function SettingsPage() {
     router.refresh(); // Tell Next.js to re-fetch Server Components
   };
 
+  const handleBack = () => {
+    if (pathname === '/app') {
+      window.dispatchEvent(new CustomEvent('worklink-app-navigate', { detail: { tab: 'mypage' } }));
+      return;
+    }
+
+    router.back();
+  };
+
   return (
     <div className="max-w-2xl mx-auto p-4 md:p-8 space-y-8">
       <div>
         <div className="flex items-center space-x-2 mb-6">
-          <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
+          <button onClick={handleBack} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
             <ChevronLeft className="w-6 h-6 text-gray-600" />
           </button>
           <h1 className="text-2xl font-bold text-gray-900">{t.settings}</h1>

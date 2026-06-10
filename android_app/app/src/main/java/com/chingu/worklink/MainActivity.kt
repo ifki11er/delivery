@@ -8,6 +8,7 @@ import android.provider.Settings
 import android.os.Build
 import android.Manifest
 import android.content.pm.PackageManager
+import android.view.View
 import androidx.core.app.ActivityCompat
 import android.webkit.WebChromeClient
 import android.webkit.CookieManager
@@ -16,6 +17,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.webkit.WebViewAssetLoader
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -26,6 +28,7 @@ import org.json.JSONObject
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private lateinit var splashView: View
     private var startedFromSharePrint = false
 
     companion object {
@@ -39,6 +42,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         webView = findViewById(R.id.webView)
+        splashView = findViewById(R.id.splashView)
         
         val webSettings: WebSettings = webView.settings
         webSettings.javaScriptEnabled = true
@@ -71,12 +75,24 @@ class MainActivity : AppCompatActivity() {
         }
         */
 
-        webView.webViewClient = WebViewClient()
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                webView.visibility = View.VISIBLE
+                splashView.visibility = View.GONE
+            }
+        }
         webView.webChromeClient = WebChromeClient()
 
         // Javascript Interface 등록 (웹뷰에서 DB 데이터 요청 가능하도록 브릿지 연결)
         val printerManager = BluetoothPrinterManager(this)
         webView.addJavascriptInterface(WebAppInterface(printerManager), "AndroidBridge")
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                handleAndroidBack()
+            }
+        })
 
         // [옵션 B: 개발 모드] 사용자 컴퓨터의 Next.js 로컬 서버 로드
         // 안드로이드 에뮬레이터에서는 10.0.2.2 가 컴퓨터의 localhost를 의미합니다.
@@ -137,6 +153,33 @@ class MainActivity : AppCompatActivity() {
         return path.startsWith("/share-print")
             || path.startsWith("share-print")
             || path.contains("/share-print?")
+    }
+
+    private fun handleAndroidBack() {
+        if (startedFromSharePrint) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                finishAndRemoveTask()
+            } else {
+                finish()
+            }
+            return
+        }
+
+        val currentUrl = webView.url ?: ""
+        if (currentUrl.contains("/app")) {
+            webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('worklink-android-back'));",
+                null
+            )
+            return
+        }
+
+        if (webView.canGoBack()) {
+            webView.goBack()
+            return
+        }
+
+        webView.loadUrl("${BuildConfig.WEB_URL.trimEnd('/')}/app#monitor")
     }
 
     // 웹에서 안드로이드 코드를 호출할 수 있게 해주는 인터페이스

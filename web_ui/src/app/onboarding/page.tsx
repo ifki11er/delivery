@@ -63,7 +63,7 @@ export default function OnboardingPage() {
       });
 
       alert(t.onboarding_welcome);
-      router.replace('/store/monitor');
+      router.replace('/app#monitor');
       router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t.onboarding_error);

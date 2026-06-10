@@ -1,7 +1,5 @@
-import MypageClient from './MypageClient';
+import { redirect } from 'next/navigation';
 
-export default async function Mypage() {
-  return (
-    <MypageClient />
-  );
+export default function Mypage() {
+  redirect('/app#mypage');
 }

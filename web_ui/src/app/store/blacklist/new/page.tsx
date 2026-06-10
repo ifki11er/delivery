@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { AlertTriangle, FileText, Phone } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useStores } from '@/components/providers/StoreProvider';
@@ -12,6 +12,7 @@ const MAX_REASON_LENGTH = 100;
 
 export default function NewBlacklistPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const t = useI18n();
   const { loading: storesLoading, hasStore } = useStores();
   const [phone, setPhone] = useState('');
@@ -35,7 +36,11 @@ export default function NewBlacklistPage() {
 
       if (res.ok) {
         alert(t.blacklist_success);
-        router.replace('/store/blacklist');
+        if (pathname === '/app') {
+          window.dispatchEvent(new CustomEvent('worklink-app-navigate', { detail: { tab: 'blacklist' } }));
+        } else {
+          router.replace('/app#blacklist');
+        }
         return;
       }
 

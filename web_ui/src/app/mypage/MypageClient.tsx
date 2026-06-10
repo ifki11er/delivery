@@ -31,6 +31,12 @@ export default function MypageClient() {
     localStorage.setItem('mypage_view_mode', mode);
   };
 
+  const navigateAppTab = (
+    tab: 'monitor' | 'employees' | 'miniReceipt' | 'storeManage' | 'menuLanguage' | 'blacklist' | 'settings',
+  ) => {
+    window.dispatchEvent(new CustomEvent('worklink-app-navigate', { detail: { tab } }));
+  };
+
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
@@ -245,48 +251,48 @@ export default function MypageClient() {
         {/* 사장님 전용 메뉴 */}
         {isOwner && !isAdmin && (viewMode === 'OWNER' || !isEmployee) && (
           <>
-            <Link href="/store/monitor" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+            <button type="button" onClick={() => navigateAppTab('monitor')} className="flex w-full items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors">
               <div className="flex items-center space-x-3 text-gray-700">
                 <Printer className="w-5 h-5 text-gray-400" />
                 <span className="font-medium">{t.order_monitor}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
-            </Link>
-            <Link href="/store/manage" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+            </button>
+            <button type="button" onClick={() => navigateAppTab('storeManage')} className="flex w-full items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors">
               <div className="flex items-center space-x-3 text-gray-700">
                 <Store className="w-5 h-5 text-gray-400" />
                 <span className="font-medium">{t.store_management}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
-            </Link>
-            <Link href="/store/menu-language" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+            </button>
+            <button type="button" onClick={() => navigateAppTab('menuLanguage')} className="flex w-full items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors">
               <div className="flex items-center space-x-3 text-gray-700">
                 <Languages className="w-5 h-5 text-gray-400" />
                 <span className="font-medium">{t.menu_language_title || '메뉴언어관리'}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
-            </Link>
-            <Link href="/store/employees" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+            </button>
+            <button type="button" onClick={() => navigateAppTab('employees')} className="flex w-full items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors">
               <div className="flex items-center space-x-3 text-gray-700">
                 <User className="w-5 h-5 text-gray-400" />
                 <span className="font-medium">{t.employee_management}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
-            </Link>
-            <Link href="/store/blacklist" className="flex items-center justify-between p-4 hover:bg-red-50 transition-colors">
+            </button>
+            <button type="button" onClick={() => navigateAppTab('blacklist')} className="flex w-full items-center justify-between p-4 text-left hover:bg-red-50 transition-colors">
               <div className="flex items-center space-x-3 text-red-700">
                 <AlertTriangle className="w-5 h-5 text-red-500" />
                 <span className="font-bold">{t.mypage_blacklist}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-red-400" />
-            </Link>
-            <Link href="/store/mini-receipt" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+            </button>
+            <button type="button" onClick={() => navigateAppTab('miniReceipt')} className="flex w-full items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors">
               <div className="flex items-center space-x-3 text-gray-700">
                 <ReceiptText className="w-5 h-5 text-gray-400" />
                 <span className="font-medium">{t.nav_mini_receipt}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
-            </Link>
+            </button>
           </>
         )}
 
@@ -310,13 +316,13 @@ export default function MypageClient() {
         <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
           {t.mypage_account}
         </div>
-        <Link href="/settings" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+        <button type="button" onClick={() => navigateAppTab('settings')} className="flex w-full items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors">
           <div className="flex items-center space-x-3 text-gray-700">
             <Settings className="w-5 h-5" />
             <span className="font-medium">{t.settings}</span>
           </div>
           <ChevronRight className="w-5 h-5 text-gray-400" />
-        </Link>
+        </button>
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
           className="w-full flex items-center justify-between p-4 hover:bg-red-50 transition-colors text-left"
