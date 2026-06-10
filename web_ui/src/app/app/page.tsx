@@ -10,6 +10,7 @@ import MenuLanguagePage from '@/app/store/menu-language/page';
 import BlacklistPage from '@/app/store/blacklist/page';
 import NewBlacklistPage from '@/app/store/blacklist/new/page';
 import SettingsPage from '@/app/settings/page';
+import { useFeedback } from '@/components/providers/FeedbackProvider';
 
 type AppTab =
   | 'monitor'
@@ -57,6 +58,7 @@ function getInitialTab() {
 }
 
 export default function AppShellPage() {
+  const { confirm } = useFeedback();
   const [activeTab, setActiveTab] = useState<AppTab>(getInitialTab);
   const [mountedTabs, setMountedTabs] = useState<Set<AppTab>>(() => new Set([getInitialTab()]));
   const activeTabRef = useRef(activeTab);
@@ -101,7 +103,7 @@ export default function AppShellPage() {
 
     const handleHashChange = () => activateTab(normalizeTab(window.location.hash.replace('#', '')));
 
-    const handleAndroidBack = () => {
+    const handleAndroidBack = async () => {
       const previousTab = tabHistoryRef.current.pop();
       if (previousTab) {
         activateTab(previousTab);
@@ -118,7 +120,13 @@ export default function AppShellPage() {
         return;
       }
 
-      if (window.confirm('종료하시겠습니까?')) {
+      if (await confirm({
+        title: '앱 종료',
+        message: '종료하시겠습니까?',
+        confirmText: '종료',
+        cancelText: '취소',
+        danger: true,
+      })) {
         const closedByApp = window.AndroidBridge?.finishApp?.() ?? false;
         if (!closedByApp) {
           window.close();
@@ -135,7 +143,7 @@ export default function AppShellPage() {
       window.removeEventListener('hashchange', handleHashChange);
       window.removeEventListener('worklink-android-back', handleAndroidBack);
     };
-  }, [activeTab]);
+  }, [activeTab, confirm]);
 
   useEffect(() => {
     window.__worklinkActiveAppTab = activeTab;
