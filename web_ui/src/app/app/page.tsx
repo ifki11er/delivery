@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import MonitorPage from '@/app/store/monitor/page';
 import StoreEmployeesPage from '@/app/store/employees/page';
 import MiniReceiptPage from '@/app/store/mini-receipt/page';
@@ -21,6 +21,12 @@ type AppTab =
   | 'blacklist'
   | 'blacklistNew'
   | 'settings';
+
+declare global {
+  interface Window {
+    __worklinkActiveAppTab?: AppTab;
+  }
+}
 
 const defaultTab: AppTab = 'monitor';
 const tabStorageKey = 'worklink_app_active_tab';
@@ -53,6 +59,8 @@ function getInitialTab() {
 export default function AppShellPage() {
   const [activeTab, setActiveTab] = useState<AppTab>(getInitialTab);
   const [mountedTabs, setMountedTabs] = useState<Set<AppTab>>(() => new Set([getInitialTab()]));
+  const activeTabRef = useRef(activeTab);
+  const tabHistoryRef = useRef<AppTab[]>([]);
 
   const tabs = useMemo(() => ([
     { key: 'monitor' as const, component: <MonitorPage /> },
@@ -66,7 +74,16 @@ export default function AppShellPage() {
     { key: 'settings' as const, component: <SettingsPage /> },
   ]), []);
 
-  const activateTab = (tab: AppTab) => {
+  const activateTab = (tab: AppTab, options?: { recordHistory?: boolean }) => {
+    const currentTab = activeTabRef.current;
+    if (tab === currentTab) return;
+
+    if (options?.recordHistory) {
+      tabHistoryRef.current = [...tabHistoryRef.current, currentTab].slice(-20);
+    }
+
+    activeTabRef.current = tab;
+    window.__worklinkActiveAppTab = tab;
     setActiveTab(tab);
     setMountedTabs((current) => {
       if (current.has(tab)) return current;
@@ -79,12 +96,18 @@ export default function AppShellPage() {
 
   useEffect(() => {
     const handleNavigate = (event: Event) => {
-      activateTab(normalizeTab((event as CustomEvent<{ tab?: string }>).detail?.tab));
+      activateTab(normalizeTab((event as CustomEvent<{ tab?: string }>).detail?.tab), { recordHistory: true });
     };
 
     const handleHashChange = () => activateTab(normalizeTab(window.location.hash.replace('#', '')));
 
     const handleAndroidBack = () => {
+      const previousTab = tabHistoryRef.current.pop();
+      if (previousTab) {
+        activateTab(previousTab);
+        return;
+      }
+
       if (['storeManage', 'menuLanguage', 'blacklist', 'blacklistNew', 'settings'].includes(activeTab)) {
         activateTab('mypage');
         return;
@@ -92,6 +115,14 @@ export default function AppShellPage() {
 
       if (activeTab !== defaultTab) {
         activateTab(defaultTab);
+        return;
+      }
+
+      if (window.confirm('종료하시겠습니까?')) {
+        const closedByApp = window.AndroidBridge?.finishApp?.() ?? false;
+        if (!closedByApp) {
+          window.close();
+        }
       }
     };
 
@@ -107,6 +138,7 @@ export default function AppShellPage() {
   }, [activeTab]);
 
   useEffect(() => {
+    window.__worklinkActiveAppTab = activeTab;
     window.localStorage.setItem(tabStorageKey, activeTab);
     window.dispatchEvent(new CustomEvent('worklink-app-tab-changed', { detail: { tab: activeTab } }));
   }, [activeTab]);

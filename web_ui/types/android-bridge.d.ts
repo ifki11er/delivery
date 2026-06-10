@@ -21,6 +21,7 @@ interface AndroidBridge {
   getDefaultPrinter(): string;
   signInWithGoogle(): void;
   finishSharePrint?(): boolean;
+  finishApp?(): boolean;
 }
 
 interface Window {

@@ -604,11 +604,17 @@ export default function MiniReceiptPage() {
     });
   };
 
-  const moveOrMergeCurrentOrder = (targetTable: PosTable) => {
+  const moveOrMergeCurrentOrder = async (targetTable: PosTable) => {
     if (!payload || !currentOrder || currentOrder.items.length === 0) return;
     if (targetTable.id === selectedTableId) {
       return;
     }
+
+    const targetOrder = draftOrders[targetTable.id];
+    const message = targetOrder
+      ? `${targetTable.name} 테이블에 합석하시겠습니까?`
+      : `${targetTable.name} 테이블로 이동하시겠습니까?`;
+    if (!(await confirm({ message }))) return;
 
     setDraftOrders((current) => {
       const sourceOrder = current[selectedTableId] ?? currentOrder;
@@ -984,13 +990,6 @@ export default function MiniReceiptPage() {
                   >
                     이동합석
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('tables')}
-                    className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-black text-indigo-600 hover:bg-gray-50"
-                  >
-                    테이블 관리
-                  </button>
                 </div>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
@@ -1029,13 +1028,6 @@ export default function MiniReceiptPage() {
             <section className="rounded-xl border border-gray-200 bg-white shadow-sm p-3">
               <div className="flex items-center justify-between mb-3 gap-2">
                 <h2 className="font-bold text-gray-900">{t.mini_menu}</h2>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('menus')}
-                  className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-black text-indigo-600 hover:bg-gray-50"
-                >
-                  {t.mini_menu_manage}
-                </button>
               </div>
 
               <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
@@ -1710,7 +1702,7 @@ export default function MiniReceiptPage() {
                       <button
                         key={table.id}
                         type="button"
-                        onClick={() => moveOrMergeCurrentOrder(table)}
+                        onClick={() => void moveOrMergeCurrentOrder(table)}
                         className="flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-left transition-colors hover:bg-gray-50"
                       >
                         <span className="min-w-0 break-words text-sm font-black text-gray-900">{table.name}</span>

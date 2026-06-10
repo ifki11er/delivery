@@ -19,6 +19,7 @@ type AppTab =
   | 'settings';
 
 const mypageTabs: AppTab[] = ['mypage', 'storeManage', 'menuLanguage', 'blacklist', 'blacklistNew', 'settings'];
+const appTabStorageKey = 'worklink_app_active_tab';
 
 export default function BottomNav({ session }: { session: Session | null }) {
   const pathname = usePathname();
@@ -35,6 +36,9 @@ export default function BottomNav({ session }: { session: Session | null }) {
   const isAppShell = pathname === '/app';
 
   useEffect(() => {
+    const storedTab = window.__worklinkActiveAppTab || window.localStorage.getItem(appTabStorageKey);
+    if (storedTab) setActiveAppTab(storedTab as AppTab);
+
     const handleTabChange = (event: Event) => {
       const tab = (event as CustomEvent<{ tab?: AppTab }>).detail?.tab;
       if (tab) setActiveAppTab(tab);
@@ -60,7 +64,10 @@ export default function BottomNav({ session }: { session: Session | null }) {
             <button
               key={item.href}
               type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent('worklink-app-navigate', { detail: { tab: item.appTab } }))}
+              onClick={(event) => {
+                event.currentTarget.blur();
+                window.dispatchEvent(new CustomEvent('worklink-app-navigate', { detail: { tab: item.appTab } }));
+              }}
               className={className}
             >
               <div>{item.icon}</div>

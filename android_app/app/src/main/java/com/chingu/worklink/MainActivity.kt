@@ -301,6 +301,18 @@ class MainActivity : AppCompatActivity() {
             }
             return true
         }
+
+        @android.webkit.JavascriptInterface
+        fun finishApp(): Boolean {
+            this@MainActivity.runOnUiThread {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    this@MainActivity.finishAndRemoveTask()
+                } else {
+                    this@MainActivity.finish()
+                }
+            }
+            return true
+        }
     }
 
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronLeft } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 type PageHeaderProps = {
   title: string;
@@ -19,6 +19,16 @@ export default function PageHeader({
   maxWidth = 'max-w-2xl',
 }: PageHeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
+
+  const handleBack = () => {
+    if (pathname === '/app') {
+      window.dispatchEvent(new CustomEvent('worklink-android-back'));
+      return;
+    }
+
+    router.back();
+  };
 
   return (
     <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
@@ -26,7 +36,7 @@ export default function PageHeader({
         <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={handleBack}
             className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors shrink-0"
             aria-label="뒤로가기"
           >
