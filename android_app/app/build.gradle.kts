@@ -37,8 +37,8 @@ android {
         applicationId = "com.chingu.worklink"
         minSdk = 24
         targetSdk = 34
-        versionCode = 3
-        versionName = "0.2.0"
+        versionCode = 4
+        versionName = "0.2.1"
         buildConfigField("String", "WEB_URL", "\"${webUrl}\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${googleWebClientId}\"")
     }
