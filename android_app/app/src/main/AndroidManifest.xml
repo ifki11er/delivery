@@ -29,7 +29,7 @@
         <activity
             android:name="com.chingu.worklink.SharePrintActivity"
             android:exported="true"
-            android:label="주문 바로 인쇄"
+            android:label="@string/share_print_label"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

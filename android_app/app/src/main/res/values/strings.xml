@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">워크링크</string>
+    <string name="share_print_label">주문 바로 인쇄</string>
 </resources>

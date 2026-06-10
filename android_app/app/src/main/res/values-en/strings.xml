@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">worklink</string>
+    <string name="share_print_label">Print order</string>
 </resources>

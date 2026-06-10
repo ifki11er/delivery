@@ -137,19 +137,19 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
   return (
     <>
       {errorMsg && (
-        <div className="bg-red-500/10 border border-red-500/50 text-red-100 p-4 rounded-xl mb-6 text-sm text-center whitespace-pre-line animate-in fade-in slide-in-from-top-4">
+        <div className="mb-6 animate-in rounded-xl border border-red-200 bg-red-50 p-4 text-center text-sm text-red-700 whitespace-pre-line fade-in slide-in-from-top-4">
           {errorMsg}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-1">
-          <label className="text-sm font-medium text-indigo-100" htmlFor="email">
+          <label className="text-sm font-medium text-gray-700" htmlFor="email">
             {t.login_email}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Mail className="h-5 w-5 text-indigo-200" />
+              <Mail className="h-5 w-5 text-gray-400" />
             </div>
             <input
               id="email"
@@ -157,29 +157,29 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
               type="email"
               placeholder="name@example.com"
               required
-              className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-indigo-200/50 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 placeholder-gray-400 transition-all focus:border-transparent focus:ring-2 focus:ring-gray-900/20 focus:outline-none"
             />
           </div>
         </div>
 
         <div className="space-y-1">
           <div className="flex justify-between items-center">
-            <label className="text-sm font-medium text-indigo-100" htmlFor="password">
+            <label className="text-sm font-medium text-gray-700" htmlFor="password">
               {t.login_pw}
             </label>
             <div className="flex space-x-2">
-              <Link href="/login/find-id" className="text-xs text-indigo-200 hover:text-white transition-colors">
+              <Link href="/login/find-id" className="text-xs text-gray-500 transition-colors hover:text-gray-900">
                 {t.login_find_email}
               </Link>
-              <span className="text-xs text-indigo-200">|</span>
-              <Link href="/login/forgot" className="text-xs text-indigo-200 hover:text-white transition-colors">
+              <span className="text-xs text-gray-300">|</span>
+              <Link href="/login/forgot" className="text-xs text-gray-500 transition-colors hover:text-gray-900">
                 {t.login_find_password}
               </Link>
             </div>
           </div>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Lock className="h-5 w-5 text-indigo-200" />
+              <Lock className="h-5 w-5 text-gray-400" />
             </div>
             <input
               id="password"
@@ -187,12 +187,12 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
               type={showPassword ? 'text' : 'password'}
               placeholder="********"
               required
-              className="w-full pl-10 pr-12 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-indigo-200/50 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pr-12 pl-10 text-gray-900 placeholder-gray-400 transition-all focus:border-transparent focus:ring-2 focus:ring-gray-900/20 focus:outline-none"
             />
             <button
               type="button"
               onClick={() => setShowPassword((value) => !value)}
-              className="absolute inset-y-0 right-0 flex items-center pr-3 text-indigo-200 transition-colors hover:text-white"
+              className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 transition-colors hover:text-gray-900"
               aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
               title={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
             >
@@ -204,7 +204,7 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
         <button
           type="submit"
           disabled={loading}
-          className={`w-full py-3 px-4 bg-white text-indigo-600 font-semibold rounded-xl shadow-lg hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-500 transition-all active:scale-[0.98] ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+          className={`w-full rounded-xl bg-gray-900 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none active:scale-[0.98] ${loading ? 'cursor-not-allowed opacity-70' : ''}`}
         >
           {loading ? processingText : submitText}
         </button>
@@ -212,10 +212,10 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
 
       <div className="mt-8 relative">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-white/20" />
+          <div className="w-full border-t border-gray-200" />
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-transparent text-indigo-100 bg-gradient-to-r from-[#8165cc] to-[#995ca7]">
+          <span className="bg-white px-2 text-gray-500">
             {t.login_social_divider}
           </span>
         </div>
@@ -254,7 +254,7 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
               }
               window.AndroidBridge.signInWithGoogle();
             }}
-            className="relative w-full py-3 px-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold rounded-xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="relative flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-700 shadow-md transition-all hover:bg-gray-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
           >
             <span className={`flex items-center justify-center gap-2 ${nativeGoogleLoading ? 'opacity-0' : ''}`}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -272,7 +272,7 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
             <button
               type="submit"
               disabled={loading || socialLoading !== null}
-              className="relative w-full py-3 px-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold rounded-xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              className="relative flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-700 shadow-md transition-all hover:bg-gray-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
             >
               <span className={`flex items-center justify-center gap-2 ${socialLoading === 'google' ? 'opacity-0' : ''}`}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -289,11 +289,11 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
         )}
       </div>
 
-      <div className="mt-6 text-center text-sm text-indigo-100">
+      <div className="mt-6 text-center text-sm text-gray-500">
         {isRegister ? (t.register_has_account || '이미 계정이 있으신가요?') : t.login_no_account}
         <Link
           href={isRegister ? '/login' : '/login/register'}
-          className="ml-2 font-bold text-white underline underline-offset-4 hover:text-indigo-100"
+          className="ml-2 font-bold text-gray-900 underline underline-offset-4 hover:text-gray-600"
         >
           {isRegister ? t.login_btn : t.login_register}
         </Link>

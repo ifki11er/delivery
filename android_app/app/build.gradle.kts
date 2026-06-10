@@ -22,6 +22,14 @@ val webUrl = localProperties.getProperty("DEV_WEB_URL", "https://delivery-nu-dun
 val googleWebClientId = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", "")
 
 android {
+    signingConfigs {
+        create("release") {
+            storeFile = file("C:\\d\\develop\\delivery\\android_app\\key\\key")
+            storePassword = "clsrnzltmxhdj"
+            keyAlias = "key0"
+            keyPassword = "dnjzmfldzmzl0"
+        }
+    }
     namespace = "com.chingu.worklink"
     compileSdk = 34
 
@@ -30,7 +38,7 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.0.1"
         buildConfigField("String", "WEB_URL", "\"${webUrl}\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${googleWebClientId}\"")
     }
@@ -41,8 +49,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

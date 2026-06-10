@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { useI18n, useLocale } from '@/i18n/I18nProvider';
-import { MapPin, Clock, LogIn, LogOut, CheckCircle2, Power, UserX } from 'lucide-react';
+import { Languages, MapPin, Clock, LogIn, LogOut, CheckCircle2, Power, UserX } from 'lucide-react';
 
 type AttendanceRecord = {
   id: string;
@@ -20,6 +21,7 @@ type AttendanceResponse = {
 };
 
 export default function EmployeeDashboardPage() {
+  const router = useRouter();
   const t = useI18n();
   const locale = useLocale();
   const { data: session } = useSession();
@@ -30,6 +32,12 @@ export default function EmployeeDashboardPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null);
+
+  const handleLanguageChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextLocale = event.target.value;
+    document.cookie = `NEXT_LOCALE=${nextLocale}; path=/; max-age=31536000`;
+    router.refresh();
+  };
 
   const fetchAttendances = useCallback(async () => {
     setLoading(true);
@@ -87,20 +95,20 @@ export default function EmployeeDashboardPage() {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          reason: '직원 본인 요청',
+          reason: t.emp_self_resign_reason,
         }),
       });
 
       if (!res.ok) {
         const err = await res.json();
-        alert(err.error || '퇴사 처리에 실패했습니다.');
+        alert(err.error || t.emp_resign_failed);
         return;
       }
 
       alert(t.emp_resign_success);
       await signOut({ callbackUrl: '/login' });
     } catch {
-      alert('퇴사 처리 중 오류가 발생했습니다.');
+      alert(t.emp_resign_error);
     }
   };
 
@@ -111,8 +119,21 @@ export default function EmployeeDashboardPage() {
   return (
     <div className="bg-gray-50 min-h-screen pb-20 md:pb-0">
       <div className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center">
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
           <h1 className="font-bold text-lg text-gray-900">{t.mypage_emp_dash}</h1>
+          <label className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-bold text-gray-700">
+            <Languages className="h-4 w-4 text-gray-500" />
+            <select
+              aria-label={t.language}
+              value={locale}
+              onChange={handleLanguageChange}
+              className="bg-transparent text-sm font-bold text-gray-700 outline-none"
+            >
+              <option value="ko">{t.setting_lang_ko}</option>
+              <option value="en">{t.setting_lang_en}</option>
+              <option value="vi">{t.setting_lang_vi}</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -178,9 +199,9 @@ export default function EmployeeDashboardPage() {
                   <div>
                     <span className="text-gray-500 text-xs block mb-1">{att.date}</span>
                     <div className="font-bold text-gray-900 flex items-center">
-                      {att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                      {att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) : t.emp_time_empty}
                       <span className="mx-2 text-gray-300">~</span>
-                      {att.checkOutTime ? new Date(att.checkOutTime).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                      {att.checkOutTime ? new Date(att.checkOutTime).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) : t.emp_time_empty}
                     </div>
                   </div>
                   <div className="text-right">
@@ -220,7 +241,7 @@ export default function EmployeeDashboardPage() {
             className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-600 shadow-sm transition-colors hover:bg-red-50"
           >
             <UserX className="h-4 w-4" />
-            퇴사
+            {t.emp_self_resign_button}
           </button>
         </div>
       </div>
