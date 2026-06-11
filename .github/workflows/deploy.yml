@@ -1,0 +1,28 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    # (주의) 실제 운영 시에는 Docker Hub나 GHCR.io에 이미지를 푸시하고,
+    # VPS에서는 pull만 받는 방식을 권장합니다.
+    # 본 스크립트는 VPS 서버에 직접 접속하여 코드를 당겨오고 재빌드하는 방식의 예시입니다.
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v0.1.10
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        script: |
+          cd /path/to/your/project
+          git pull origin main
+          # 최신 코드로 백그라운드에서 빌드 및 재시작 (무중단 아님, 짧은 다운타임 발생)
+          docker-compose up -d --build
+          # 안 쓰는 이미지 정리
+          docker image prune -f

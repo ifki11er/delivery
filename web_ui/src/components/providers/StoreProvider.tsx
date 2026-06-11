@@ -30,7 +30,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (!options?.force) {
+    if (options?.force) {
+      storeMemoryCache.delete(cacheKey);
+      localStorage.removeItem(cacheKey);
+    } else {
       const memoryCached = storeMemoryCache.get(cacheKey);
       if (memoryCached) {
         setStores(memoryCached);
@@ -38,7 +41,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      try {
+      if (!memoryCached) try {
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
           const data = JSON.parse(cached) as StoreSummary[];
@@ -53,7 +56,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const res = await fetch('/api/store');
+      const res = await fetch('/api/store', { cache: 'no-store' });
       if (!res.ok) {
         setStores([]);
         return;
@@ -72,6 +75,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     void refreshStores();
+  }, [refreshStores]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void refreshStores({ force: true });
+    };
+
+    window.addEventListener('worklink-stores-updated', refresh);
+    return () => window.removeEventListener('worklink-stores-updated', refresh);
   }, [refreshStores]);
 
   const value = useMemo<StoreContextValue>(() => ({

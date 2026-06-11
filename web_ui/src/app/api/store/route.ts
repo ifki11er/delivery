@@ -158,10 +158,9 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Soft Delete Store (Change status to CLOSED instead of hard deleting)
-    await prisma.store.update({ 
-      where: { id }, 
-      data: { status: 'CLOSED' } 
+    await prisma.store.update({
+      where: { id },
+      data: { status: 'CLOSED' },
     });
 
     // Check remaining active stores, downgrade to CUSTOMER if 0

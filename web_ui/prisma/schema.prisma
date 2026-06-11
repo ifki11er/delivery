@@ -105,6 +105,7 @@ model Store {
   posTables          PosTable[]
   posCategories      PosCategory[]
   posMenus           PosMenu[]
+  posSideMenus       PosSideMenu[]
   posOrders          PosOrder[]
   printJobs          PrintJob[]
   dailySequences     StoreDailySequence[]
@@ -250,11 +251,43 @@ model PosMenu {
   price      Int            @default(0)
   isActive   Boolean        @default(true) @map("is_active")
   orderItems PosOrderItem[]
+  sideLinks  PosMenuSide[]
   createdAt  DateTime       @default(now()) @map("created_at")
   updatedAt  DateTime       @updatedAt @map("updated_at")
 
   @@index([storeId])
   @@map("pos_menus")
+}
+
+model PosSideMenu {
+  id           String               @id
+  storeId      String               @map("store_id")
+  store        Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name         String
+  price        Int                  @default(0)
+  sortOrder    Int                  @default(0) @map("sort_order")
+  isActive     Boolean              @default(true) @map("is_active")
+  menuLinks    PosMenuSide[]
+  orderOptions PosOrderItemOption[]
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  @@index([storeId])
+  @@map("pos_side_menus")
+}
+
+model PosMenuSide {
+  id         String      @id
+  menuId     String      @map("menu_id")
+  menu       PosMenu     @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  sideMenuId String      @map("side_menu_id")
+  sideMenu   PosSideMenu @relation(fields: [sideMenuId], references: [id], onDelete: Cascade)
+  sortOrder  Int         @default(0) @map("sort_order")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@unique([menuId, sideMenuId])
+  @@index([sideMenuId])
+  @@map("pos_menu_sides")
 }
 
 model PosOrder {
@@ -288,11 +321,29 @@ model PosOrderItem {
   price     Int       @default(0)
   quantity  Int       @default(1)
   itemType  String    @default("MENU") @map("item_type")
+  options   PosOrderItemOption[]
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   @@index([orderId])
   @@map("pos_order_items")
+}
+
+model PosOrderItemOption {
+  id           String         @id
+  orderItemId  String         @map("order_item_id")
+  orderItem    PosOrderItem   @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  sideMenuId   String?        @map("side_menu_id")
+  sideMenu     PosSideMenu?   @relation(fields: [sideMenuId], references: [id], onDelete: SetNull)
+  groupName    String         @default("") @map("group_name")
+  name         String
+  price        Int            @default(0)
+  quantity     Int            @default(1)
+  sortOrder    Int            @default(0) @map("sort_order")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  @@index([orderItemId])
+  @@map("pos_order_item_options")
 }
 
 model PrintJob {

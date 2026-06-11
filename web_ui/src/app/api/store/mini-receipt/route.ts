@@ -12,6 +12,16 @@ type OrderWithItems = Awaited<ReturnType<typeof prisma.posOrder.findFirst>> & {
     price: number;
     quantity: number;
     itemType: string;
+    options?: Array<{
+      id: string;
+      orderItemId: string;
+      sideMenuId: string | null;
+      groupName: string;
+      name: string;
+      price: number;
+      quantity: number;
+      sortOrder: number;
+    }>;
   }>;
 };
 
@@ -22,6 +32,16 @@ type CheckoutSnapshotItem = {
   price?: unknown;
   quantity?: unknown;
   itemType?: unknown;
+  options?: unknown;
+};
+
+type CheckoutSnapshotOption = {
+  sideMenuId?: unknown;
+  groupName?: unknown;
+  name?: unknown;
+  price?: unknown;
+  quantity?: unknown;
+  sortOrder?: unknown;
 };
 
 function newId(prefix: string) {
@@ -35,6 +55,15 @@ function serializeMenu(menu: {
   name: string;
   price: number;
   isActive: boolean;
+  sideLinks?: Array<{
+    sideMenu: {
+      id: string;
+      name: string;
+      price: number;
+      sortOrder: number;
+      isActive: boolean;
+    };
+  }>;
 }) {
   return {
     id: menu.id,
@@ -43,6 +72,23 @@ function serializeMenu(menu: {
     name: menu.name,
     price: menu.price,
     is_active: menu.isActive,
+    sides: (menu.sideLinks ?? []).map(({ sideMenu }) => serializeSideMenu(sideMenu)),
+  };
+}
+
+function serializeSideMenu(side: {
+  id: string;
+  name: string;
+  price: number;
+  sortOrder: number;
+  isActive: boolean;
+}) {
+  return {
+    id: side.id,
+    name: side.name,
+    price: side.price,
+    sort_order: side.sortOrder,
+    is_active: side.isActive,
   };
 }
 
@@ -55,6 +101,15 @@ function serializeItem(item: {
   price: number;
   quantity: number;
   itemType: string;
+  options?: Array<{
+    id: string;
+    sideMenuId: string | null;
+    groupName: string;
+    name: string;
+    price: number;
+    quantity: number;
+    sortOrder: number;
+  }>;
 }) {
   return {
     id: item.id,
@@ -65,6 +120,15 @@ function serializeItem(item: {
     price: item.price,
     quantity: item.quantity,
     item_type: item.itemType,
+    options: (item.options ?? []).map((option) => ({
+      id: option.id,
+      side_menu_id: option.sideMenuId,
+      group_name: option.groupName,
+      name: option.name,
+      price: option.price,
+      quantity: option.quantity,
+      sort_order: option.sortOrder,
+    })),
   };
 }
 
@@ -118,7 +182,7 @@ function getHistoryDateRange(historyDate?: string | null, from?: string | null, 
 
 async function buildPayload(storeId: string, historyDate?: string | null, historyFrom?: string | null, historyTo?: string | null) {
   const historyRange = getHistoryDateRange(historyDate, historyFrom, historyTo);
-  const [tables, categories, openOrders, closedOrders] = await Promise.all([
+  const [tables, categories, sideMenus, openOrders, closedOrders] = await Promise.all([
     prisma.posTable.findMany({
       where: { storeId },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
@@ -127,15 +191,28 @@ async function buildPayload(storeId: string, historyDate?: string | null, histor
       where: { storeId },
       include: {
         menus: {
+          include: {
+            sideLinks: {
+              include: { sideMenu: true },
+              orderBy: { sortOrder: 'asc' },
+            },
+          },
           orderBy: { createdAt: 'asc' },
         },
       },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    }),
+    prisma.posSideMenu.findMany({
+      where: { storeId },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     }),
     prisma.posOrder.findMany({
       where: { storeId, status: 'OPEN' },
       include: {
         items: {
+          include: {
+            options: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+          },
           orderBy: { createdAt: 'asc' },
         },
       },
@@ -154,6 +231,9 @@ async function buildPayload(storeId: string, historyDate?: string | null, histor
       },
       include: {
         items: {
+          include: {
+            options: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+          },
           orderBy: { createdAt: 'asc' },
         },
       },
@@ -175,6 +255,7 @@ async function buildPayload(storeId: string, historyDate?: string | null, histor
       sort_order: category.sortOrder,
       menus: category.menus.map(serializeMenu),
     })),
+    side_menus: sideMenus.map(serializeSideMenu),
     orders: openOrders.map(serializeOrder),
     history: closedOrders.map(serializeOrder),
   };
@@ -354,11 +435,70 @@ export async function POST(req: Request) {
           isActive: Boolean(body.isActive),
         },
       });
+
+      if (Array.isArray(body.sideMenuIds)) {
+        const sideMenuIds = body.sideMenuIds.map((id: unknown) => String(id)).filter(Boolean);
+        const validSideMenus = sideMenuIds.length > 0
+          ? await prisma.posSideMenu.findMany({
+              where: { storeId: store.id, id: { in: sideMenuIds } },
+              select: { id: true },
+            })
+          : [];
+
+        await prisma.$transaction([
+          prisma.posMenuSide.deleteMany({ where: { menuId } }),
+          ...validSideMenus.map((side, index) => prisma.posMenuSide.create({
+            data: {
+              id: newId(`menuside${index}`),
+              menuId,
+              sideMenuId: side.id,
+              sortOrder: index,
+            },
+          })),
+        ]);
+      }
     }
 
     if (action === 'menu.delete') {
       await prisma.posMenu.deleteMany({
         where: { id: String(body.menuId), storeId: store.id },
+      });
+    }
+
+    if (action === 'side.create') {
+      const name = String(body.name || '').trim();
+      if (!name) return NextResponse.json({ error: 'Side name is required' }, { status: 400 });
+
+      await prisma.posSideMenu.create({
+        data: {
+          id: newId('side'),
+          storeId: store.id,
+          name,
+          price: Math.max(0, Number(body.price || 0)),
+          sortOrder: Number(body.sortOrder || 0),
+        },
+      });
+    }
+
+    if (action === 'side.update') {
+      const sideId = String(body.sideId || '');
+      const name = String(body.name || '').trim();
+      if (!name) return NextResponse.json({ error: 'Side name is required' }, { status: 400 });
+
+      await prisma.posSideMenu.updateMany({
+        where: { id: sideId, storeId: store.id },
+        data: {
+          name,
+          price: Math.max(0, Number(body.price || 0)),
+          sortOrder: Number(body.sortOrder || 0),
+          isActive: body.isActive === undefined ? true : Boolean(body.isActive),
+        },
+      });
+    }
+
+    if (action === 'side.delete') {
+      await prisma.posSideMenu.deleteMany({
+        where: { id: String(body.sideId || ''), storeId: store.id },
       });
     }
 
@@ -379,18 +519,36 @@ export async function POST(req: Request) {
       }
 
       const orderId = newId('order');
-      const sanitizedItems = items.map((item, index) => ({
-        id: newId(`item${index}`),
-        menuId: typeof item.menuId === 'string' && item.menuId ? item.menuId : null,
-        name: String(item.name || '').trim() || '항목',
-        menuCode: String(item.menuCode || '').replace(/[^0-9]/g, '').trim(),
-        price: Math.abs(Number(item.price || 0)),
-        quantity: isReturn
+      const sanitizedItems = items.map((item, index) => {
+        const quantity = isReturn
           ? -Math.max(1, Math.abs(Number(item.quantity || 1)))
-          : Math.max(1, Number(item.quantity || 1)),
-        itemType: String(item.itemType || 'MENU'),
-      }));
-      const total = sanitizedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+          : Math.max(1, Number(item.quantity || 1));
+        const options = Array.isArray(item.options) ? item.options as CheckoutSnapshotOption[] : [];
+        const sanitizedOptions = options.map((option, optionIndex) => ({
+          id: newId(`itemopt${index}_${optionIndex}`),
+          sideMenuId: typeof option.sideMenuId === 'string' && option.sideMenuId ? option.sideMenuId : null,
+          groupName: String(option.groupName || '').trim(),
+          name: String(option.name || '').trim(),
+          price: Math.abs(Number(option.price || 0)),
+          quantity: Math.max(1, Number(option.quantity || 1)),
+          sortOrder: Number(option.sortOrder || optionIndex),
+        })).filter((option) => option.name);
+
+        return {
+          id: newId(`item${index}`),
+          menuId: typeof item.menuId === 'string' && item.menuId ? item.menuId : null,
+          name: String(item.name || '').trim() || '항목',
+          menuCode: String(item.menuCode || '').replace(/[^0-9]/g, '').trim(),
+          price: Math.abs(Number(item.price || 0)),
+          quantity,
+          itemType: String(item.itemType || 'MENU'),
+          options: sanitizedOptions,
+        };
+      });
+      const total = sanitizedItems.reduce((sum, item) => {
+        const optionTotal = item.options.reduce((optionSum, option) => optionSum + option.price * option.quantity, 0);
+        return sum + (item.price + optionTotal) * item.quantity;
+      }, 0);
 
       await prisma.posOrder.create({
         data: {
@@ -404,7 +562,18 @@ export async function POST(req: Request) {
           orderSequence,
           closedAt: new Date(),
           items: {
-            create: sanitizedItems,
+            create: sanitizedItems.map((item) => ({
+              id: item.id,
+              menuId: item.menuId,
+              name: item.name,
+              menuCode: item.menuCode,
+              price: item.price,
+              quantity: item.quantity,
+              itemType: item.itemType,
+              options: {
+                create: item.options,
+              },
+            })),
           },
         },
       });

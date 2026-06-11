@@ -11,6 +11,7 @@ if (process.env.AUTH_URL) {
 }
 
 const nextConfig: NextConfig = {
+  // output: "standalone",
   images: {
     unoptimized: true,
     remotePatterns: [

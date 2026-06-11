@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Store, Wifi, Save, Send, ChevronLeft, Search, User, Trash2 } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useFeedback } from '@/components/providers/FeedbackProvider';
+import { useStores } from '@/components/providers/StoreProvider';
 import type { StoreSummary, UserSearchResult } from '@/types/store-management';
 
 const DEFAULT_TIME_ZONE =
@@ -33,6 +34,7 @@ export default function StoreManagePage() {
   const pathname = usePathname();
   const t = useI18n();
   const { confirm, prompt } = useFeedback();
+  const { refreshStores } = useStores();
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -108,6 +110,7 @@ export default function StoreManagePage() {
       if (res.ok) {
         const updatedStore = (await res.json()) as StoreSummary;
         alert(t.manage_save_success);
+        await refreshStores({ force: true });
         await fetchStores(updatedStore.id || storeId);
       } else {
         const err = await res.json();
@@ -138,6 +141,7 @@ export default function StoreManagePage() {
         return;
       }
       const createdStore = (await res.json()) as StoreSummary;
+      await refreshStores({ force: true });
       await fetchStores(createdStore.id);
     } catch {
       alert('상점 추가 중 오류가 발생했습니다.');
@@ -242,6 +246,8 @@ export default function StoreManagePage() {
       if (res.ok) {
         const data = await res.json();
         alert(t.manage_close_success);
+        await refreshStores({ force: true });
+        window.dispatchEvent(new CustomEvent('worklink-stores-updated'));
         if (data.remainingStores === 0) {
           router.push('/app#mypage');
         } else {
@@ -487,23 +493,23 @@ export default function StoreManagePage() {
             </div>
 
             {/* 상점 폐업 (Soft Delete) */}
-            <div className="hidden bg-gray-900 rounded-2xl border border-gray-800 p-5 space-y-4 relative overflow-hidden">
+            <div className="bg-white rounded-2xl border border-red-100 p-5 space-y-4 relative overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-                <Trash2 className="w-32 h-32 text-white" />
+                <Trash2 className="w-32 h-32 text-red-900" />
               </div>
-              <h2 className="font-bold text-lg text-gray-100 flex items-center relative z-10">
-                <Store className="w-5 h-5 mr-2" /> {t.manage_close_title}
+              <h2 className="font-bold text-lg text-red-700 flex items-center relative z-10">
+                <Trash2 className="w-5 h-5 mr-2" /> 상점 삭제
               </h2>
-              <p className="text-sm text-gray-400 relative z-10 leading-relaxed">
-                {t.manage_close_desc_prefix} <strong>{t.manage_closed_badge}</strong> {t.manage_close_desc_suffix}<br />
-                {t.manage_close_desc_detail}
+              <p className="text-sm text-red-600/80 relative z-10 leading-relaxed">
+                상점 삭제 시 실제 데이터는 지우지 않고 폐업 처리됩니다. 과거 주문내역, 메뉴, 출력 이력은 보관됩니다.
               </p>
               
               <button 
                 onClick={handleDeleteStore}
-                className="w-full py-3.5 bg-gray-800 text-red-400 border border-red-900/30 rounded-xl font-bold hover:bg-red-950 transition-colors flex items-center justify-center relative z-10"
+                className="w-full py-3.5 bg-red-600 text-white border border-red-700 rounded-xl font-bold hover:bg-red-700 transition-colors flex items-center justify-center relative z-10"
               >
-                {t.manage_close_btn}
+                <Trash2 className="mr-2 h-5 w-5" />
+                상점 삭제
               </button>
             </div>
           </>

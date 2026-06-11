@@ -48,6 +48,15 @@ type PosMenu = {
   name: string;
   price: number;
   is_active: boolean;
+  sides: PosMenuSide[];
+};
+
+type PosMenuSide = {
+  id: string;
+  name: string;
+  price: number;
+  sort_order: number;
+  is_active: boolean;
 };
 
 type PosCategory = {
@@ -65,6 +74,17 @@ type PosOrderItem = {
   price: number;
   quantity: number;
   item_type: string;
+  options: PosOrderItemOption[];
+};
+
+type PosOrderItemOption = {
+  id: string;
+  side_menu_id: string | null;
+  group_name: string;
+  name: string;
+  price: number;
+  quantity: number;
+  sort_order: number;
 };
 
 type PosOrder = {
@@ -93,6 +113,7 @@ type PosPayload = {
   };
   tables: PosTable[];
   categories: PosCategory[];
+  side_menus: PosMenuSide[];
   orders: PosOrder[];
   history: PosOrder[];
 };
@@ -148,6 +169,7 @@ function createEmptyPayload(store: StoreSeed): PosPayload {
     store,
     tables: [],
     categories: [],
+    side_menus: [],
     orders: [],
     history: [],
   };
@@ -206,6 +228,36 @@ function formatReceiptPrintedAt() {
   return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
 }
 
+function getItemOptionTotal(item: PosOrderItem) {
+  return (item.options ?? []).reduce((sum, option) => sum + option.price * option.quantity, 0);
+}
+
+function getItemUnitTotal(item: PosOrderItem) {
+  return item.price + getItemOptionTotal(item);
+}
+
+function getItemLineTotal(item: PosOrderItem) {
+  return getItemUnitTotal(item) * item.quantity;
+}
+
+function getOptionsSignature(options: PosOrderItemOption[] = []) {
+  return [...options]
+    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+    .map((option) => `${option.side_menu_id || option.name}:${option.price}:${option.quantity}`)
+    .join('|');
+}
+
+function getNextMenuCode(categories: PosCategory[]) {
+  const numericCodes = categories
+    .flatMap((category) => category.menus.map((menu) => menu.menu_code.trim()))
+    .filter((code) => /^\d+$/.test(code));
+  if (numericCodes.length === 0) return '1';
+
+  const maxCode = numericCodes.reduce((max, code) => (Number(code) > Number(max) ? code : max), numericCodes[0]);
+  const nextCode = String(Number(maxCode) + 1);
+  return maxCode.length > nextCode.length ? nextCode.padStart(maxCode.length, '0') : nextCode;
+}
+
 function getHistoryEntryTime(entry: HistoryEntry) {
   const value = entry.type === 'pos'
     ? entry.order.closed_at || entry.order.updated_at || entry.order.created_at
@@ -234,11 +286,12 @@ function getHistoryEntrySequence(entry: HistoryEntry, entries: HistoryEntry[], i
 export default function MiniReceiptPage() {
   const t = useI18n();
   const { confirm, prompt } = useFeedback();
-  const { stores, loading: storesLoading } = useStores();
+  const { stores, loading: storesLoading, refreshStores } = useStores();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [payload, setPayload] = useState<PosPayload | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('order');
+  const [menuSettingsMode, setMenuSettingsMode] = useState<'main' | 'sides'>('main');
   const [showManageMenu, setShowManageMenu] = useState(false);
   const [selectedTableId, setSelectedTableId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
@@ -248,8 +301,11 @@ export default function MiniReceiptPage() {
   const [menuName, setMenuName] = useState('');
   const [menuPrice, setMenuPrice] = useState('');
   const [editingMenu, setEditingMenu] = useState<PosMenu | null>(null);
-  const [editMenuForm, setEditMenuForm] = useState({ menuCode: '', name: '', price: '' });
+  const [editMenuForm, setEditMenuForm] = useState({ menuCode: '', name: '', price: '', sideMenuIds: [] as string[] });
   const [menuCategoryId, setMenuCategoryId] = useState('');
+  const [sideDraft, setSideDraft] = useState({ name: '', price: '' });
+  const [sideMenu, setSideMenu] = useState<PosMenu | null>(null);
+  const [selectedSideIds, setSelectedSideIds] = useState<string[]>([]);
   const [customItemName, setCustomItemName] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState('');
   const [discountAmount, setDiscountAmount] = useState('');
@@ -267,10 +323,18 @@ export default function MiniReceiptPage() {
   const [deliveryHistory, setDeliveryHistory] = useState<PrintHistoryItem[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const manageMenuRef = useRef<HTMLDivElement | null>(null);
-  const preferredStore = stores.find((store) => store.id === selectedStoreId) || stores[0] || null;
+  const selectedStore = stores.find((store) => store.id === selectedStoreId) || null;
+  const preferredStore = selectedStore || (!selectedStoreId ? stores[0] || null : null);
   const preferredStoreId = preferredStore?.id || '';
 
   useEffect(() => {
+    if (!storesLoading && selectedStoreId && !stores.some((store) => store.id === selectedStoreId)) {
+      setSelectedStoreId(stores[0]?.id || '');
+      setPayload(null);
+      setDeliveryHistory([]);
+      return;
+    }
+
     if (storesLoading || stores.length === 0 || selectedStoreId) return;
 
     const storedStoreId = localStorage.getItem(selectedStoreStorageKey);
@@ -314,23 +378,46 @@ export default function MiniReceiptPage() {
   }, [showManageMenu]);
 
   const applyPayload = (data: PosPayload) => {
-    setPayload(data);
+    const normalizedData: PosPayload = {
+      ...data,
+      side_menus: data.side_menus ?? [],
+      categories: data.categories.map((category) => ({
+        ...category,
+        menus: category.menus.map((menu) => ({
+          ...menu,
+          sides: menu.sides ?? [],
+        })),
+      })),
+      orders: data.orders.map((order) => ({
+        ...order,
+        items: order.items.map((item) => ({ ...item, options: item.options ?? [] })),
+      })),
+      history: data.history.map((order) => ({
+        ...order,
+        items: order.items.map((item) => ({ ...item, options: item.options ?? [] })),
+      })),
+    };
+    setPayload(normalizedData);
 
-    const nextTableId = data.tables.some((table) => table.id === selectedTableId)
+    const nextTableId = normalizedData.tables.some((table) => table.id === selectedTableId)
       ? selectedTableId
-      : data.tables[0]?.id || '';
-    const nextCategoryId = data.categories.some((category) => category.id === selectedCategoryId)
+      : normalizedData.tables[0]?.id || '';
+    const nextCategoryId = normalizedData.categories.some((category) => category.id === selectedCategoryId)
       ? selectedCategoryId
-      : data.categories[0]?.id || '';
+      : normalizedData.categories[0]?.id || '';
     setSelectedTableId(nextTableId);
     setSelectedCategoryId(nextCategoryId);
     setMenuCategoryId((current) => (
-      data.categories.some((category) => category.id === current) ? current : nextCategoryId
+      normalizedData.categories.some((category) => category.id === current) ? current : nextCategoryId
     ));
 
-    const stored = localStorage.getItem(`${draftStoragePrefix}_${data.store.id}`);
-    setDraftOrders(stored ? JSON.parse(stored) as DraftOrders : {});
-    const storedReceiptSettings = localStorage.getItem(`${receiptSettingsStoragePrefix}_${data.store.id}`);
+    const stored = localStorage.getItem(`${draftStoragePrefix}_${normalizedData.store.id}`);
+    const storedDrafts = stored ? JSON.parse(stored) as DraftOrders : {};
+    setDraftOrders(Object.fromEntries(Object.entries(storedDrafts).map(([tableId, order]) => [
+      tableId,
+      { ...order, items: order.items.map((item) => ({ ...item, options: item.options ?? [] })) },
+    ])));
+    const storedReceiptSettings = localStorage.getItem(`${receiptSettingsStoragePrefix}_${normalizedData.store.id}`);
     setReceiptSettings(storedReceiptSettings
       ? { ...defaultReceiptPrintSettings, ...JSON.parse(storedReceiptSettings) as Partial<ReceiptPrintSettings> }
       : defaultReceiptPrintSettings);
@@ -402,7 +489,7 @@ export default function MiniReceiptPage() {
         }) ?? []).filter((item) => item.status === 'PRINTED'));
         setLoading(false);
         return;
-      } else if (preferredStore && !payload) {
+      } else if (preferredStore && payload?.store.id !== preferredStoreId) {
         applyPayload(createEmptyPayload({
           id: preferredStore.id,
           name: preferredStore.name,
@@ -425,6 +512,7 @@ export default function MiniReceiptPage() {
   const { refreshing } = usePullToRefresh({
     disabled: storesLoading || !preferredStoreId,
     onRefresh: async () => {
+      await refreshStores({ force: true });
       await loadData(historyDate, { force: true });
     },
   });
@@ -485,13 +573,21 @@ export default function MiniReceiptPage() {
   const selectedTable = payload?.tables.find((table) => table.id === selectedTableId) ?? null;
   const selectedCategory = payload?.categories.find((category) => category.id === selectedCategoryId) ?? null;
   const currentOrder = draftOrders[selectedTableId] ?? null;
+  const nextMenuCode = useMemo(() => (
+    payload ? getNextMenuCode(payload.categories) : ''
+  ), [payload]);
 
   useEffect(() => {
     setOrderNote(currentOrder?.note || '');
   }, [currentOrder?.id, currentOrder?.note]);
 
+  useEffect(() => {
+    if (menuCode || !nextMenuCode) return;
+    setMenuCode(nextMenuCode);
+  }, [menuCode, nextMenuCode]);
+
   const total = useMemo(() => {
-    return currentOrder?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) ?? 0;
+    return currentOrder?.items.reduce((sum, item) => sum + getItemLineTotal(item), 0) ?? 0;
   }, [currentOrder]);
 
   const historyEntries = useMemo<HistoryEntry[]>(() => {
@@ -518,6 +614,15 @@ export default function MiniReceiptPage() {
           name: miniLanguageMode === 'BOTH' && translatedName !== item.name
             ? `${item.name} / ${translatedName}`
             : translatedName,
+          options: (item.options ?? []).map((option) => {
+            const translatedOptionName = replaceName(option.name);
+            return {
+              ...option,
+              name: miniLanguageMode === 'BOTH' && translatedOptionName !== option.name
+                ? `${option.name} / ${translatedOptionName}`
+                : translatedOptionName,
+            };
+          }),
         };
       }),
     };
@@ -549,7 +654,7 @@ export default function MiniReceiptPage() {
     setDraftOrders((current) => {
       const base = current[tableId] ?? createDraftOrder(tableId);
       const nextOrder = updater(base);
-      const nextTotal = nextOrder.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const nextTotal = nextOrder.items.reduce((sum, item) => sum + getItemLineTotal(item), 0);
       if (nextOrder.items.length === 0) {
         const rest = { ...current };
         delete rest[tableId];
@@ -567,11 +672,30 @@ export default function MiniReceiptPage() {
     });
   };
 
-  const addMenuToDraft = (menu: PosMenu) => {
+  const buildSelectedSideOptions = (menu: PosMenu, sideIds: string[]): PosOrderItemOption[] => {
+    return sideIds
+      .map((sideId, index) => {
+        const side = menu.sides.find((item) => item.id === sideId && item.is_active);
+        if (!side) return null;
+        return {
+          id: `draft_option_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          side_menu_id: side.id,
+          group_name: '',
+          name: side.name,
+          price: side.price,
+          quantity: 1,
+          sort_order: index,
+        } satisfies PosOrderItemOption;
+      })
+      .filter(Boolean) as PosOrderItemOption[];
+  };
+
+  const addMenuSelectionToDraft = (menu: PosMenu, selectedOptions: PosOrderItemOption[] = []) => {
     if (!selectedTableId) return;
 
     updateDraftOrder(selectedTableId, (order) => {
-      const existing = order.items.find((item) => item.menu_id === menu.id);
+      const optionSignature = getOptionsSignature(selectedOptions);
+      const existing = order.items.find((item) => item.menu_id === menu.id && getOptionsSignature(item.options) === optionSignature);
       if (existing) {
         return {
           ...order,
@@ -594,10 +718,22 @@ export default function MiniReceiptPage() {
             price: menu.price,
             quantity: 1,
             item_type: 'MENU',
+            options: selectedOptions,
           },
         ],
       };
     });
+  };
+
+  const addMenuToDraft = (menu: PosMenu) => {
+    const activeSides = menu.sides.filter((side) => side.is_active);
+    if (activeSides.length === 0) {
+      addMenuSelectionToDraft(menu);
+      return;
+    }
+
+    setSideMenu(menu);
+    setSelectedSideIds([]);
   };
 
   const addCustomItemToDraft = (name: string, price: number, itemType: string) => {
@@ -616,6 +752,7 @@ export default function MiniReceiptPage() {
           price,
           quantity: 1,
           item_type: itemType,
+          options: [],
         },
       ],
     }));
@@ -689,6 +826,7 @@ export default function MiniReceiptPage() {
           && targetItem.name === item.name
           && targetItem.price === item.price
           && targetItem.item_type === item.item_type
+          && getOptionsSignature(targetItem.options) === getOptionsSignature(item.options)
         ));
         if (foundIndex >= 0) {
           mergedItems[foundIndex] = {
@@ -701,7 +839,7 @@ export default function MiniReceiptPage() {
       });
       const rest = { ...current };
       delete rest[selectedTableId];
-      const total = mergedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const total = mergedItems.reduce((sum, item) => sum + getItemLineTotal(item), 0);
       return {
         ...rest,
         [targetTable.id]: {
@@ -837,6 +975,14 @@ export default function MiniReceiptPage() {
         price: item.price,
         quantity: item.quantity,
         itemType: item.item_type,
+        options: (item.options ?? []).map((option) => ({
+          sideMenuId: option.side_menu_id,
+          groupName: option.group_name,
+          name: option.name,
+          price: option.price,
+          quantity: option.quantity,
+          sortOrder: option.sort_order,
+        })),
       })),
     });
   };
@@ -897,6 +1043,14 @@ export default function MiniReceiptPage() {
         price: item.price,
         quantity: item.quantity,
         itemType: item.item_type,
+        options: (item.options ?? []).map((option) => ({
+          sideMenuId: option.side_menu_id,
+          groupName: option.group_name,
+          name: option.name,
+          price: option.price,
+          quantity: option.quantity,
+          sortOrder: option.sort_order,
+        })),
       })),
     });
     clearDraftOrder();
@@ -926,12 +1080,13 @@ export default function MiniReceiptPage() {
       menuCode: menu.menu_code,
       name: menu.name,
       price: String(menu.price),
+      sideMenuIds: menu.sides.map((side) => side.id),
     });
   };
 
   const closeEditMenu = () => {
     setEditingMenu(null);
-    setEditMenuForm({ menuCode: '', name: '', price: '' });
+    setEditMenuForm({ menuCode: '', name: '', price: '', sideMenuIds: [] });
   };
 
   const submitEditMenu = async () => {
@@ -947,15 +1102,40 @@ export default function MiniReceiptPage() {
       name,
       price,
       isActive: editingMenu.is_active,
+      sideMenuIds: editMenuForm.sideMenuIds,
     });
     closeEditMenu();
   };
 
-  if (!storesLoading && !payload) {
+  const toggleEditMenuSide = (sideId: string) => {
+    setEditMenuForm((current) => ({
+      ...current,
+      sideMenuIds: current.sideMenuIds.includes(sideId)
+        ? current.sideMenuIds.filter((id) => id !== sideId)
+        : [...current.sideMenuIds, sideId],
+    }));
+  };
+
+  const toggleSideSelection = (sideId: string) => {
+    setSelectedSideIds((current) => (
+      current.includes(sideId) ? current.filter((id) => id !== sideId) : [...current, sideId]
+    ));
+  };
+
+  const confirmSideMenu = () => {
+    if (!sideMenu) return;
+    addMenuSelectionToDraft(sideMenu, buildSelectedSideOptions(sideMenu, selectedSideIds));
+    setSideMenu(null);
+    setSelectedSideIds([]);
+  };
+
+  if (!storesLoading && stores.length === 0) {
     return <StoreRequiredNotice />;
   }
 
-  if (!payload) return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
+  if (!preferredStoreId || !payload || payload.store.id !== preferredStoreId) {
+    return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
+  }
 
   return (
     <div className="bg-gray-50 min-h-screen pb-24 md:pb-6">
@@ -1182,9 +1362,19 @@ export default function MiniReceiptPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <p className="whitespace-normal break-words text-sm font-bold text-gray-900">{item.name}</p>
-                          <p className="text-xs text-gray-500">{formatMoney(item.price)}</p>
+                          <p className="text-xs text-gray-500">{formatMoney(getItemUnitTotal(item))}</p>
+                          {(item.options ?? []).length > 0 ? (
+                            <div className="mt-1 space-y-0.5">
+                              {item.options.map((option) => (
+                                <p key={option.id} className="whitespace-normal break-words text-xs font-semibold text-gray-500">
+                                  + {option.group_name ? `${option.group_name}: ` : ''}{option.name}
+                                  {option.price > 0 ? ` ${formatMoney(option.price)}` : ''}
+                                </p>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
-                        <p className="shrink-0 text-sm font-black text-gray-900">{formatMoney(item.price * item.quantity)}</p>
+                        <p className="shrink-0 text-sm font-black text-gray-900">{formatMoney(getItemLineTotal(item))}</p>
                       </div>
                       <div className="flex items-center justify-end gap-2 mt-3">
                         <button
@@ -1412,173 +1602,202 @@ export default function MiniReceiptPage() {
         )}
 
         {activeTab === 'menus' && (
-          <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
-            <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-5">
-              <div>
-                <h2 className="font-bold text-gray-900 mb-3">{t.mini_add_category}</h2>
-                <div className="flex gap-2">
-                  <input
-                    value={categoryName}
-                    onChange={(event) => setCategoryName(event.target.value)}
-                    placeholder={t.mini_category_name_placeholder}
-                    className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
-                  />
-                  <Button
-                    type="button"
-                    disabled={!categoryName.trim() || saving}
-                    onClick={async () => {
-                      await postAction({ action: 'category.create', name: categoryName });
-                      setCategoryName('');
-                    }}
-                  >
-                    {t.mini_add_item}
-                  </Button>
-                </div>
-              </div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <button
+                type="button"
+                onClick={() => setMenuSettingsMode('main')}
+                className={`h-12 text-sm font-black transition-colors ${menuSettingsMode === 'main' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              >
+                메인메뉴
+              </button>
+              <button
+                type="button"
+                onClick={() => setMenuSettingsMode('sides')}
+                className={`h-12 text-sm font-black transition-colors ${menuSettingsMode === 'sides' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              >
+                사이드메뉴
+              </button>
+            </div>
 
-              <div>
-                <h2 className="font-bold text-gray-900 mb-3">{t.mini_add_menu}</h2>
-                <div className="space-y-2">
-                  <select
-                    value={menuCategoryId}
-                    onChange={(event) => setMenuCategoryId(event.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
-                  >
-                    {payload.categories.map((category) => (
-                      <option key={category.id} value={category.id}>{category.name}</option>
-                    ))}
-                  </select>
-                  <input
-                    value={menuCode}
-                    onChange={(event) => setMenuCode(event.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder={t.mini_menu_code_placeholder}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
-                  />
-                  <input
-                    value={menuName}
-                    onChange={(event) => setMenuName(event.target.value)}
-                    placeholder={t.mini_menu_name_placeholder}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
-                  />
-                  <input
-                    value={menuPrice}
-                    onChange={(event) => setMenuPrice(event.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder={t.mini_price_placeholder}
-                    inputMode="numeric"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
-                  />
-                  <Button
-                    type="button"
-                    className="w-full"
-                    disabled={!menuCode.trim() || !menuName.trim() || !menuCategoryId || saving}
-                    onClick={async () => {
-                      await postAction({
-                        action: 'menu.create',
-                        categoryId: menuCategoryId,
-                        menuCode,
-                        name: menuName,
-                        price: Number(menuPrice || 0),
-                      });
-                      setMenuCode('');
-                      setMenuName('');
-                      setMenuPrice('');
-                    }}
-                  >
-                    {t.mini_add_menu}
-                  </Button>
-                </div>
-              </div>
-            </section>
-
-            <section className="space-y-4">
-              {payload.categories.length === 0 ? (
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center text-sm font-semibold text-gray-400">
-                  {t.mini_add_category_first}
-                </div>
-              ) : (
-                payload.categories.map((category) => (
-                  <div key={category.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h2 className="font-bold text-gray-900">{category.name}</h2>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => renameCategory(category)}
-                          className="text-xs font-bold text-gray-500"
-                        >
-                          {t.mini_edit}
-                        </button>
-                        <button
-                          onClick={async () => {
-                            const menuCount = category.menus.length;
-                            const message = menuCount > 0
-                              ? textTemplate(t.mini_category_delete_with_menus_confirm, { name: category.name, count: menuCount })
-                              : textTemplate(t.mini_category_delete_confirm, { name: category.name });
-                            if (await confirm({ message, danger: true })) {
-                              await postAction({ action: 'category.delete', categoryId: category.id });
-                            }
-                          }}
-                          className="text-xs font-bold text-red-500"
-                        >
-                          {t.mini_delete}
-                        </button>
-                      </div>
+            {menuSettingsMode === 'main' ? (
+              <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
+                <section className="space-y-4">
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                    <div className="mb-3">
+                      <h2 className="font-bold text-gray-900">{t.mini_add_category}</h2>
+                      <p className="mt-1 text-xs font-semibold text-gray-500">피자, 음료처럼 메뉴를 묶는 이름입니다.</p>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {category.menus.length === 0 ? (
-                        <div className="text-sm text-gray-400 py-4">{t.mini_no_menu}</div>
-                      ) : (
-                        category.menus.map((menu) => (
-                          <div key={menu.id} className={`flex items-start justify-between gap-2 rounded-xl p-3 ${menu.is_active ? 'bg-gray-50' : 'bg-gray-100 opacity-60'}`}>
-                            <div className="min-w-0 flex-1">
-                              <p className="whitespace-normal break-words font-bold text-gray-900">
-                                <span className="text-indigo-600">{menu.menu_code}</span> {menu.name}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {formatMoney(menu.price)} {menu.is_active ? '' : `· ${t.mini_hidden}`}
-                              </p>
-                            </div>
-                            <div className="flex shrink-0 gap-1">
-                              <button
-                                onClick={() => openEditMenu(menu)}
-                                className="h-9 w-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => postAction({
-                                  action: 'menu.update',
-                                  menuId: menu.id,
-                                  menuCode: menu.menu_code,
-                                  name: menu.name,
-                                  price: menu.price,
-                                  isActive: !menu.is_active,
-                                })}
-                                className="h-9 w-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500"
-                              >
-                                {menu.is_active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  if (await confirm({
-                                    message: textTemplate(t.mini_menu_delete_confirm, { name: menu.name }),
-                                    danger: true,
-                                  })) {
-                                    await postAction({ action: 'menu.delete', menuId: menu.id });
-                                  }
-                                }}
-                                className="h-9 w-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-red-500"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
+                    <div className="flex gap-2">
+                      <input
+                        value={categoryName}
+                        onChange={(event) => setCategoryName(event.target.value)}
+                        placeholder={t.mini_category_name_placeholder}
+                        className="min-w-0 flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
+                      />
+                      <Button
+                        type="button"
+                        disabled={!categoryName.trim() || saving}
+                        onClick={async () => {
+                          await postAction({ action: 'category.create', name: categoryName });
+                          setCategoryName('');
+                        }}
+                      >
+                        {t.mini_add_item}
+                      </Button>
                     </div>
                   </div>
-                ))
-              )}
-            </section>
+
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                    <div className="mb-3">
+                      <h2 className="font-bold text-gray-900">{t.mini_add_menu}</h2>
+                      <p className="mt-1 text-xs font-semibold text-gray-500">사이드는 메뉴를 만든 뒤 수정 버튼에서 연결합니다.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <select
+                        value={menuCategoryId}
+                        onChange={(event) => setMenuCategoryId(event.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
+                      >
+                        {payload.categories.map((category) => (
+                          <option key={category.id} value={category.id}>{category.name}</option>
+                        ))}
+                      </select>
+                      <input value={menuCode} onChange={(event) => setMenuCode(event.target.value.replace(/[^0-9]/g, ''))} placeholder={t.mini_menu_code_placeholder} className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm" />
+                      <input value={menuName} onChange={(event) => setMenuName(event.target.value)} placeholder={t.mini_menu_name_placeholder} className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm" />
+                      <input value={menuPrice} onChange={(event) => setMenuPrice(event.target.value.replace(/[^0-9]/g, ''))} placeholder={t.mini_price_placeholder} inputMode="numeric" className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm" />
+                      <Button
+                        type="button"
+                        className="w-full"
+                        disabled={!menuCode.trim() || !menuName.trim() || !menuCategoryId || saving}
+                        onClick={async () => {
+                          await postAction({ action: 'menu.create', categoryId: menuCategoryId, menuCode, name: menuName, price: Number(menuPrice || 0) });
+                          setMenuCode('');
+                          setMenuName('');
+                          setMenuPrice('');
+                        }}
+                      >
+                        {t.mini_add_menu}
+                      </Button>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-4">
+                  {payload.categories.length === 0 ? (
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center text-sm font-semibold text-gray-400">{t.mini_add_category_first}</div>
+                  ) : (
+                    payload.categories.map((category) => (
+                      <div key={category.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h2 className="font-bold text-gray-900">{category.name}</h2>
+                          <div className="flex gap-2">
+                            <button onClick={() => renameCategory(category)} className="text-xs font-bold text-gray-500">{t.mini_edit}</button>
+                            <button
+                              onClick={async () => {
+                                const menuCount = category.menus.length;
+                                const message = menuCount > 0
+                                  ? textTemplate(t.mini_category_delete_with_menus_confirm, { name: category.name, count: menuCount })
+                                  : textTemplate(t.mini_category_delete_confirm, { name: category.name });
+                                if (await confirm({ message, danger: true })) await postAction({ action: 'category.delete', categoryId: category.id });
+                              }}
+                              className="text-xs font-bold text-red-500"
+                            >
+                              {t.mini_delete}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {category.menus.length === 0 ? (
+                            <div className="text-sm text-gray-400 py-4">{t.mini_no_menu}</div>
+                          ) : (
+                            category.menus.map((menu) => (
+                              <div key={menu.id} className={`rounded-xl border p-3 ${menu.is_active ? 'border-gray-100 bg-gray-50' : 'border-gray-100 bg-gray-100 opacity-60'}`}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="whitespace-normal break-words font-bold text-gray-900"><span className="text-indigo-600">{menu.menu_code}</span> {menu.name}</p>
+                                    <p className="text-xs text-gray-500">{formatMoney(menu.price)} {menu.is_active ? '' : `· ${t.mini_hidden}`}</p>
+                                  </div>
+                                  <div className="flex shrink-0 gap-1">
+                                    <button onClick={() => openEditMenu(menu)} className="h-9 w-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500" title={t.mini_edit}><Edit3 className="w-4 h-4" /></button>
+                                    <button onClick={() => postAction({ action: 'menu.update', menuId: menu.id, menuCode: menu.menu_code, name: menu.name, price: menu.price, isActive: !menu.is_active })} className="h-9 w-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500">
+                                      {menu.is_active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        if (await confirm({ message: textTemplate(t.mini_menu_delete_confirm, { name: menu.name }), danger: true })) await postAction({ action: 'menu.delete', menuId: menu.id });
+                                      }}
+                                      className="h-9 w-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-red-500"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="mt-3 rounded-lg bg-white px-3 py-2">
+                                  <p className="mb-1 text-[11px] font-black text-gray-400">연결된 사이드메뉴</p>
+                                  {menu.sides.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {menu.sides.map((side) => (
+                                        <span key={side.id} className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-black text-indigo-600">{side.name}</span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs font-semibold text-gray-400">없음</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </section>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
+                <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                  <div className="mb-3">
+                    <h2 className="font-bold text-gray-900">사이드메뉴 추가</h2>
+                    <p className="mt-1 text-xs font-semibold text-gray-500">치즈추가, 콜라, 감자튀김처럼 여러 메인메뉴에 붙일 수 있는 항목입니다.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <input value={sideDraft.name} onChange={(event) => setSideDraft((current) => ({ ...current, name: event.target.value }))} placeholder="사이드메뉴명" className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm" />
+                    <input value={sideDraft.price} onChange={(event) => setSideDraft((current) => ({ ...current, price: event.target.value.replace(/[^0-9]/g, '') }))} placeholder="추가금" inputMode="numeric" className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm" />
+                    <Button
+                      type="button"
+                      className="w-full"
+                      disabled={!sideDraft.name.trim() || saving}
+                      onClick={async () => {
+                        await postAction({ action: 'side.create', name: sideDraft.name, price: Number(sideDraft.price || 0) });
+                        setSideDraft({ name: '', price: '' });
+                      }}
+                    >
+                      사이드메뉴 추가
+                    </Button>
+                  </div>
+                </section>
+
+                <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                  <h2 className="font-bold text-gray-900 mb-3">사이드메뉴 목록</h2>
+                  {payload.side_menus.length === 0 ? (
+                    <div className="p-8 text-center text-sm font-semibold text-gray-400">등록된 사이드메뉴가 없습니다.</div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {payload.side_menus.map((side) => (
+                        <div key={side.id} className={`flex items-center justify-between gap-2 rounded-xl p-3 ${side.is_active ? 'bg-gray-50' : 'bg-gray-100 opacity-60'}`}>
+                          <div className="min-w-0">
+                            <p className="break-words text-sm font-black text-gray-900">{side.name}</p>
+                            <p className="text-xs font-bold text-indigo-600">{formatMoney(side.price)}</p>
+                          </div>
+                          <button type="button" onClick={() => postAction({ action: 'side.delete', sideId: side.id })} className="text-xs font-black text-red-500">삭제</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </div>
+            )}
           </div>
         )}
 
@@ -1693,11 +1912,17 @@ export default function MiniReceiptPage() {
                                     {item.menu_code ? `${item.menu_code}.` : ''}{item.name}
                                   </p>
                                   <p className="text-xs text-gray-500">
-                                    {formatMoney(item.price)} x {item.quantity}
+                                    {formatMoney(getItemUnitTotal(item))} x {item.quantity}
                                   </p>
+                                  {(item.options ?? []).map((option) => (
+                                    <p key={option.id} className="whitespace-normal break-words text-xs font-semibold text-gray-500">
+                                      + {option.group_name ? `${option.group_name}: ` : ''}{option.name}
+                                      {option.price > 0 ? ` ${formatMoney(option.price)}` : ''}
+                                    </p>
+                                  ))}
                                 </div>
-                                <p className={`shrink-0 text-sm font-black ${item.price * item.quantity < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                                  {formatMoney(item.price * item.quantity)}
+                                <p className={`shrink-0 text-sm font-black ${getItemLineTotal(item) < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                                  {formatMoney(getItemLineTotal(item))}
                                 </p>
                               </div>
                             ))}
@@ -1809,6 +2034,64 @@ export default function MiniReceiptPage() {
           </div>
         </div>
       )}
+      {sideMenu && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="break-words text-lg font-black text-gray-900">{sideMenu.name}</h2>
+                <p className="mt-1 text-xs font-semibold text-gray-500">추가할 사이드를 선택하세요.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSideMenu(null);
+                  setSelectedSideIds([]);
+                }}
+                className="h-9 w-9 rounded-lg border border-gray-200 text-sm font-black text-gray-500"
+              >
+                X
+              </button>
+            </div>
+            <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+              {sideMenu.sides.filter((side) => side.is_active).map((side) => (
+                <label key={side.id} className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedSideIds.includes(side.id)}
+                      onChange={() => toggleSideSelection(side.id)}
+                      className="h-4 w-4 accent-indigo-600"
+                    />
+                    <span className="min-w-0 break-words text-sm font-bold text-gray-800">{side.name}</span>
+                  </span>
+                  <span className="shrink-0 text-xs font-bold text-gray-500">
+                    {side.price > 0 ? `+${formatMoney(side.price)}` : '추가금 없음'}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setSideMenu(null);
+                  setSelectedSideIds([]);
+                }}
+              >
+                취소
+              </Button>
+              <Button
+                type="button"
+                onClick={confirmSideMenu}
+              >
+                추가
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {editingMenu && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
@@ -1853,6 +2136,27 @@ export default function MiniReceiptPage() {
                   className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm font-bold outline-none focus:border-indigo-500"
                 />
               </label>
+              {payload.side_menus.length > 0 ? (
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <p className="mb-2 text-xs font-black text-gray-600">연결할 사이드메뉴</p>
+                  <div className="flex flex-wrap gap-2">
+                    {payload.side_menus.map((side) => (
+                      <button
+                        key={side.id}
+                        type="button"
+                        onClick={() => toggleEditMenuSide(side.id)}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-black transition-colors ${
+                          editMenuForm.sideMenuIds.includes(side.id)
+                            ? 'border-indigo-200 bg-indigo-600 text-white'
+                            : 'border-gray-200 bg-white text-gray-600'
+                        }`}
+                      >
+                        {side.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <Button type="button" variant="secondary" onClick={closeEditMenu}>

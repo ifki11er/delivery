@@ -57,12 +57,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user) {
           const employeeAccount = await prisma.employeeAccount.findUnique({
             where: { email },
-            include: { employee: true },
+            include: { employee: { include: { store: true } } },
           });
 
           if (!employeeAccount) return null;
           if (employeeAccount.deletedAt || employeeAccount.status !== "ACTIVE") return null;
           if (!employeeAccount.employee || employeeAccount.employee.status !== "ACTIVE") return null;
+          if (employeeAccount.employee.store.status === "CLOSED") return null;
 
           const passwordsMatch = await bcrypt.compare(password, employeeAccount.password);
           return passwordsMatch

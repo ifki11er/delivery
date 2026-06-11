@@ -32,7 +32,7 @@ export default function StoreEmployeesPage() {
   const t = useI18n();
   const locale = useLocale();
   const searchParams = useSearchParams();
-  const { stores, loading: storesLoading } = useStores();
+  const { stores, loading: storesLoading, refreshStores } = useStores();
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,6 +115,7 @@ export default function StoreEmployeesPage() {
     disabled: storesLoading || stores.length === 0 || !selectedStoreId,
     onRefresh: async () => {
       if (!selectedStoreId) return;
+      await refreshStores({ force: true });
       await fetchEmployees(selectedStoreId, true);
     },
   });

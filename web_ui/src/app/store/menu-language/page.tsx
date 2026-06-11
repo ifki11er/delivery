@@ -70,6 +70,13 @@ export default function MenuLanguagePage() {
   };
 
   useEffect(() => {
+    if (!storesLoading && selectedStoreId && !stores.some((store) => store.id === selectedStoreId)) {
+      setSelectedStoreId(stores[0]?.id || '');
+      setMode(null);
+      setRules([]);
+      return;
+    }
+
     if (storesLoading || stores.length === 0 || selectedStoreId) return;
 
     const storedStoreId = localStorage.getItem(menuLanguageStoreStorageKey);

@@ -42,7 +42,7 @@ function getDateRangeIso(date: string) {
 
 export default function MonitorPage() {
   const t = useI18n();
-  const { stores, loading: isStoreLoading, hasStore } = useStores();
+  const { stores, loading: isStoreLoading, hasStore, refreshStores } = useStores();
   const [printJobs, setPrintJobs] = useState<AndroidOrder[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle");
@@ -52,10 +52,17 @@ export default function MonitorPage() {
   const [showManageMenu, setShowManageMenu] = useState(false);
   const verifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const manageMenuRef = useRef<HTMLDivElement | null>(null);
-  const preferredStore = stores.find((store) => store.id === selectedStoreId) || stores[0] || null;
+  const selectedStore = stores.find((store) => store.id === selectedStoreId) || null;
+  const preferredStore = selectedStore || (!selectedStoreId ? stores[0] || null : null);
   const preferredStoreId = preferredStore?.id || "";
 
   useEffect(() => {
+    if (!isStoreLoading && selectedStoreId && !stores.some((store) => store.id === selectedStoreId)) {
+      setSelectedStoreId(stores[0]?.id || "");
+      setPrintJobs([]);
+      return;
+    }
+
     if (isStoreLoading || stores.length === 0 || selectedStoreId) return;
 
     const storedStoreId = localStorage.getItem(monitorStoreStorageKey);
@@ -245,8 +252,9 @@ export default function MonitorPage() {
 
   const { refreshing } = usePullToRefresh({
     disabled: isStoreLoading || !hasStore,
-    onRefresh: () => {
-      void fetchPrintJobs({ force: true, showLoading: false });
+    onRefresh: async () => {
+      await refreshStores({ force: true });
+      await fetchPrintJobs({ force: true, showLoading: false });
     },
   });
 
@@ -256,6 +264,10 @@ export default function MonitorPage() {
 
   if (!hasStore) {
     return <StoreRequiredNotice />;
+  }
+
+  if (!preferredStoreId) {
+    return <div className="p-8 text-center text-gray-500">{t.mypage_loading}</div>;
   }
 
   return (

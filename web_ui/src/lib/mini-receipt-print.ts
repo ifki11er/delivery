@@ -13,6 +13,12 @@ type MiniReceiptItem = {
   name: string;
   price: number;
   quantity: number;
+  options?: Array<{
+    group_name?: string;
+    name: string;
+    price: number;
+    quantity: number;
+  }>;
 };
 
 type ReceiptSettings = {
@@ -106,7 +112,11 @@ export function renderMiniKitchenOrder(params: {
   setFont(measure, 35, false, true);
   const itemHeight = params.items.reduce((sum, item) => {
     const name = `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}`;
-    return sum + Math.max(1, wrapText(measure, name, 330).length) * 42;
+    const optionHeight = (item.options ?? []).reduce((optionSum, option) => {
+      const optionName = `+ ${option.group_name ? `${option.group_name}: ` : ''}${option.name}`;
+      return optionSum + Math.max(1, wrapText(measure, optionName, 300).length) * 34;
+    }, 0);
+    return sum + Math.max(1, wrapText(measure, name, 330).length) * 42 + optionHeight;
   }, 0);
   const height = 440 + itemHeight + (params.note ? 48 : 0);
   const { canvas, ctx } = makeCanvas(height);
@@ -136,6 +146,14 @@ export function renderMiniKitchenOrder(params: {
         drawText(ctx, '신규', 542, y, { size: 35, align: 'right', condensed: true });
       }
       y += 42;
+    });
+    (item.options ?? []).forEach((option) => {
+      const optionName = `+ ${option.group_name ? `${option.group_name}: ` : ''}${option.name}`;
+      setFont(ctx, 28, false, true);
+      wrapText(ctx, optionName, 300).forEach((text) => {
+        drawText(ctx, text, 48, y, { size: 28, condensed: true });
+        y += 34;
+      });
     });
   });
 
@@ -171,7 +189,11 @@ export function renderMiniPaymentReceipt(params: {
   setFont(measure, 29, false, true);
   const itemHeight = params.items.reduce((sum, item) => {
     const name = `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}`;
-    return sum + Math.max(1, wrapText(measure, name, 260).length) * 37 + 4;
+    const optionHeight = (item.options ?? []).reduce((optionSum, option) => {
+      const optionName = `+ ${option.name}`;
+      return optionSum + Math.max(1, wrapText(measure, optionName, 240).length) * 31 + 2;
+    }, 0);
+    return sum + Math.max(1, wrapText(measure, name, 260).length) * 37 + optionHeight + 4;
   }, 0);
   const height = 700 + infoRows.length * 32 + itemHeight;
   const { canvas, ctx } = makeCanvas(height);
@@ -202,7 +224,8 @@ export function renderMiniPaymentReceipt(params: {
   y += 38;
 
   params.items.forEach((item) => {
-    const amount = item.price * item.quantity;
+    const optionTotal = (item.options ?? []).reduce((sum, option) => sum + option.price * option.quantity, 0);
+    const amount = (item.price + optionTotal) * item.quantity;
     const name = `${item.menu_code ? `${item.menu_code}.` : ''}${item.name}`;
     setFont(ctx, 29, false, true);
     const lines = wrapText(ctx, name, 260);
@@ -210,16 +233,31 @@ export function renderMiniPaymentReceipt(params: {
     lines.forEach((text, index) => {
       drawText(ctx, index === 0 ? text : `   ${text}`, 28, y, { size: 29, condensed: true });
       if (index === 0) {
-        drawRightFit(ctx, moneyK(item.price), 374, y, 62, 26);
+        drawRightFit(ctx, moneyK(item.price + optionTotal), 374, y, 62, 26);
         drawText(ctx, String(item.quantity), 438, y, { size: 29, align: 'center', condensed: true });
         drawRightFit(ctx, moneyK(amount), 542, y, 86, 26);
       }
       y += 37;
     });
+    (item.options ?? []).forEach((option) => {
+      const optionName = `+ ${option.name}`;
+      setFont(ctx, 24, false, true);
+      wrapText(ctx, optionName, 240).forEach((text, index) => {
+        drawText(ctx, text, 48, y, { size: 24, condensed: true });
+        if (index === 0 && option.price > 0) {
+          drawRightFit(ctx, moneyK(option.price), 374, y, 62, 22);
+        }
+        y += 31;
+      });
+      y += 2;
+    });
     y += 4;
   });
 
-  const taxableTotal = params.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const taxableTotal = params.items.reduce((sum, item) => {
+    const optionTotal = (item.options ?? []).reduce((optionSum, option) => optionSum + option.price * option.quantity, 0);
+    return sum + (item.price + optionTotal) * item.quantity;
+  }, 0);
   const vat = Math.round(taxableTotal * 0.08);
   const receiptTotal = taxableTotal + vat;
 

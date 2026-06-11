@@ -20,6 +20,9 @@ export async function GET() {
       where: {
         status: 'ACTIVE',
         accountId: session.user.id,
+        store: {
+          status: { not: 'CLOSED' },
+        },
       },
       include: { store: true }
     });
