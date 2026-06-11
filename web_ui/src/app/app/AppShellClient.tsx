@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MonitorPage from '@/app/store/monitor/page';
 import StoreEmployeesPage from '@/app/store/employees/page';
 import MiniReceiptPage from '@/app/store/mini-receipt/page';
@@ -63,8 +63,8 @@ type AppShellClientProps = {
 
 export default function AppShellClient({ appVersion = '0.0.0' }: AppShellClientProps) {
   const { confirm } = useFeedback();
-  const [activeTab, setActiveTab] = useState<AppTab>(getInitialTab);
-  const [mountedTabs, setMountedTabs] = useState<Set<AppTab>>(() => new Set([getInitialTab()]));
+  const [activeTab, setActiveTab] = useState<AppTab>(defaultTab);
+  const [mountedTabs, setMountedTabs] = useState<Set<AppTab>>(() => new Set([defaultTab]));
   const activeTabRef = useRef(activeTab);
   const tabHistoryRef = useRef<AppTab[]>([]);
 
@@ -80,7 +80,7 @@ export default function AppShellClient({ appVersion = '0.0.0' }: AppShellClientP
     { key: 'settings' as const, component: <SettingsPage /> },
   ]), [appVersion]);
 
-  const activateTab = (tab: AppTab, options?: { recordHistory?: boolean }) => {
+  const activateTab = useCallback((tab: AppTab, options?: { recordHistory?: boolean }) => {
     const currentTab = activeTabRef.current;
     if (tab === currentTab) return;
 
@@ -98,7 +98,11 @@ export default function AppShellClient({ appVersion = '0.0.0' }: AppShellClientP
     window.localStorage.setItem(tabStorageKey, tab);
     window.history.replaceState(null, '', `#${tab}`);
     window.dispatchEvent(new CustomEvent('worklink-app-tab-changed', { detail: { tab } }));
-  };
+  }, []);
+
+  useEffect(() => {
+    activateTab(getInitialTab());
+  }, [activateTab]);
 
   useEffect(() => {
     const handleNavigate = (event: Event) => {
@@ -147,7 +151,7 @@ export default function AppShellClient({ appVersion = '0.0.0' }: AppShellClientP
       window.removeEventListener('hashchange', handleHashChange);
       window.removeEventListener('worklink-android-back', handleAndroidBack);
     };
-  }, [activeTab, confirm]);
+  }, [activateTab, activeTab, confirm]);
 
   useEffect(() => {
     window.__worklinkActiveAppTab = activeTab;

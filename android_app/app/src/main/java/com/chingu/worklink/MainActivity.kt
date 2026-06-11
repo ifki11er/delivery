@@ -166,7 +166,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         val currentUrl = webView.url ?: ""
-        if (currentUrl.contains("/app")) {
+        val isLoginRoot = currentUrl.endsWith("/login")
+            || currentUrl.endsWith("/login/")
+            || currentUrl.contains("/login?")
+            || currentUrl.contains("/login#")
+        if (currentUrl.contains("/app") || isLoginRoot) {
             webView.evaluateJavascript(
                 "window.dispatchEvent(new CustomEvent('worklink-android-back'));",
                 null

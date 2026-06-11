@@ -8,6 +8,7 @@ import { useSearchParams } from 'next/navigation';
 import { useI18n } from '@/i18n/I18nProvider';
 import { signInWithGoogle, signInWithKakao } from '@/app/actions/auth';
 import { usePlatform } from '@/hooks/usePlatform';
+import { useFeedback } from '@/components/providers/FeedbackProvider';
 
 type NativeGoogleSignInDetail = {
   idToken?: string;
@@ -32,6 +33,7 @@ function GoogleMark() {
 
 export default function LoginForm({ mode = 'login' }: LoginFormProps) {
   const t = useI18n();
+  const { confirm } = useFeedback();
   const { platform } = usePlatform();
   const [isMounted, setIsMounted] = useState(false);
   const isApp = isMounted && platform === 'app';
@@ -43,12 +45,37 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
   const [socialLoading, setSocialLoading] = useState<'kakao' | 'google' | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const isRegister = mode === 'register';
-  const submitText = isRegister ? (t.register_email_continue || '이메일로 회원가입') : t.login_email_continue;
+  const submitText = isRegister ? (t.register_email_continue || '회원가입') : t.login_btn;
   const processingText = isRegister ? (t.register_processing || '회원가입 처리 중...') : t.login_processing;
+  const submitButtonClass = isRegister
+    ? 'bg-[#f59e0b] text-[#1f1300] shadow-[0_12px_28px_rgba(245,158,11,0.24)] hover:bg-[#fbbf24] focus:ring-[#f59e0b]'
+    : 'bg-[#37d0bf] text-[#03143b] shadow-[0_12px_28px_rgba(55,208,191,0.22)] hover:bg-[#45dece] focus:ring-[#37d0bf]';
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (mode !== 'login') return;
+
+    const handleAndroidBack = async () => {
+      if (await confirm({
+        title: '앱 종료',
+        message: '종료하시겠습니까?',
+        confirmText: '종료',
+        cancelText: '취소',
+        danger: true,
+      })) {
+        const closedByApp = window.AndroidBridge?.finishApp?.() ?? false;
+        if (!closedByApp) {
+          window.close();
+        }
+      }
+    };
+
+    window.addEventListener('worklink-android-back', handleAndroidBack);
+    return () => window.removeEventListener('worklink-android-back', handleAndroidBack);
+  }, [confirm, mode]);
 
   useEffect(() => {
     const handleNativeGoogleSignIn = async (event: Event) => {
@@ -211,7 +238,7 @@ export default function LoginForm({ mode = 'login' }: LoginFormProps) {
         <button
           type="submit"
           disabled={loading}
-          className={`mt-2 h-[52px] w-full rounded-2xl bg-[#37d0bf] px-4 py-3 text-lg font-black text-[#03143b] shadow-[0_12px_28px_rgba(55,208,191,0.22)] transition-all hover:bg-[#45dece] focus:ring-2 focus:ring-[#37d0bf] focus:ring-offset-2 focus:ring-offset-[#061c4a] focus:outline-none active:scale-[0.98] sm:h-14 sm:text-xl ${loading ? 'cursor-not-allowed opacity-70' : ''}`}
+          className={`mt-2 h-[52px] w-full rounded-2xl px-4 py-3 text-lg font-black transition-all focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#061c4a] focus:outline-none active:scale-[0.98] sm:h-14 sm:text-xl ${submitButtonClass} ${loading ? 'cursor-not-allowed opacity-70' : ''}`}
         >
           {loading ? processingText : submitText}
         </button>

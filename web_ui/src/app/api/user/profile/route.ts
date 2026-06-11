@@ -73,7 +73,7 @@ export async function PUT(req: Request) {
       return jsonError("Name and phone number are required.", 400);
     }
 
-    const [existingPhone, currentUser] = await Promise.all([
+    const [existingPhone, existingName, currentUser] = await Promise.all([
       prisma.user.findUnique({
         where: { phoneNumber },
         select: {
@@ -84,6 +84,14 @@ export async function PUT(req: Request) {
             orderBy: { provider: "asc" },
           },
         },
+      }),
+      prisma.user.findFirst({
+        where: {
+          id: { not: session.user.id },
+          name,
+          deletedAt: null,
+        },
+        select: { id: true },
       }),
       prisma.user.findUnique({
         where: { id: session.user.id },
@@ -106,6 +114,10 @@ export async function PUT(req: Request) {
 
     if (!currentUser) {
       return jsonError("Unauthorized", 401);
+    }
+
+    if (existingName) {
+      return jsonError("이미 사용 중인 닉네임입니다.", 409);
     }
 
     if (existingPhone && existingPhone.id !== session.user.id) {
