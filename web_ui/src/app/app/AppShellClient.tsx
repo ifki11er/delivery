@@ -57,7 +57,11 @@ function getInitialTab() {
   return normalizeTab(window.localStorage.getItem(tabStorageKey));
 }
 
-export default function AppShellClient() {
+type AppShellClientProps = {
+  appVersion?: string;
+};
+
+export default function AppShellClient({ appVersion = '0.0.0' }: AppShellClientProps) {
   const { confirm } = useFeedback();
   const [activeTab, setActiveTab] = useState<AppTab>(getInitialTab);
   const [mountedTabs, setMountedTabs] = useState<Set<AppTab>>(() => new Set([getInitialTab()]));
@@ -68,13 +72,13 @@ export default function AppShellClient() {
     { key: 'monitor' as const, component: <MonitorPage /> },
     { key: 'employees' as const, component: <StoreEmployeesPage /> },
     { key: 'miniReceipt' as const, component: <MiniReceiptPage /> },
-    { key: 'mypage' as const, component: <MypageClient /> },
+    { key: 'mypage' as const, component: <MypageClient appVersion={appVersion} /> },
     { key: 'storeManage' as const, component: <StoreManagePage /> },
     { key: 'menuLanguage' as const, component: <MenuLanguagePage /> },
     { key: 'blacklist' as const, component: <BlacklistPage /> },
     { key: 'blacklistNew' as const, component: <NewBlacklistPage /> },
     { key: 'settings' as const, component: <SettingsPage /> },
-  ]), []);
+  ]), [appVersion]);
 
   const activateTab = (tab: AppTab, options?: { recordHistory?: boolean }) => {
     const currentTab = activeTabRef.current;

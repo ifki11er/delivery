@@ -78,6 +78,7 @@ function serializeMenu(menu: {
 
 function serializeSideMenu(side: {
   id: string;
+  categoryId?: string;
   name: string;
   price: number;
   sortOrder: number;
@@ -85,10 +86,32 @@ function serializeSideMenu(side: {
 }) {
   return {
     id: side.id,
+    category_id: side.categoryId,
     name: side.name,
     price: side.price,
     sort_order: side.sortOrder,
     is_active: side.isActive,
+  };
+}
+
+function serializeSideCategory(category: {
+  id: string;
+  name: string;
+  sortOrder: number;
+  sideMenus?: Array<{
+    id: string;
+    categoryId: string;
+    name: string;
+    price: number;
+    sortOrder: number;
+    isActive: boolean;
+  }>;
+}) {
+  return {
+    id: category.id,
+    name: category.name,
+    sort_order: category.sortOrder,
+    side_menus: (category.sideMenus ?? []).map(serializeSideMenu),
   };
 }
 
@@ -182,7 +205,7 @@ function getHistoryDateRange(historyDate?: string | null, from?: string | null, 
 
 async function buildPayload(storeId: string, historyDate?: string | null, historyFrom?: string | null, historyTo?: string | null) {
   const historyRange = getHistoryDateRange(historyDate, historyFrom, historyTo);
-  const [tables, categories, sideMenus, openOrders, closedOrders] = await Promise.all([
+  const [tables, categories, sideCategories, sideMenus, openOrders, closedOrders] = await Promise.all([
     prisma.posTable.findMany({
       where: { storeId },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
@@ -199,6 +222,13 @@ async function buildPayload(storeId: string, historyDate?: string | null, histor
           },
           orderBy: { createdAt: 'asc' },
         },
+      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    }),
+    prisma.posSideCategory.findMany({
+      where: { storeId },
+      include: {
+        sideMenus: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
       },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     }),
@@ -255,6 +285,7 @@ async function buildPayload(storeId: string, historyDate?: string | null, histor
       sort_order: category.sortOrder,
       menus: category.menus.map(serializeMenu),
     })),
+    side_categories: sideCategories.map(serializeSideCategory),
     side_menus: sideMenus.map(serializeSideMenu),
     orders: openOrders.map(serializeOrder),
     history: closedOrders.map(serializeOrder),
@@ -465,14 +496,48 @@ export async function POST(req: Request) {
       });
     }
 
-    if (action === 'side.create') {
+    if (action === 'sideCategory.create') {
       const name = String(body.name || '').trim();
-      if (!name) return NextResponse.json({ error: 'Side name is required' }, { status: 400 });
+      if (!name) return NextResponse.json({ error: 'Side category name is required' }, { status: 400 });
+
+      await prisma.posSideCategory.create({
+        data: {
+          id: newId('sidecat'),
+          storeId: store.id,
+          name,
+          sortOrder: Number(body.sortOrder || 0),
+        },
+      });
+    }
+
+    if (action === 'sideCategory.update') {
+      const name = String(body.name || '').trim();
+      if (!name) return NextResponse.json({ error: 'Side category name is required' }, { status: 400 });
+
+      await prisma.posSideCategory.updateMany({
+        where: { id: String(body.categoryId || ''), storeId: store.id },
+        data: { name },
+      });
+    }
+
+    if (action === 'sideCategory.delete') {
+      await prisma.posSideCategory.deleteMany({
+        where: { id: String(body.categoryId || ''), storeId: store.id },
+      });
+    }
+
+    if (action === 'side.create') {
+      const categoryId = String(body.categoryId || '');
+      const name = String(body.name || '').trim();
+      if (!categoryId || !name) return NextResponse.json({ error: 'Side name is required' }, { status: 400 });
+      const category = await prisma.posSideCategory.findFirst({ where: { id: categoryId, storeId: store.id } });
+      if (!category) return NextResponse.json({ error: 'Side category not found' }, { status: 404 });
 
       await prisma.posSideMenu.create({
         data: {
           id: newId('side'),
           storeId: store.id,
+          categoryId,
           name,
           price: Math.max(0, Number(body.price || 0)),
           sortOrder: Number(body.sortOrder || 0),

@@ -105,6 +105,7 @@ model Store {
   posTables          PosTable[]
   posCategories      PosCategory[]
   posMenus           PosMenu[]
+  posSideCategories  PosSideCategory[]
   posSideMenus       PosSideMenu[]
   posOrders          PosOrder[]
   printJobs          PrintJob[]
@@ -263,6 +264,8 @@ model PosSideMenu {
   id           String               @id
   storeId      String               @map("store_id")
   store        Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  categoryId   String               @map("category_id")
+  category     PosSideCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   name         String
   price        Int                  @default(0)
   sortOrder    Int                  @default(0) @map("sort_order")
@@ -273,7 +276,22 @@ model PosSideMenu {
   updatedAt    DateTime             @updatedAt @map("updated_at")
 
   @@index([storeId])
+  @@index([categoryId])
   @@map("pos_side_menus")
+}
+
+model PosSideCategory {
+  id        String        @id
+  storeId   String        @map("store_id")
+  store     Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int           @default(0) @map("sort_order")
+  sideMenus PosSideMenu[]
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  @@index([storeId])
+  @@map("pos_side_categories")
 }
 
 model PosMenuSide {

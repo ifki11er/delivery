@@ -53,10 +53,18 @@ type PosMenu = {
 
 type PosMenuSide = {
   id: string;
+  category_id: string;
   name: string;
   price: number;
   sort_order: number;
   is_active: boolean;
+};
+
+type PosSideCategory = {
+  id: string;
+  name: string;
+  sort_order: number;
+  side_menus: PosMenuSide[];
 };
 
 type PosCategory = {
@@ -113,6 +121,7 @@ type PosPayload = {
   };
   tables: PosTable[];
   categories: PosCategory[];
+  side_categories: PosSideCategory[];
   side_menus: PosMenuSide[];
   orders: PosOrder[];
   history: PosOrder[];
@@ -169,6 +178,7 @@ function createEmptyPayload(store: StoreSeed): PosPayload {
     store,
     tables: [],
     categories: [],
+    side_categories: [],
     side_menus: [],
     orders: [],
     history: [],
@@ -302,7 +312,11 @@ export default function MiniReceiptPage() {
   const [menuPrice, setMenuPrice] = useState('');
   const [editingMenu, setEditingMenu] = useState<PosMenu | null>(null);
   const [editMenuForm, setEditMenuForm] = useState({ menuCode: '', name: '', price: '', sideMenuIds: [] as string[] });
+  const [editingSideMenu, setEditingSideMenu] = useState<PosMenuSide | null>(null);
+  const [editSideForm, setEditSideForm] = useState({ name: '', price: '' });
   const [menuCategoryId, setMenuCategoryId] = useState('');
+  const [sideCategoryName, setSideCategoryName] = useState('');
+  const [sideCategoryId, setSideCategoryId] = useState('');
   const [sideDraft, setSideDraft] = useState({ name: '', price: '' });
   const [sideMenu, setSideMenu] = useState<PosMenu | null>(null);
   const [selectedSideIds, setSelectedSideIds] = useState<string[]>([]);
@@ -381,6 +395,10 @@ export default function MiniReceiptPage() {
     const normalizedData: PosPayload = {
       ...data,
       side_menus: data.side_menus ?? [],
+      side_categories: (data.side_categories ?? []).map((category) => ({
+        ...category,
+        side_menus: category.side_menus ?? [],
+      })),
       categories: data.categories.map((category) => ({
         ...category,
         menus: category.menus.map((menu) => ({
@@ -409,6 +427,11 @@ export default function MiniReceiptPage() {
     setSelectedCategoryId(nextCategoryId);
     setMenuCategoryId((current) => (
       normalizedData.categories.some((category) => category.id === current) ? current : nextCategoryId
+    ));
+    setSideCategoryId((current) => (
+      normalizedData.side_categories.some((category) => category.id === current)
+        ? current
+        : normalizedData.side_categories[0]?.id || ''
     ));
 
     const stored = localStorage.getItem(`${draftStoragePrefix}_${normalizedData.store.id}`);
@@ -1074,6 +1097,44 @@ export default function MiniReceiptPage() {
     await postAction({ action: 'category.update', categoryId: category.id, name });
   };
 
+  const renameSideCategory = async (category: PosSideCategory) => {
+    const name = (await prompt({
+      message: '사이드 카테고리명을 입력해주세요.',
+      defaultValue: category.name,
+    }))?.trim();
+    if (!name || name === category.name) return;
+    await postAction({ action: 'sideCategory.update', categoryId: category.id, name });
+  };
+
+  const openEditSideMenu = (side: PosMenuSide) => {
+    setEditingSideMenu(side);
+    setEditSideForm({ name: side.name, price: String(side.price) });
+  };
+
+  const closeEditSideMenu = () => {
+    setEditingSideMenu(null);
+    setEditSideForm({ name: '', price: '' });
+  };
+
+  const submitEditSideMenu = async () => {
+    if (!editingSideMenu) return;
+    const name = editSideForm.name.trim();
+    const price = Number(editSideForm.price.replace(/[^0-9]/g, '') || 0);
+    if (!name) return;
+    if (name === editingSideMenu.name && price === editingSideMenu.price) {
+      closeEditSideMenu();
+      return;
+    }
+    await postAction({
+      action: 'side.update',
+      sideId: editingSideMenu.id,
+      name,
+      price,
+      isActive: editingSideMenu.is_active,
+    });
+    closeEditSideMenu();
+  };
+
   const openEditMenu = (menu: PosMenu) => {
     setEditingMenu(menu);
     setEditMenuForm({
@@ -1603,7 +1664,7 @@ export default function MiniReceiptPage() {
 
         {activeTab === 'menus' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <div className="sticky top-[73px] z-30 grid grid-cols-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
               <button
                 type="button"
                 onClick={() => setMenuSettingsMode('main')}
@@ -1756,44 +1817,135 @@ export default function MiniReceiptPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
-                <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                  <div className="mb-3">
-                    <h2 className="font-bold text-gray-900">사이드메뉴 추가</h2>
-                    <p className="mt-1 text-xs font-semibold text-gray-500">치즈추가, 콜라, 감자튀김처럼 여러 메인메뉴에 붙일 수 있는 항목입니다.</p>
+                <section className="space-y-4">
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                    <div className="mb-3">
+                      <h2 className="font-bold text-gray-900">사이드 카테고리 추가</h2>
+                      <p className="mt-1 text-xs font-semibold text-gray-500">토핑, 음료, 소스처럼 사이드메뉴를 묶는 이름입니다.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        value={sideCategoryName}
+                        onChange={(event) => setSideCategoryName(event.target.value)}
+                        placeholder="사이드 카테고리명"
+                        className="min-w-0 flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
+                      />
+                      <Button
+                        type="button"
+                        disabled={!sideCategoryName.trim() || saving}
+                        onClick={async () => {
+                          await postAction({ action: 'sideCategory.create', name: sideCategoryName });
+                          setSideCategoryName('');
+                        }}
+                      >
+                        {t.mini_add_item}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <input value={sideDraft.name} onChange={(event) => setSideDraft((current) => ({ ...current, name: event.target.value }))} placeholder="사이드메뉴명" className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm" />
-                    <input value={sideDraft.price} onChange={(event) => setSideDraft((current) => ({ ...current, price: event.target.value.replace(/[^0-9]/g, '') }))} placeholder="추가금" inputMode="numeric" className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm" />
-                    <Button
-                      type="button"
-                      className="w-full"
-                      disabled={!sideDraft.name.trim() || saving}
-                      onClick={async () => {
-                        await postAction({ action: 'side.create', name: sideDraft.name, price: Number(sideDraft.price || 0) });
-                        setSideDraft({ name: '', price: '' });
-                      }}
-                    >
-                      사이드메뉴 추가
-                    </Button>
+
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                    <div className="mb-3">
+                      <h2 className="font-bold text-gray-900">사이드메뉴 추가</h2>
+                      <p className="mt-1 text-xs font-semibold text-gray-500">치즈추가, 콜라, 감자튀김처럼 여러 메인메뉴에 붙일 수 있는 항목입니다.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <select
+                        value={sideCategoryId}
+                        onChange={(event) => setSideCategoryId(event.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
+                      >
+                        {payload.side_categories.map((category) => (
+                          <option key={category.id} value={category.id}>{category.name}</option>
+                        ))}
+                      </select>
+                      <input value={sideDraft.name} onChange={(event) => setSideDraft((current) => ({ ...current, name: event.target.value }))} placeholder="사이드메뉴명" className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm" />
+                      <input value={sideDraft.price} onChange={(event) => setSideDraft((current) => ({ ...current, price: event.target.value.replace(/[^0-9]/g, '') }))} placeholder="추가금" inputMode="numeric" className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm" />
+                      <Button
+                        type="button"
+                        className="w-full"
+                        disabled={!sideCategoryId || !sideDraft.name.trim() || saving}
+                        onClick={async () => {
+                          await postAction({
+                            action: 'side.create',
+                            categoryId: sideCategoryId,
+                            name: sideDraft.name,
+                            price: Number(sideDraft.price || 0),
+                          });
+                          setSideDraft({ name: '', price: '' });
+                        }}
+                      >
+                        사이드메뉴 추가
+                      </Button>
+                    </div>
                   </div>
                 </section>
 
-                <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                  <h2 className="font-bold text-gray-900 mb-3">사이드메뉴 목록</h2>
-                  {payload.side_menus.length === 0 ? (
-                    <div className="p-8 text-center text-sm font-semibold text-gray-400">등록된 사이드메뉴가 없습니다.</div>
+                <section className="space-y-4">
+                  {payload.side_categories.length === 0 ? (
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center text-sm font-semibold text-gray-400">사이드 카테고리를 먼저 추가해주세요.</div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {payload.side_menus.map((side) => (
-                        <div key={side.id} className={`flex items-center justify-between gap-2 rounded-xl p-3 ${side.is_active ? 'bg-gray-50' : 'bg-gray-100 opacity-60'}`}>
-                          <div className="min-w-0">
-                            <p className="break-words text-sm font-black text-gray-900">{side.name}</p>
-                            <p className="text-xs font-bold text-indigo-600">{formatMoney(side.price)}</p>
+                    payload.side_categories.map((category) => (
+                      <div key={category.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                          <h2 className="font-bold text-gray-900">{category.name}</h2>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => renameSideCategory(category)}
+                              className="text-xs font-bold text-gray-500"
+                            >
+                              {t.mini_edit}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const message = category.side_menus.length > 0
+                                  ? `${category.name} 카테고리와 사이드메뉴 ${category.side_menus.length}개를 삭제할까요?`
+                                  : `${category.name} 카테고리를 삭제할까요?`;
+                                if (await confirm({ message, danger: true })) {
+                                  await postAction({ action: 'sideCategory.delete', categoryId: category.id });
+                                }
+                              }}
+                              className="text-xs font-bold text-red-500"
+                            >
+                              삭제
+                            </button>
                           </div>
-                          <button type="button" onClick={() => postAction({ action: 'side.delete', sideId: side.id })} className="text-xs font-black text-red-500">삭제</button>
                         </div>
-                      ))}
-                    </div>
+                        {category.side_menus.length === 0 ? (
+                          <div className="py-4 text-sm text-gray-400">등록된 사이드메뉴가 없습니다.</div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {category.side_menus.map((side) => (
+                              <div key={side.id} className={`flex items-center justify-between gap-2 rounded-xl p-3 ${side.is_active ? 'bg-gray-50' : 'bg-gray-100 opacity-60'}`}>
+                                <div className="min-w-0">
+                                  <p className="break-words text-sm font-black text-gray-900">{side.name}</p>
+                                  <p className="text-xs font-bold text-indigo-600">{formatMoney(side.price)}</p>
+                                </div>
+                                <div className="flex shrink-0 gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditSideMenu(side)}
+                                    className="h-9 w-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500"
+                                    title={t.mini_edit}
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => postAction({ action: 'side.delete', sideId: side.id })}
+                                    className="h-9 w-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-red-500"
+                                    title={t.mini_delete}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
                   )}
                 </section>
               </div>
@@ -2087,6 +2239,57 @@ export default function MiniReceiptPage() {
                 onClick={confirmSideMenu}
               >
                 추가
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {editingSideMenu && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-gray-900">사이드메뉴 수정</h2>
+                <p className="mt-1 text-xs font-semibold text-gray-500">사이드메뉴명과 추가금을 함께 수정합니다.</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditSideMenu}
+                className="h-9 w-9 rounded-lg border border-gray-200 text-sm font-black text-gray-500"
+              >
+                X
+              </button>
+            </div>
+            <div className="space-y-3">
+              <label className="block">
+                <span className="mb-1 block text-xs font-black text-gray-600">사이드메뉴명</span>
+                <textarea
+                  value={editSideForm.name}
+                  onChange={(event) => setEditSideForm((prev) => ({ ...prev, name: event.target.value }))}
+                  rows={3}
+                  className="w-full resize-none rounded-xl border border-gray-200 px-3 py-3 text-sm font-bold outline-none focus:border-indigo-500"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-black text-gray-600">추가금</span>
+                <input
+                  value={editSideForm.price}
+                  onChange={(event) => setEditSideForm((prev) => ({ ...prev, price: event.target.value.replace(/[^0-9]/g, '') }))}
+                  inputMode="numeric"
+                  className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm font-bold outline-none focus:border-indigo-500"
+                />
+              </label>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <Button type="button" variant="secondary" onClick={closeEditSideMenu}>
+                {t.mini_no}
+              </Button>
+              <Button
+                type="button"
+                disabled={!editSideForm.name.trim() || saving}
+                onClick={submitEditSideMenu}
+              >
+                {saving ? '저장중' : t.mini_edit}
               </Button>
             </div>
           </div>

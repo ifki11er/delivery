@@ -8,7 +8,11 @@ import { useI18n } from '@/i18n/I18nProvider';
 import { useState, useEffect, useRef } from 'react';
 import { useFeedback } from '@/components/providers/FeedbackProvider';
 
-export default function MypageClient() {
+type MypageClientProps = {
+  appVersion?: string;
+};
+
+export default function MypageClient({ appVersion = '0.0.0' }: MypageClientProps) {
   const { data: session, status, update } = useSession();
   const t = useI18n();
   const { confirm } = useFeedback();
@@ -338,6 +342,9 @@ export default function MypageClient() {
         >
           <span className="text-xs text-gray-400 underline">{t.mypage_withdraw}</span>
         </button>
+        <p className="pb-5 text-center text-[11px] font-semibold text-gray-300">
+          버전 : {appVersion}
+        </p>
       </div>
     </div>
   );
