@@ -38,6 +38,59 @@ function parseMoney(value: string) {
   return Number(value.replace(/[^\d]/g, '') || 0);
 }
 
+function unwrapOuterParentheses(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('(') || !trimmed.endsWith(')')) return trimmed;
+
+  let depth = 0;
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const char = trimmed[index];
+    if (char === '(') depth += 1;
+    if (char === ')') depth -= 1;
+    if (depth === 0 && index < trimmed.length - 1) return trimmed;
+  }
+
+  return trimmed.slice(1, -1).trim();
+}
+
+function cleanOptionName(value: string) {
+  return value
+    .replace(/^[\s/·,|]+/, '')
+    .replace(/[\s/·,|]+$/, '')
+    .trim();
+}
+
+function parseDeliveryItemLine(line: string) {
+  const quantityMatch = line.match(/\s*x\s*(\d+)\s*$/);
+  if (!quantityMatch?.index) return null;
+
+  const beforeQuantity = line.slice(0, quantityMatch.index).trim();
+  const itemMatch = beforeQuantity.match(/^🍲\s*(.+?)\s+([\d,]+)\s*₫\s*(.*)$/);
+  if (!itemMatch) return null;
+
+  return {
+    name: itemMatch[1].trim(),
+    price: parseMoney(itemMatch[2]),
+    optionText: unwrapOuterParentheses(itemMatch[3] || ''),
+    quantity: Number(quantityMatch[1] || 1),
+  };
+}
+
+function parseOptionItems(optionText: string, quantity: number): DeliveryShareItem[] {
+  const optionRegex = /(.+?)\s*\+\s*([\d,]+)\s*₫/g;
+  const options: DeliveryShareItem[] = [];
+
+  for (const option of optionText.matchAll(optionRegex)) {
+    const optionName = cleanOptionName(option[1] || '');
+    const optionPrice = parseMoney(option[2] || '');
+    if (optionName && optionPrice > 0) {
+      options.push({ name: `(${optionName})`, quantity, amount: optionPrice * quantity });
+    }
+  }
+
+  return options;
+}
+
 function normalizePhone(raw: string) {
   const digits = raw.replace(/[^\d]/g, '');
   if (digits.startsWith('84') && digits.length >= 10) {
@@ -83,26 +136,14 @@ export function parseDeliveryShareOrder(rawText: string): DeliveryShareOrder | n
   const deliveryFee = parseMoney(valueAfterLabel(lines.find((line) => lineContainsAny(line, deliveryFeeLabels)) || ''));
   const totalAmount = parseMoney(valueAfterLabel(lines.find((line) => lineContainsAny(line, totalAmountLabels)) || ''));
   const rawPaymentMethod = valueAfterLabel(lines.find((line) => lineContainsAny(line, paymentMethodLabels)) || '').split('(')[0].trim();
-  const itemRegex = /^🍲\s*(.+?)\s+([\d,]+)\s*₫(?:\s*\((.+)\))?\s*x\s*(\d+)\s*$/;
-  const optionRegex = /([^+()]+?)\s*\+([\d,]+)\s*₫/g;
   const items: DeliveryShareItem[] = [];
 
   lines.filter((line) => line.startsWith('🍲')).forEach((line) => {
-    const match = itemRegex.exec(line);
-    if (!match) return;
+    const item = parseDeliveryItemLine(line);
+    if (!item) return;
 
-    const quantity = Number(match[4] || 1);
-    const price = parseMoney(match[2]);
-    items.push({ name: match[1].trim(), quantity, amount: price * quantity });
-
-    const optionText = match[3] || '';
-    for (const option of optionText.matchAll(optionRegex)) {
-      const optionName = option[1]?.trim();
-      const optionPrice = parseMoney(option[2] || '');
-      if (optionName && optionPrice > 0) {
-        items.push({ name: `(${optionName})`, quantity, amount: optionPrice * quantity });
-      }
-    }
+    items.push({ name: item.name, quantity: item.quantity, amount: item.price * item.quantity });
+    items.push(...parseOptionItems(item.optionText, item.quantity));
   });
 
   if (!selectedAddress || !inputAddress || !phone || !deliveryFee || !totalAmount || !rawPaymentMethod || items.length === 0) {
