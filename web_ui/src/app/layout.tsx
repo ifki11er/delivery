@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "WorkLink",
   description: "Delivery and store operations app",
 };
-//
+
 import { auth } from "../../auth";
 import { getI18n } from "@/i18n/server";
 import { cookies } from "next/headers";
