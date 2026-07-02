@@ -83,6 +83,13 @@ function moneyK(amount: number) {
   return `${Number.isInteger(value) ? value.toLocaleString() : value.toLocaleString(undefined, { maximumFractionDigits: 1 })}k`;
 }
 
+function formatPaymentMethod(method: string) {
+  if (/cash/i.test(method) || method.includes('현금')) return 'CASH';
+  if (/bank|banking|transfer/i.test(method) || method.includes('계좌') || method.includes('이체')) return 'BANKING';
+  if (/card/i.test(method) || method.includes('카드')) return 'CARD';
+  return method || 'UNKNOWN';
+}
+
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
   const chars = [...text];
   const lines: string[] = [];
@@ -279,7 +286,7 @@ export function renderMiniPaymentReceipt(params: {
   y += 34;
   line(ctx, y);
   y += 58;
-  drawText(ctx, `${params.paymentMethod}:`, 28, y, { size: 42, bold: true, condensed: true });
+  drawText(ctx, `${formatPaymentMethod(params.paymentMethod)}:`, 28, y, { size: 42, bold: true, condensed: true });
   drawRightFit(ctx, money(receiptTotal), 542, y, 210, 42);
   y += 38;
   line(ctx, y);

@@ -6,6 +6,7 @@ export type PrintHistoryItem = {
   parsed_data?: string;
   timestamp: string;
   status: string;
+  deleted_at?: string | null;
 };
 
 const historyRequestCache = new Map<string, { timestamp: number; promise: Promise<PrintHistoryItem[]> }>();
@@ -16,11 +17,13 @@ function getHistoryRequestKey(options?: {
   storeId?: string;
   from?: string;
   to?: string;
+  deleted?: boolean;
 }) {
   const params = new URLSearchParams();
   if (options?.storeId) params.set('storeId', options.storeId);
   if (options?.from) params.set('from', options.from);
   if (options?.to) params.set('to', options.to);
+  if (options?.deleted) params.set('deleted', '1');
 
   const query = params.toString();
   return {
@@ -33,6 +36,7 @@ export function getCachedPrintHistory(options?: {
   storeId?: string;
   from?: string;
   to?: string;
+  deleted?: boolean;
 }) {
   return historyMemoryCache.get(getHistoryRequestKey(options).requestKey) ?? null;
 }
@@ -41,6 +45,7 @@ export async function getPrintHistory(options?: {
   storeId?: string;
   from?: string;
   to?: string;
+  deleted?: boolean;
   force?: boolean;
 }): Promise<PrintHistoryItem[]> {
   const { requestKey, query } = getHistoryRequestKey(options);
@@ -100,4 +105,19 @@ export async function addPrintHistory(item: {
     historyRequestCache.clear();
   }
   return data.item ?? null;
+}
+
+export async function deletePrintHistory(id: string, storeId?: string) {
+  const params = new URLSearchParams({ id });
+  if (storeId) params.set('storeId', storeId);
+
+  const res = await fetch(`/api/print-history?${params.toString()}`, {
+    method: 'DELETE',
+  });
+
+  if (!res.ok) return false;
+
+  historyMemoryCache.clear();
+  historyRequestCache.clear();
+  return true;
 }

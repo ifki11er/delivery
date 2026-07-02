@@ -4,6 +4,7 @@ type AndroidOrder = {
   parsed_data?: string;
   timestamp: string;
   status: string;
+  deleted_at?: string | null;
 };
 
 type AndroidPrinter = {

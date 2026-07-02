@@ -23,6 +23,7 @@ function serializePrintJob(job: {
   rawText: string;
   parsedData: string | null;
   createdAt: Date;
+  deletedAt: Date | null;
   status: string;
 }) {
   return {
@@ -31,6 +32,7 @@ function serializePrintJob(job: {
     parsed_data: job.parsedData ?? '',
     timestamp: job.createdAt.toISOString(),
     status: job.status,
+    deleted_at: job.deletedAt?.toISOString() ?? null,
   };
 }
 
@@ -48,22 +50,23 @@ export async function GET(req: Request) {
 
   const from = searchParams.get('from');
   const to = searchParams.get('to');
+  const showDeleted = searchParams.get('deleted') === '1';
   const fromDate = from ? new Date(from) : null;
   const toDate = to ? new Date(to) : null;
+  const dateFilter = fromDate && !Number.isNaN(fromDate.getTime()) || toDate && !Number.isNaN(toDate.getTime())
+    ? {
+        ...(fromDate && !Number.isNaN(fromDate.getTime()) ? { gte: fromDate } : {}),
+        ...(toDate && !Number.isNaN(toDate.getTime()) ? { lt: toDate } : {}),
+      }
+    : null;
 
   const jobs = await prisma.printJob.findMany({
     where: {
       storeId: store.id,
-      ...(fromDate && !Number.isNaN(fromDate.getTime()) || toDate && !Number.isNaN(toDate.getTime())
-        ? {
-            createdAt: {
-              ...(fromDate && !Number.isNaN(fromDate.getTime()) ? { gte: fromDate } : {}),
-              ...(toDate && !Number.isNaN(toDate.getTime()) ? { lt: toDate } : {}),
-            },
-          }
-        : {}),
+      deletedAt: showDeleted ? { not: null } : null,
+      ...(dateFilter ? { createdAt: dateFilter } : {}),
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: showDeleted ? { deletedAt: 'desc' } : { createdAt: 'desc' },
     take: 100,
   });
 
@@ -100,4 +103,39 @@ export async function POST(req: Request) {
   });
 
   return NextResponse.json({ item: serializePrintJob(job) });
+}
+
+export async function DELETE(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id') || '';
+  if (!id) {
+    return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  }
+
+  const store = await getAccessibleStore(session.user.id, session.user.role, searchParams.get('storeId'));
+  if (!store) {
+    return NextResponse.json({ error: 'No store found' }, { status: 404 });
+  }
+
+  const result = await prisma.printJob.updateMany({
+    where: {
+      id,
+      storeId: store.id,
+      deletedAt: null,
+    },
+    data: {
+      deletedAt: new Date(),
+    },
+  });
+
+  if (result.count === 0) {
+    return NextResponse.json({ error: 'Print history not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true });
 }

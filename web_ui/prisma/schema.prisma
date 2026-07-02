@@ -376,8 +376,10 @@ model PrintJob {
   parsedData String?  @map("parsed_data") @db.Text
   phone      String?
   createdAt  DateTime @default(now()) @map("created_at")
+  deletedAt  DateTime? @map("deleted_at")
 
   @@index([storeId, createdAt])
+  @@index([storeId, deletedAt, createdAt])
   @@index([userId, createdAt])
   @@map("print_jobs")
 }
