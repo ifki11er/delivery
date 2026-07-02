@@ -221,7 +221,7 @@ export default function MonitorPage() {
     }
     const menuLanguageSettings = await getMenuLanguageSettings(preferredStoreId);
     const printableOrder = applyMenuLanguageRules(order, menuLanguageSettings);
-    const success = window.AndroidBridge.printBitmapDataUrl(renderDeliveryShareReceipt(printableOrder, { orderSequence }))
+    const success = window.AndroidBridge.printBitmapDataUrl(renderDeliveryShareReceipt(printableOrder))
       && window.AndroidBridge.printBitmapDataUrl(renderDeliveryKitchenOrder(printableOrder, { orderSequence }));
     if (!success) {
       alert(t.monitor_print_failed);

@@ -57,6 +57,12 @@ function finishSharePrintOrNavigate(router: ReturnType<typeof useRouter>) {
   }
 }
 
+function waitForPaint() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
+
 export default function SharePrintPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -97,6 +103,12 @@ export default function SharePrintPage() {
     });
   };
 
+  const showStep = async (nextStatus: typeof status, nextMessage: string) => {
+    setStatus(nextStatus);
+    setMessage(nextMessage);
+    await waitForPaint();
+  };
+
   const printOrder = async () => {
     if (!order) {
       setStatus('failed');
@@ -105,8 +117,7 @@ export default function SharePrintPage() {
       return;
     }
 
-    setStatus('printing');
-    setMessage('출력중...');
+    await showStep('printing', '프린터 준비 확인 중...');
 
     try {
       const bridge = window.AndroidBridge;
@@ -118,12 +129,25 @@ export default function SharePrintPage() {
         return;
       }
 
+      await showStep('printing', '주문순서 발급 중...');
       const orderSequence = await nextDailyOrderSequence(preferredStoreId);
+
+      await showStep('printing', '메뉴 언어 설정 확인 중...');
       const menuLanguageSettings = await getMenuLanguageSettings(preferredStoreId);
       const printableOrder = applyMenuLanguageRules(order, menuLanguageSettings);
-      const receiptImage = renderDeliveryShareReceipt(printableOrder, { orderSequence });
+
+      await showStep('printing', '일반 주문서 이미지 생성 중...');
+      const receiptImage = renderDeliveryShareReceipt(printableOrder);
+
+      await showStep('printing', '주방 주문서 이미지 생성 중...');
       const kitchenImage = renderDeliveryKitchenOrder(printableOrder, { orderSequence });
-      const success = bridge.printBitmapDataUrl(receiptImage) && bridge.printBitmapDataUrl(kitchenImage);
+
+      await showStep('printing', '일반 주문서 프린터 전송 중...');
+      const receiptPrinted = bridge.printBitmapDataUrl(receiptImage);
+
+      await showStep('printing', '주방 주문서 프린터 전송 중...');
+      const kitchenPrinted = receiptPrinted && bridge.printBitmapDataUrl(kitchenImage);
+      const success = receiptPrinted && kitchenPrinted;
 
       if (!success) {
         setStatus('failed');
@@ -132,6 +156,7 @@ export default function SharePrintPage() {
         return;
       }
 
+      await showStep('printing', '출력 이력 저장 중...');
       await saveHistory('PRINTED', createDeliveryPrintHistoryData(printableOrder, orderSequence));
       setStatus('done');
       setMessage('출력 완료!');
@@ -157,9 +182,11 @@ export default function SharePrintPage() {
       }
 
       try {
+        await showStep('checking', '출력 설정 확인 중...');
         const settingRes = await fetch(`/api/store/blacklist-check-setting?storeId=${encodeURIComponent(preferredStoreId)}`);
         const setting = settingRes.ok ? await settingRes.json() as { enabled?: boolean } : { enabled: true };
         if (setting.enabled !== false) {
+          await showStep('checking', '비매너고객 전화번호 조회 중...');
           const phone = getDeliverySharePhoneDigits(order);
           const res = await fetch(`/api/blacklist/check?phone=${encodeURIComponent(phone)}`);
           if (res.ok) {

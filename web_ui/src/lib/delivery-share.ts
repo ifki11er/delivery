@@ -281,7 +281,7 @@ function makeCanvas(height: number) {
   return { canvas, ctx };
 }
 
-export function renderDeliveryShareReceipt(order: DeliveryShareOrder, options?: { orderSequence?: number }) {
+export function renderDeliveryShareReceipt(order: DeliveryShareOrder) {
   const rowHeight = 34;
   const measure = makeCanvas(1).ctx;
   measure.font = '400 31px Arial, sans-serif';
@@ -295,7 +295,7 @@ export function renderDeliveryShareReceipt(order: DeliveryShareOrder, options?: 
   const { canvas, ctx } = makeCanvas(height);
   let y = 64;
 
-  drawText(ctx, order.nickname, 36, y, { size: 34, bold: true });
+  drawText(ctx, '배달K 주문', 36, y, { size: 34, bold: true });
   y += 34;
   ctx.beginPath();
   ctx.moveTo(34, y);
@@ -366,10 +366,7 @@ export function renderDeliveryShareReceipt(order: DeliveryShareOrder, options?: 
 
   const now = new Date();
   const printedAt = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  drawText(ctx, printedAt, 36, y, { size: 38, bold: true });
-  if (options?.orderSequence) {
-    drawText(ctx, `주문순서:${options.orderSequence}`, 542, y, { size: 38, bold: true, align: 'right' });
-  }
+  drawText(ctx, printedAt, 542, y, { size: 38, bold: true, align: 'right' });
 
   return canvas.toDataURL('image/png');
 }
@@ -377,8 +374,8 @@ export function renderDeliveryShareReceipt(order: DeliveryShareOrder, options?: 
 export function renderDeliveryKitchenOrder(order: DeliveryShareOrder, options?: { orderSequence?: number }) {
   const measure = makeCanvas(1).ctx;
   measure.font = '400 32px Arial, sans-serif';
-  const itemHeight = order.items.reduce((sum, item, index) => {
-    const name = `${String(index + 1).padStart(2, '0')}.${item.name}`;
+  const itemHeight = order.items.reduce((sum, item) => {
+    const name = `⦁ ${item.name}`;
     return sum + Math.max(1, wrapText(measure, name, 330).length) * 42;
   }, 0);
   measure.font = '700 36px Arial, sans-serif';
@@ -409,9 +406,9 @@ export function renderDeliveryKitchenOrder(order: DeliveryShareOrder, options?: 
   ctx.stroke();
   y += 46;
 
-  order.items.forEach((item, index) => {
+  order.items.forEach((item) => {
     ctx.font = '400 32px Arial, sans-serif';
-    const name = `${String(index + 1).padStart(2, '0')}.${item.name}`;
+    const name = `⦁ ${item.name}`;
     wrapText(ctx, name, 330).forEach((line, lineIndex) => {
       drawText(ctx, lineIndex === 0 ? line : `   ${line}`, 34, y, { size: 32 });
       if (lineIndex === 0) {

@@ -13,6 +13,7 @@ import type { BlacklistEntry } from '@/types/store-management';
 
 const blacklistMemoryCache = new Map<string, BlacklistEntry[]>();
 const MAX_REASON_LENGTH = 100;
+const monitorStoreStorageKey = 'store_monitor_selected_store_id';
 
 function formatDateOnly(value?: string | Date | null) {
   if (!value) return '-';
@@ -29,7 +30,10 @@ export default function BlacklistPage() {
   const { confirm } = useFeedback();
   const { data: session } = useSession();
   const { stores, loading: storesLoading, hasStore } = useStores();
-  const storeId = stores[0]?.id || '';
+  const [selectedStoreId, setSelectedStoreId] = useState('');
+  const selectedStore = stores.find((store) => store.id === selectedStoreId) || null;
+  const preferredStore = selectedStore || (!selectedStoreId ? stores[0] || null : null);
+  const storeId = preferredStore?.id || '';
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [blacklistCheckEnabled, setBlacklistCheckEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -37,6 +41,27 @@ export default function BlacklistPage() {
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editingReason, setEditingReason] = useState('');
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!storesLoading && selectedStoreId && !stores.some((store) => store.id === selectedStoreId)) {
+      setSelectedStoreId(stores[0]?.id || '');
+      return;
+    }
+
+    if (storesLoading || stores.length === 0 || selectedStoreId) return;
+
+    const storedStoreId = localStorage.getItem(monitorStoreStorageKey);
+    const nextStoreId = storedStoreId && stores.some((store) => store.id === storedStoreId)
+      ? storedStoreId
+      : stores[0].id;
+    setSelectedStoreId(nextStoreId);
+  }, [selectedStoreId, stores, storesLoading]);
+
+  useEffect(() => {
+    if (selectedStoreId) {
+      localStorage.setItem(monitorStoreStorageKey, selectedStoreId);
+    }
+  }, [selectedStoreId]);
 
   const fetchBlacklist = async (q = '', force = false) => {
     try {
@@ -225,6 +250,21 @@ export default function BlacklistPage() {
         <p className="rounded-xl border border-gray-100 bg-white px-4 py-3 text-xs font-semibold leading-5 text-gray-500 shadow-sm">
           현재 리스트는 내가 제보한 리스트만 나옵니다. 검색을 하면 내가 제보하지 않은 리스트도 확인 가능합니다.
         </p>
+
+        {stores.length > 1 ? (
+          <label className="block rounded-xl border border-gray-100 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm">
+            <span className="mb-2 block text-xs font-black text-gray-500">상점 선택</span>
+            <select
+              value={storeId}
+              onChange={(event) => setSelectedStoreId(event.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-bold"
+            >
+              {stores.map((store) => (
+                <option key={store.id} value={store.id}>{store.name}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         <label className="flex items-start gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm">
           <input
