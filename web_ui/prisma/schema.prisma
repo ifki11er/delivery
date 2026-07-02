@@ -67,6 +67,7 @@ model User {
   stores        Store[]
   blacklists    Blacklist[]
   printJobs     PrintJob[]
+  deliveryBlacklistCheckEnabled Boolean @default(true) @map("delivery_blacklist_check_enabled")
   deletedAt     DateTime? // 소프트 삭제용 필드
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -112,7 +113,6 @@ model Store {
   dailySequences     StoreDailySequence[]
   menuLanguageMode    String    @default("KOREAN_ONLY") @map("menu_language_mode")
   miniReceiptLanguageMode String @default("KOREAN_ONLY") @map("mini_receipt_language_mode")
-  deliveryBlacklistCheckEnabled Boolean @default(true) @map("delivery_blacklist_check_enabled")
   menuLanguageRules   StoreMenuLanguageRule[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt

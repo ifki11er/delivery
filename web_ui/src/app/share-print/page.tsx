@@ -183,7 +183,7 @@ export default function SharePrintPage() {
 
       try {
         await showStep('checking', '출력 설정 확인 중...');
-        const settingRes = await fetch(`/api/store/blacklist-check-setting?storeId=${encodeURIComponent(preferredStoreId)}`);
+        const settingRes = await fetch('/api/store/blacklist-check-setting');
         const setting = settingRes.ok ? await settingRes.json() as { enabled?: boolean } : { enabled: true };
         if (setting.enabled !== false) {
           await showStep('checking', '비매너고객 전화번호 조회 중...');
