@@ -81,6 +81,7 @@ export async function addPrintHistory(item: {
 }) {
   const res = await fetch('/api/print-history', {
     method: 'POST',
+    keepalive: true,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       storeId: item.storeId,

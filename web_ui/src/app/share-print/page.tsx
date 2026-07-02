@@ -11,9 +11,8 @@ import {
   renderDeliveryKitchenOrder,
   renderDeliveryShareReceipt,
 } from '@/lib/delivery-share';
-import { nextDailyOrderSequence } from '@/lib/daily-order-sequence';
 import { addPrintHistory } from '@/lib/print-history';
-import { applyMenuLanguageRules, getMenuLanguageSettings } from '@/lib/menu-language';
+import { applyMenuLanguageRules, type MenuLanguageSettings } from '@/lib/menu-language';
 
 type BlacklistReport = {
   id?: string;
@@ -30,6 +29,13 @@ type BlacklistCheck = {
   count: number;
   latestDate: string;
   reports: BlacklistReport[];
+};
+
+type SharePrintPrepareResponse = {
+  blocked?: boolean;
+  blacklist?: BlacklistCheck;
+  orderSequence?: number;
+  menuLanguageSettings?: MenuLanguageSettings;
 };
 
 const monitorStoreStorageKey = 'store_monitor_selected_store_id';
@@ -109,7 +115,7 @@ export default function SharePrintPage() {
     await waitForPaint();
   };
 
-  const printOrder = async () => {
+  const printOrder = async (skipBlacklist = false) => {
     if (!order) {
       setStatus('failed');
       setMessage('배달K 주문 공유 형식이 아닙니다.');
@@ -117,9 +123,50 @@ export default function SharePrintPage() {
       return;
     }
 
-    await showStep('printing', '프린터 준비 확인 중...');
-
     try {
+      await showStep('checking', '출력 준비 정보 확인 중...');
+      const prepareRes = await fetch('/api/share-print/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeId: preferredStoreId,
+          phone: getDeliverySharePhoneDigits(order),
+          skipBlacklist,
+        }),
+      });
+
+      if (!prepareRes.ok) {
+        setStatus('failed');
+        setMessage('출력 준비 중 오류가 발생했습니다.');
+        await saveHistory('FAILED', '출력 준비 오류');
+        return;
+      }
+
+      const prepareData = await prepareRes.json() as SharePrintPrepareResponse;
+      if (prepareData.blocked && prepareData.blacklist) {
+        setBlacklist({
+          ...prepareData.blacklist,
+          reports: [...(prepareData.blacklist.reports || [])].sort((a, b) => {
+            if (a.isMine) return -1;
+            if (b.isMine) return 1;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          }),
+        });
+        setStatus('blocked');
+        setMessage('비매너고객에 등록된 고객입니다.');
+        return;
+      }
+
+      const orderSequence = prepareData.orderSequence;
+      const menuLanguageSettings = prepareData.menuLanguageSettings;
+      if (typeof orderSequence !== 'number' || !menuLanguageSettings) {
+        setStatus('failed');
+        setMessage('출력 준비 응답이 올바르지 않습니다.');
+        await saveHistory('FAILED', '출력 준비 응답 오류');
+        return;
+      }
+
+      await showStep('printing', '프린터 준비 확인 중...');
       const bridge = window.AndroidBridge;
 
       if (!bridge?.printBitmapDataUrl) {
@@ -129,11 +176,6 @@ export default function SharePrintPage() {
         return;
       }
 
-      await showStep('printing', '주문순서 발급 중...');
-      const orderSequence = await nextDailyOrderSequence(preferredStoreId);
-
-      await showStep('printing', '메뉴 언어 설정 확인 중...');
-      const menuLanguageSettings = await getMenuLanguageSettings(preferredStoreId);
       const printableOrder = applyMenuLanguageRules(order, menuLanguageSettings);
 
       await showStep('printing', '일반 주문서 이미지 생성 중...');
@@ -156,10 +198,9 @@ export default function SharePrintPage() {
         return;
       }
 
-      await showStep('printing', '출력 이력 저장 중...');
-      await saveHistory('PRINTED', createDeliveryPrintHistoryData(printableOrder, orderSequence));
       setStatus('done');
       setMessage('출력 완료!');
+      void saveHistory('PRINTED', createDeliveryPrintHistoryData(printableOrder, orderSequence));
       setTimeout(() => finishSharePrintOrNavigate(router), 700);
     } catch (error) {
       console.error(error);
@@ -179,35 +220,6 @@ export default function SharePrintPage() {
         setMessage('배달K 주문 공유 형식이 아닙니다.');
         await saveHistory('FAILED', '지원하지 않는 공유 텍스트 형식입니다.');
         return;
-      }
-
-      try {
-        await showStep('checking', '출력 설정 확인 중...');
-        const settingRes = await fetch('/api/store/blacklist-check-setting');
-        const setting = settingRes.ok ? await settingRes.json() as { enabled?: boolean } : { enabled: true };
-        if (setting.enabled !== false) {
-          await showStep('checking', '비매너고객 전화번호 조회 중...');
-          const phone = getDeliverySharePhoneDigits(order);
-          const res = await fetch(`/api/blacklist/check?phone=${encodeURIComponent(phone)}`);
-          if (res.ok) {
-            const data = (await res.json()) as BlacklistCheck;
-            if (data.isBlacklisted) {
-              setBlacklist({
-                ...data,
-                reports: [...(data.reports || [])].sort((a, b) => {
-                  if (a.isMine) return -1;
-                  if (b.isMine) return 1;
-                  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-                }),
-              });
-              setStatus('blocked');
-              setMessage('비매너고객에 등록된 고객입니다.');
-              return;
-            }
-          }
-        }
-      } catch (error) {
-        console.error(error);
       }
 
       await printOrder();
@@ -246,7 +258,7 @@ export default function SharePrintPage() {
               </button>
               <button
                 type="button"
-                onClick={printOrder}
+                onClick={() => printOrder(true)}
                 className="h-12 flex-1 rounded-xl bg-indigo-600 text-sm font-black text-white"
               >
                 계속 출력
