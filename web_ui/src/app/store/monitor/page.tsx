@@ -205,6 +205,12 @@ export default function MonitorPage() {
 
   const reprintDeliveryOrder = async (job: AndroidOrder) => {
     if (reprintingJobId || deletingJobId) return;
+    if (!(await confirm({
+      title: "주문서 재출력",
+      message: "정말 재출력하시겠습니까?",
+      confirmText: "재출력",
+      cancelText: "취소",
+    }))) return;
     if (!ensurePrinterConnected()) return;
     setReprintingJobId(job.id);
 
@@ -243,7 +249,7 @@ export default function MonitorPage() {
     if (reprintingJobId || deletingJobId) return;
     if (!(await confirm({
       title: "출력 이력 삭제",
-      message: "이 출력 이력을 삭제 탭으로 이동할까요?",
+      message: "정말 삭제하시겠습니까?",
       confirmText: "삭제",
       cancelText: "취소",
       danger: true,
@@ -423,7 +429,7 @@ export default function MonitorPage() {
         </div>
       </div>
 
-      <div className="mb-3 grid grid-cols-2 rounded-xl border border-gray-100 bg-white p-1 shadow-sm">
+      <div className="mb-3 grid grid-cols-[7fr_3fr] rounded-xl border border-gray-100 bg-white p-1 shadow-sm">
         <button
           type="button"
           onClick={() => setHistoryTab("active")}
@@ -440,7 +446,7 @@ export default function MonitorPage() {
             historyTab === "deleted" ? "bg-red-600 text-white" : "text-gray-600 hover:bg-gray-50"
           }`}
         >
-          삭제
+          휴지통
         </button>
       </div>
 
