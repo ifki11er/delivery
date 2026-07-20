@@ -274,6 +274,14 @@ function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y);
 }
 
+function drawCheckbox(ctx: CanvasRenderingContext2D, centerX: number, baselineY: number, size = 18) {
+  ctx.save();
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(Math.round(centerX - size / 2), Math.round(baselineY - size + 3), size, size);
+  ctx.restore();
+}
+
 function makeCanvas(height: number) {
   const canvas = document.createElement('canvas');
   canvas.width = 576;
@@ -287,113 +295,132 @@ function makeCanvas(height: number) {
 
 export function renderDeliveryShareReceipt(order: DeliveryShareOrder) {
   const rowHeight = 34;
+  const left = 10;
+  const right = 566;
+  const checkX = 28;
+  const menuX = 58;
+  const qtyX = 476;
+  const amountX = 566;
+  const menuWidth = 388;
+  const menuTitleX = menuX + menuWidth / 2;
   const measure = makeCanvas(1).ctx;
   measure.font = '400 31px Arial, sans-serif';
-  const selectedAddressLines = wrapText(measure, `⦁${order.selectedAddress}`, 510, 4).length;
-  const requestLines = order.requestNote ? wrapText(measure, `⦁ 추가요청사항 : ${order.requestNote}`, 510, 3) : [];
+  const selectedAddressLines = wrapText(measure, `⦁${order.selectedAddress}`, right - left, 4).length;
+  const requestLines = order.requestNote ? wrapText(measure, `⦁ 추가요청사항 : ${order.requestNote}`, right - left, 3) : [];
   const itemHeight = order.items.reduce((sum, item) => {
     const { ctx } = makeCanvas(1);
     ctx.font = '400 27px Arial, sans-serif';
-    return sum + wrapText(ctx, item.name, 300).length * rowHeight;
+    return sum + wrapText(ctx, item.name, menuWidth).length * rowHeight;
   }, 0);
   const requestHeight = requestLines.length > 0 ? 44 + requestLines.length * 38 : 0;
   const height = 790 + itemHeight + selectedAddressLines * 38 + requestHeight;
   const { canvas, ctx } = makeCanvas(height);
   let y = 64;
 
-  drawText(ctx, '배달K 주문', 36, y, { size: 34, bold: true });
+  drawText(ctx, '배달K 주문 (Giao hàng)', left, y, { size: 34, bold: true });
   y += 34;
   ctx.beginPath();
-  ctx.moveTo(34, y);
-  ctx.lineTo(542, y);
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
   ctx.stroke();
   y += 38;
 
   ctx.font = '400 31px Arial, sans-serif';
-  wrapText(ctx, `⦁ ${order.selectedAddress}`, 510, 4).forEach((line) => {
-    drawText(ctx, line, 36, y, { size: 31 });
+  wrapText(ctx, `⦁ ${order.selectedAddress}`, right - left, 4).forEach((line) => {
+    drawText(ctx, line, left, y, { size: 31 });
     y += 38;
   });
-  drawText(ctx, `⦁ ${order.inputAddress}`, 36, y, { size: 31 });
+  drawText(ctx, `⦁ ${order.inputAddress}`, left, y, { size: 31 });
   y += 44;
-  drawText(ctx, `⦁ ${order.phone}`, 36, y, { size: 35, bold: true });
+  drawText(ctx, `⦁ ${order.phone}`, left, y, { size: 35, bold: true });
   if (requestLines.length > 0) {
     y += 44;
     requestLines.forEach((line) => {
-      drawText(ctx, line, 36, y, { size: 31 });
+      drawText(ctx, line, left, y, { size: 31 });
       y += 38;
     });
   }
   y += 26;
   ctx.beginPath();
-  ctx.moveTo(34, y);
-  ctx.lineTo(542, y);
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
   ctx.stroke();
   y += 44;
 
-  drawText(ctx, '메뉴', 110, y, { size: 24, align: 'center' });
-  drawText(ctx, '수량', 410, y, { size: 24, align: 'center' });
-  drawText(ctx, '금액', 520, y, { size: 24, align: 'right' });
+  drawText(ctx, '확인', checkX, y, { size: 24, align: 'center' });
+  drawText(ctx, '메뉴', menuTitleX, y, { size: 24, align: 'center' });
+  drawText(ctx, '수량', qtyX, y, { size: 24, align: 'center' });
+  drawText(ctx, '금액', amountX, y, { size: 24, align: 'right' });
   y += 20;
   ctx.beginPath();
-  ctx.moveTo(34, y);
-  ctx.lineTo(542, y);
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
   ctx.stroke();
   y += 34;
 
   order.items.forEach((item) => {
     ctx.font = '400 27px Arial, sans-serif';
-    const lines = wrapText(ctx, `⦁ ${item.name}`, 330);
+    const lines = wrapText(ctx, item.name, menuWidth);
     lines.forEach((line, index) => {
-      drawText(ctx, line, 36, y, { size: 27 });
       if (index === 0) {
-        drawText(ctx, String(item.quantity), 410, y, { size: 27, align: 'center' });
-        drawText(ctx, moneyToK(item.amount), 542, y, { size: 27, align: 'right' });
+        drawCheckbox(ctx, checkX, y);
+        drawText(ctx, line, menuX, y, { size: 27 });
+        drawText(ctx, String(item.quantity), qtyX, y, { size: 27, align: 'center' });
+        drawText(ctx, moneyToK(item.amount), amountX, y, { size: 27, align: 'right' });
+      } else {
+        drawText(ctx, line, menuX, y, { size: 27 });
       }
       y += rowHeight;
     });
   });
 
-  drawText(ctx, '배달비', 72, y + 8, { size: 27 });
-  drawText(ctx, moneyToK(order.deliveryFee), 542, y + 8, { size: 27, align: 'right' });
+  drawText(ctx, '배달비', menuX, y + 8, { size: 27 });
+  drawText(ctx, moneyToK(order.deliveryFee), amountX, y + 8, { size: 27, align: 'right' });
   y += 54;
   ctx.beginPath();
-  ctx.moveTo(34, y);
-  ctx.lineTo(542, y);
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
   ctx.stroke();
   y += 52;
 
-  drawText(ctx, order.paymentMethod, 72, y, { size: 31, bold: true });
+  drawText(ctx, order.paymentMethod, menuX, y, { size: 31, bold: true });
   drawText(ctx, moneyToK(order.totalAmount), 342, y, { size: 38, bold: true, align: 'center' });
-  drawText(ctx, `( ${moneyToK(nextChangeAmount(order.totalAmount))} )`, 542, y, { size: 31, bold: true, align: 'right' });
+  drawText(ctx, `( ${moneyToK(nextChangeAmount(order.totalAmount))} )`, right, y, { size: 31, bold: true, align: 'right' });
   y += 28;
   ctx.beginPath();
-  ctx.moveTo(34, y);
-  ctx.lineTo(542, y);
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
   ctx.stroke();
   y += 42;
-  drawText(ctx, 'MEMO', 72, y, { size: 24 });
+  drawText(ctx, 'MEMO', menuX, y, { size: 24 });
   y += 22;
-  ctx.strokeRect(34, y, 508, 148);
+  ctx.strokeRect(left, y, right - left, 148);
   y += 196;
 
   const now = new Date();
   const printedAt = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  drawText(ctx, printedAt, 542, y, { size: 38, bold: true, align: 'right' });
+  drawText(ctx, printedAt, right, y, { size: 38, bold: true, align: 'right' });
 
   return canvas.toDataURL('image/png');
 }
 
 export function renderDeliveryKitchenOrder(order: DeliveryShareOrder, options?: { orderSequence?: number }) {
+  const left = 10;
+  const right = 566;
+  const checkX = 28;
+  const menuX = 58;
+  const qtyX = 476;
+  const noteX = 566;
+  const menuWidth = 388;
+  const menuTitleX = menuX + menuWidth / 2;
   const measure = makeCanvas(1).ctx;
-  measure.font = '400 32px Arial, sans-serif';
+  measure.font = '400 27px Arial, sans-serif';
   const itemHeight = order.items.reduce((sum, item) => {
-    const name = `⦁ ${item.name}`;
-    return sum + Math.max(1, wrapText(measure, name, 330).length) * 42;
+    return sum + Math.max(1, wrapText(measure, item.name, menuWidth).length) * 34;
   }, 0);
   measure.font = '700 36px Arial, sans-serif';
-  const selectedAddressLines = wrapText(measure, order.selectedAddress, 500, 5);
-  const inputAddressLines = wrapText(measure, order.inputAddress, 500, 3);
+  const selectedAddressLines = wrapText(measure, order.selectedAddress, right - left, 5);
+  const inputAddressLines = wrapText(measure, order.inputAddress, right - left, 3);
   const addressHeight = Math.max(1, selectedAddressLines.length + inputAddressLines.length) * 42 + 8;
   const height = 524 + itemHeight + addressHeight;
   const { canvas, ctx } = makeCanvas(height);
@@ -401,59 +428,62 @@ export function renderDeliveryKitchenOrder(order: DeliveryShareOrder, options?: 
 
   drawText(ctx, '주문서 (주방)', 288, y, { size: 37, align: 'center' });
   y += 72;
-  drawText(ctx, '배달K 주문', 34, y, { size: 44 });
+  drawText(ctx, '배달K 주문 (Bếp)', left, y, { size: 42 });
   y += 34;
   ctx.beginPath();
-  ctx.moveTo(34, y);
-  ctx.lineTo(542, y);
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
   ctx.stroke();
-  y += 52;
+  y += 44;
 
-  drawText(ctx, '메  뉴', 72, y, { size: 28 });
-  drawText(ctx, '수량', 410, y, { size: 28, align: 'center' });
-  drawText(ctx, '비고', 532, y, { size: 28, align: 'right' });
-  y += 24;
+  drawText(ctx, '확인', checkX, y, { size: 24, align: 'center' });
+  drawText(ctx, '메  뉴', menuTitleX, y, { size: 24, align: 'center' });
+  drawText(ctx, '수량', qtyX, y, { size: 24, align: 'center' });
+  drawText(ctx, '비고', noteX, y, { size: 24, align: 'right' });
+  y += 20;
   ctx.beginPath();
-  ctx.moveTo(34, y);
-  ctx.lineTo(542, y);
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
   ctx.stroke();
-  y += 46;
+  y += 34;
 
   order.items.forEach((item) => {
-    ctx.font = '400 32px Arial, sans-serif';
-    const name = `⦁ ${item.name}`;
-    wrapText(ctx, name, 330).forEach((line, lineIndex) => {
-      drawText(ctx, lineIndex === 0 ? line : `   ${line}`, 34, y, { size: 32 });
+    ctx.font = '400 27px Arial, sans-serif';
+    wrapText(ctx, item.name, menuWidth).forEach((line, lineIndex) => {
       if (lineIndex === 0) {
-        drawText(ctx, String(item.quantity), 410, y, { size: 32, align: 'center' });
-        drawText(ctx, '신규', 532, y, { size: 32, align: 'right' });
+        drawCheckbox(ctx, checkX, y);
+        drawText(ctx, line, menuX, y, { size: 27 });
+        drawText(ctx, String(item.quantity), qtyX, y, { size: 27, align: 'center' });
+        drawText(ctx, '신규', noteX, y, { size: 27, align: 'right' });
+      } else {
+        drawText(ctx, line, menuX, y, { size: 27 });
       }
-      y += 42;
+      y += 34;
     });
   });
   y += 12;
   ctx.beginPath();
-  ctx.moveTo(34, y);
-  ctx.lineTo(542, y);
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
   ctx.stroke();
   y += 44;
   const now = new Date();
   const printedAt = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  drawText(ctx, printedAt, 542, y, { size: 36, bold: true, align: 'right' });
+  drawText(ctx, printedAt, right, y, { size: 36, bold: true, align: 'right' });
   y += 44;
   ctx.font = '700 36px Arial, sans-serif';
   selectedAddressLines.forEach((line) => {
-    drawText(ctx, line, 34, y, { size: 36, bold: true });
+    drawText(ctx, line, left, y, { size: 36, bold: true });
     y += 42;
   });
   y += 8;
   inputAddressLines.forEach((line) => {
-    drawText(ctx, line, 34, y, { size: 36, bold: true });
+    drawText(ctx, line, left, y, { size: 36, bold: true });
     y += 42;
   });
   if (options?.orderSequence) {
     y += 16;
-    drawText(ctx, `주문순서:${options.orderSequence}`, 34, y, { size: 40, bold: true });
+    drawText(ctx, `주문순서:${options.orderSequence}`, left, y, { size: 40, bold: true });
   }
 
   return canvas.toDataURL('image/png');
