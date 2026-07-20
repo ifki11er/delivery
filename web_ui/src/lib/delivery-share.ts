@@ -293,15 +293,15 @@ function makeCanvas(height: number) {
   return { canvas, ctx };
 }
 
-export function renderDeliveryShareReceipt(order: DeliveryShareOrder) {
-  const rowHeight = 34;
-  const left = 10;
-  const right = 566;
-  const checkX = 28;
-  const menuX = 58;
-  const qtyX = 476;
-  const amountX = 566;
-  const menuWidth = 388;
+export function renderDeliveryShareReceipt(order: DeliveryShareOrder) { // 배달k공유 출력 (배달용 주문서)
+  const rowHeight = 34; // 메뉴 한 줄의 세로 높이
+  const left = 0; // 전체 가로선/메모박스의 왼쪽 끝
+  const right = 576; // 전체 가로선/메모박스의 오른쪽 끝
+  const checkX = 28; // 체크박스 가운데 위치
+  const menuX = 58; // 메뉴명 시작 위치
+  const qtyX = 486; // 수량 가운데 위치
+  const amountX = 576; // 금액 오른쪽 정렬 위치
+  const menuWidth = 398; // 메뉴명이 줄바꿈되는 최대 폭
   const menuTitleX = menuX + menuWidth / 2;
   const measure = makeCanvas(1).ctx;
   measure.font = '400 31px Arial, sans-serif';
@@ -404,14 +404,14 @@ export function renderDeliveryShareReceipt(order: DeliveryShareOrder) {
   return canvas.toDataURL('image/png');
 }
 
-export function renderDeliveryKitchenOrder(order: DeliveryShareOrder, options?: { orderSequence?: number }) {
-  const left = 10;
-  const right = 566;
-  const checkX = 28;
-  const menuX = 58;
-  const qtyX = 476;
-  const noteX = 566;
-  const menuWidth = 388;
+export function renderDeliveryKitchenOrder(order: DeliveryShareOrder, options?: { orderSequence?: number }) { // 배달k공유 출력 (주방용 주문서)
+  const left = 0; // 전체 가로선의 왼쪽 끝
+  const right = 576; // 전체 가로선의 오른쪽 끝
+  const checkX = 28; // 체크박스 가운데 위치
+  const menuX = 58; // 메뉴명 시작 위치
+  const qtyX = 486; // 수량 가운데 위치
+  const noteX = 576; // 비고 오른쪽 정렬 위치
+  const menuWidth = 398; // 메뉴명이 줄바꿈되는 최대 폭
   const menuTitleX = menuX + menuWidth / 2;
   const measure = makeCanvas(1).ctx;
   measure.font = '400 27px Arial, sans-serif';
